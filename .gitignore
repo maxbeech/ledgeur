@@ -1,9 +1,15 @@
 # See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
 
 # dependencies
-/node_modules
+node_modules/
 /.pnp
 .pnp.*
+
+# monorepo build outputs
+dist/
+.turbo/
+apps/desktop/src-tauri/target/
+apps/desktop/src-tauri/gen/schemas/
 .yarn/*
 !.yarn/patches
 !.yarn/plugins
@@ -14,7 +20,7 @@
 /coverage
 
 # next.js
-/.next/
+.next/
 /out/
 
 # production

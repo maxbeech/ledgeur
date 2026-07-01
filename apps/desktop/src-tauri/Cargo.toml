@@ -1,0 +1,39 @@
+[package]
+name = "parleynotes"
+version = "0.2.0"
+description = "ParleyNotes — the centre of the company's brain"
+authors = ["ParleyNotes"]
+edition = "2021"
+rust-version = "1.77.2"
+
+# The library the desktop binary and the mobile entry points both call into.
+[lib]
+name = "parleynotes_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-notification = "2"
+tauri-plugin-opener = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# On-device AI engines. Optional + behind the `native-ai` feature so the base
+# app compiles fast; enable with `cargo build --features native-ai` (or the
+# `tauri:build:ai` script) once the native toolchain is set up.
+whisper-rs = { version = "0.16", optional = true }
+# Defaults on → the sys crate auto-downloads prebuilt sherpa-onnx libs on a
+# networked machine. For offline/CI builds, set default-features = false and point
+# SHERPA_LIB_PATH at a pre-downloaded lib dir (see docs/NATIVE_AI.md).
+sherpa-rs = { version = "0.6", optional = true }
+reqwest = { version = "0.12", default-features = false, features = ["blocking", "rustls-tls"], optional = true }
+
+[features]
+# Enabled by tauri on desktop builds for custom protocol asset serving.
+custom-protocol = ["tauri/custom-protocol"]
+# On-device transcription (whisper.cpp), diarization (sherpa-onnx) and model
+# downloads. Heavy native build; opt-in.
+native-ai = ["dep:whisper-rs", "dep:sherpa-rs", "dep:reqwest"]

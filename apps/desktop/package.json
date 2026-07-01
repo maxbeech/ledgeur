@@ -1,0 +1,42 @@
+{
+  "name": "@parleynotes/desktop",
+  "version": "0.2.0",
+  "private": true,
+  "description": "ParleyNotes cross-platform app (Tauri 2 + Vite + React) — macOS, Windows, iOS, Android.",
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit",
+    "tauri": "tauri",
+    "tauri:dev": "tauri dev",
+    "tauri:dev:ai": "tauri dev --features native-ai",
+    "tauri:build": "tauri build",
+    "tauri:build:ai": "tauri build --features native-ai",
+    "ios:dev": "tauri ios dev"
+  },
+  "dependencies": {
+    "@parleynotes/core": "workspace:*",
+    "@parleynotes/ui": "workspace:*",
+    "@supabase/supabase-js": "^2.58.0",
+    "@tauri-apps/api": "^2.5.0",
+    "@tauri-apps/plugin-notification": "^2.2.0",
+    "@tauri-apps/plugin-opener": "^2.2.0",
+    "lucide-react": "^0.469.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "react-router-dom": "^7.1.0"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.0.0",
+    "@tauri-apps/cli": "^2.5.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "@vitejs/plugin-react": "^4.3.4",
+    "tailwindcss": "^4.0.0",
+    "typescript": "^5.9.2",
+    "vite": "^6.0.0"
+  }
+}
