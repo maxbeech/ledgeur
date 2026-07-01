@@ -27,7 +27,10 @@ MCP-aware tool, plus the cross-user **hive mind**.
 ```bash
 pnpm install                 # install the whole workspace
 
-# The app (browser preview — fast UI iteration, on-device transcription)
+# App (browser preview :1420) + marketing (:3000) together
+pnpm dev
+
+# Just the app (browser preview — fast UI iteration, on-device transcription)
 pnpm desktop:dev             # http://localhost:1420
 
 # The app (native window with the Rust core)
@@ -39,11 +42,18 @@ pnpm --filter @parleynotes/desktop ios:dev
 # The marketing site
 pnpm marketing:dev
 
+# The paid MCP server (needs Supabase creds — run it on its own, not part of dev)
+PARLEY_SUPABASE_URL=… PARLEY_SUPABASE_ANON_KEY=… PARLEY_REFRESH_TOKEN=… \
+  pnpm --filter @parleynotes/mcp-server start
+
 # Everything
 pnpm build      # turbo build across all packages
 pnpm test       # turbo test
 pnpm lint
 ```
+
+> Use **pnpm**, not npm — this is a pnpm workspace. `npm run dev` also works but
+> prints harmless `Unknown project config` warnings for pnpm-only `.npmrc` keys.
 
 ### Configure the backend (optional for local UI work)
 
