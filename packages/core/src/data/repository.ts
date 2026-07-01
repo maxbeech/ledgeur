@@ -20,6 +20,29 @@ export async function listMeetings(db: SupabaseClient, limit = 50): Promise<Meet
   return (rows as MeetingRow[]).map(toMeeting);
 }
 
+export interface MeetingSummary {
+  meeting: Meeting;
+  wordCount: number;
+  actionItemCount: number;
+}
+
+/** Meetings with lightweight counts for list views (single round-trip via
+ *  PostgREST embedding). Used by the app to show workspace meetings from any device. */
+export async function listMeetingSummaries(db: SupabaseClient, limit = 50): Promise<MeetingSummary[]> {
+  const rows = unwrap(
+    await db
+      .from("meetings")
+      .select("*, meeting_notes(word_count), action_items(id)")
+      .order("created_at", { ascending: false })
+      .limit(limit),
+  ) as (MeetingRow & { meeting_notes: { word_count: number }[]; action_items: { id: string }[] })[];
+  return rows.map((r) => ({
+    meeting: toMeeting(r),
+    wordCount: r.meeting_notes?.[0]?.word_count ?? 0,
+    actionItemCount: r.action_items?.length ?? 0,
+  }));
+}
+
 export interface FullMeeting {
   meeting: Meeting;
   note: MeetingNote | null;

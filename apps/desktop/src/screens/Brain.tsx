@@ -5,15 +5,15 @@ import { relativeTime } from "@parleynotes/ui";
 import { Page } from "../components/PageHeader.tsx";
 import { Button, Card, EmptyState } from "../components/ui.tsx";
 import { TodaySchedule } from "../components/TodaySchedule.tsx";
-import { useLocalMeetings } from "../lib/useLocalMeetings.ts";
+import { useMeetings } from "../lib/useMeetings.ts";
 
 export function Brain() {
   const nav = useNavigate();
   const [q, setQ] = useState("");
-  const { meetings } = useLocalMeetings();
+  const { cards } = useMeetings();
   const now = new Date();
-  const recent = (meetings ?? []).slice(0, 5);
-  const openTasks = (meetings ?? []).reduce((n, m) => n + m.actionItems.length, 0);
+  const recent = (cards ?? []).slice(0, 5);
+  const openTasks = (cards ?? []).reduce((n, m) => n + m.actionItemCount, 0);
 
   return (
     <Page>
@@ -36,7 +36,7 @@ export function Brain() {
       </Card>
 
       <div className="grid grid-cols-3 gap-4">
-        <StatCard icon={<CalendarClock className="h-5 w-5" />} label="Meetings" value={String(meetings?.length ?? "—")} onClick={() => nav("/meetings")} />
+        <StatCard icon={<CalendarClock className="h-5 w-5" />} label="Meetings" value={String(cards?.length ?? "—")} onClick={() => nav("/meetings")} />
         <StatCard icon={<CheckSquare className="h-5 w-5" />} label="Open tasks" value={String(openTasks)} onClick={() => nav("/tasks")} />
         <StatCard icon={<CircleDot className="h-5 w-5" />} label="Record" value="Start" accent onClick={() => nav("/record")} />
       </div>
@@ -60,7 +60,7 @@ export function Brain() {
               <button key={m.id} onClick={() => nav(`/meetings/${m.id}`)} className="flex w-full items-center justify-between px-5 py-3.5 text-left hover:bg-surface-muted/60">
                 <div className="min-w-0">
                   <div className="truncate text-sm font-medium text-ink-text">{m.title}</div>
-                  <div className="text-xs text-muted">{relativeTime(m.createdAt, now)} · {m.wordCount} words · {m.actionItems.length} tasks</div>
+                  <div className="text-xs text-muted">{relativeTime(m.createdAt, now)} · {m.wordCount} words · {m.actionItemCount} tasks</div>
                 </div>
                 <ArrowRight className="h-4 w-4 text-muted" />
               </button>

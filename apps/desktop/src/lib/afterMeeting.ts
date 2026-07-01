@@ -20,11 +20,13 @@ export async function finalizeMeeting(localId: string): Promise<void> {
 
   const m = await getMeeting(localId);
   if (!m) return;
-  const { data: org } = await sb.from("orgs").select("id").limit(1).maybeSingle();
+  // The org's admin-set default decides whether new meetings join the hive mind.
+  const { data: org } = await sb.from("orgs").select("id, default_meeting_visibility").limit(1).maybeSingle();
   if (!org) return;
+  const visibility = org.default_meeting_visibility === "org" ? "org" : "private";
 
   try {
-    const remoteId = await pushMeeting(org.id, session.user.id, m);
+    const remoteId = await pushMeeting(org.id, session.user.id, m, visibility);
     // RAG indexing needs the local model; don't block the flow if it's off.
     await indexMeeting(org.id, remoteId, {
       title: m.title, summary: m.summary, transcript: m.segments.map((s) => s.text).join(" "),

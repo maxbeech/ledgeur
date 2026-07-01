@@ -7,7 +7,7 @@
 // downloaded) or the webview engine (transformers.js). Native adds real
 // per-speaker labels + confidence; the webview path labels a single speaker.
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { resample, WHISPER_SAMPLE_RATE, rms, concatFloat32, summarizeTranscript, notesToMarkdown } from "@parleynotes/core";
 import { AudioCapture } from "./capture.ts";
 import { TranscriberController } from "./transcriber.ts";
@@ -43,6 +43,7 @@ export function useRecorder(lang: string = "en") {
   const native = useRef(false);
   const fullAudio = useRef<Float32Array[]>([]);
   const fullLen = useRef(0);
+  const capExceeded = useRef(false); // true once we stop retaining full audio (>cap)
 
   const patch = (p: Partial<RecorderState>) => setState((s) => ({ ...s, ...p }));
 
@@ -62,6 +63,7 @@ export function useRecorder(lang: string = "en") {
           patch({ segments: segments.current });
         }
         if (fullLen.current < MAX_DIARIZE_SAMPLES) { fullAudio.current.push(audio); fullLen.current += audio.length; }
+        else { capExceeded.current = true; }
       } else {
         const text = (await transcriber.current!.transcribe(audio, lang)).trim();
         if (text) {
@@ -77,7 +79,7 @@ export function useRecorder(lang: string = "en") {
 
   const start = useCallback(async (opts: { mic: boolean; system: boolean }) => {
     try {
-      segments.current = []; lastOffsetMs.current = 0; fullAudio.current = []; fullLen.current = 0;
+      segments.current = []; lastOffsetMs.current = 0; fullAudio.current = []; fullLen.current = 0; capExceeded.current = false;
       startedAt.current = new Date().toISOString();
       patch({ status: "loading-model", error: "", segments: [], elapsed: 0, meetingId: null });
 
@@ -113,7 +115,10 @@ export function useRecorder(lang: string = "en") {
     capture.current = null;
 
     // Native: re-run the whole meeting for real speaker diarization + labels.
-    if (native.current && fullLen.current > 0) {
+    // Only when we retained the FULL audio — if the meeting exceeded the retention
+    // cap we keep the complete live transcript instead of overwriting it with a
+    // diarized prefix (which would silently drop the tail).
+    if (native.current && fullLen.current > 0 && !capExceeded.current) {
       try {
         const finalSegs = await nativeTranscribeDiarize(concatFloat32(fullAudio.current));
         if (finalSegs.length) { segments.current = finalSegs.map((s) => toLocal(s, 0)); patch({ segments: segments.current }); }
@@ -146,6 +151,14 @@ export function useRecorder(lang: string = "en") {
     capture.current = null; transcriber.current = null;
     segments.current = []; fullAudio.current = []; fullLen.current = 0;
     setState({ status: "idle", elapsed: 0, level: 0, modelProgress: 0, device: "", segments: [], error: "", meetingId: null });
+  }, []);
+
+  // Stop capture + timers + worker if the screen unmounts mid-recording (prevents
+  // a leaked AudioContext / live mic + system-audio streams and the drain interval).
+  useEffect(() => () => {
+    if (timer.current) clearInterval(timer.current);
+    void capture.current?.stop();
+    transcriber.current?.dispose();
   }, []);
 
   return { state, start, stop, reset };

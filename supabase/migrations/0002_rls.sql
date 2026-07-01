@@ -29,15 +29,34 @@ returns boolean language sql security definer set search_path = public stable as
   select exists (select 1 from meetings m where m.id = p_meeting and m.owner_id = auth.uid());
 $$;
 
--- ---------- create a profile row on signup ----------
+create or replace function public.org_has_members(p_org uuid)
+returns boolean language sql security definer set search_path = public stable as $$
+  select exists (select 1 from org_members where org_id = p_org);
+$$;
+
+-- ---------- create a profile + personal workspace on signup ----------
+-- Every new user gets a profile, a personal org, and an admin membership so the
+-- cloud features (sync, hive mind, MCP, integrations) work immediately. Runs as
+-- SECURITY DEFINER, so it bypasses RLS for this one-time bootstrap.
 create or replace function public.handle_new_user()
 returns trigger language plpgsql security definer set search_path = public as $$
+declare
+  new_org uuid;
 begin
   insert into public.profiles (id, email, full_name, avatar_url)
   values (new.id, new.email,
           new.raw_user_meta_data ->> 'full_name',
           new.raw_user_meta_data ->> 'avatar_url')
   on conflict (id) do nothing;
+
+  -- Bootstrap a personal workspace once (idempotent: only if they have no org yet).
+  if not exists (select 1 from public.org_members where user_id = new.id) then
+    insert into public.orgs (name)
+    values (coalesce(nullif(new.raw_user_meta_data ->> 'full_name', ''), split_part(new.email, '@', 1)) || '''s workspace')
+    returning id into new_org;
+    insert into public.org_members (org_id, user_id, role) values (new_org, new.id, 'admin');
+    update public.profiles set default_org_id = new_org where id = new.id;
+  end if;
   return new;
 end;
 $$;
@@ -77,8 +96,13 @@ create policy "orgs: admins update"  on orgs for update using (public.is_org_adm
 
 -- ---------- org_members ----------
 create policy "members: read same org" on org_members for select using (public.is_org_member(org_id));
--- Bootstrapping: a user may add themselves (first member becomes admin via app logic).
-create policy "members: self join"     on org_members for insert with check (user_id = auth.uid() or public.is_org_admin(org_id));
+-- A user may add themselves ONLY as the first member of an empty org (bootstrapping
+-- their own workspace); otherwise members can only be added by an org admin. This
+-- prevents joining an arbitrary populated org to read its shared meetings.
+create policy "members: self join" on org_members for insert with check (
+  public.is_org_admin(org_id)
+  or (user_id = auth.uid() and not public.org_has_members(org_id))
+);
 create policy "members: admins manage" on org_members for update using (public.is_org_admin(org_id));
 create policy "members: admins remove" on org_members for delete using (public.is_org_admin(org_id) or user_id = auth.uid());
 
@@ -117,7 +141,11 @@ create policy "integrations: owner all" on integrations for all
   using (user_id = auth.uid()) with check (user_id = auth.uid());
 
 -- ---------- embeddings (org-scoped; RAG goes through match_embeddings) ----------
-create policy "embeddings: org read"  on embeddings for select using (public.is_org_member(org_id));
+-- Mirror the match_embeddings RPC's visibility check on direct SELECTs too, so a
+-- member can't read private meetings' transcript chunks via the REST endpoint.
+create policy "embeddings: org read"  on embeddings for select using (
+  public.is_org_member(org_id) and (meeting_id is null or public.can_view_meeting(meeting_id))
+);
 create policy "embeddings: owner write" on embeddings for insert with check (
   public.is_org_member(org_id) and (meeting_id is null or public.owns_meeting(meeting_id))
 );

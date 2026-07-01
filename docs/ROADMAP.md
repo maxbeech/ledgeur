@@ -61,8 +61,22 @@ step (can't be verified headless):
 - ⬜ Windows: `tauri build` on a Windows host.
 - Note: the webview recorder (getUserMedia) works in all shells today; the native whisper/sherpa engine needs per-platform lib linking (see docs/NATIVE_AI.md, sherpa-rs cross-compile notes).
 
+## Review pass (2026-07-01) — fixes applied
+
+- ✅ **Security (RLS):** tightened `org_members` self-join — a user can only self-add as the **first** member of an empty org (bootstrap) or be added by an admin; previously any user could join any org and read its shared meetings.
+- ✅ **Notion save:** the API can't create a page at the workspace root — now uses the configured database, else auto-discovers the first shared database (and caches it), else returns an explicit error.
+- ✅ **Cross-device read-back:** Meetings + Brain now show cloud/workspace meetings (any device) merged with unsynced local ones (`useMeetings`); MeetingDetail opens cloud meetings; removed the now-dead `useLocalMeetings`.
+- ✅ **Embeddings RLS:** direct `embeddings` SELECT now enforces per-meeting visibility (was readable by any org member — leaked private transcript chunks).
+- ✅ **Hive mind actually works:** the admin toggle now writes `orgs.default_meeting_visibility` (server-side, RLS-enforced) and `pushMeeting` sets each meeting's `visibility` from it — previously a localStorage flag that nothing read, so meetings stayed private forever.
+- ✅ **Recorder:** unmount cleanup stops mic/system-audio + drain timer + worker (was leaking on navigate-away mid-recording); native diarization no longer overwrites (and drops the tail of) transcripts for meetings past the retention cap.
+- ✅ **Signup bootstrap:** `handle_new_user` now creates a personal org + admin membership, so cloud/sync/MCP/hive-mind work immediately (previously no org existed, silently breaking all cloud paths).
+
+### Known limitation (design follow-up)
+- **MCP credential revocation:** the MCP server authenticates with the user's Supabase refresh token, so "revoke" currently = sign out (rotates all sessions). `mcp_tokens` is an audit record; a dedicated revocable minted-token exchange (per-call `revoked`/plan check) is the follow-up. UI copy already states "revoke by signing out" (honest).
+
 ## Debt / follow-ups
 
+- ⬜ Tasks screen cross-device: show cloud `action_items` (with DB status) when signed in, grouped by meeting (currently local-only + localStorage done-state)
 - ⬜ Migrate `apps/marketing` off its local `lib/{summarize,audio,ai-notes}` copies onto `@parleynotes/core` (single source of truth)
 - ⬜ Update the Vercel project **Root Directory** to `apps/marketing` (monorepo move)
 - ⬜ Validate migrations against a live Supabase project (Docker/`supabase db reset`)

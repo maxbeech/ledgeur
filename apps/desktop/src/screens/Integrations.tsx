@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { FileText, Calendar, Cloud, StickyNote, Server, ShieldCheck, Users, LogIn, LogOut, UserCircle, Cpu } from "lucide-react";
+import { FileText, Calendar, Cloud, StickyNote, Server, ShieldCheck, LogIn, LogOut, UserCircle, Cpu } from "lucide-react";
 import { Page, PageHeader } from "../components/PageHeader.tsx";
 import { Button, Card, Chip } from "../components/ui.tsx";
 import { hasBackend } from "../lib/config.ts";
@@ -7,6 +7,7 @@ import { useSession, signInWith, signOut } from "../lib/session.ts";
 import { NotionCard } from "../components/integrations/NotionCard.tsx";
 import { McpAccessCard } from "../components/integrations/McpAccessCard.tsx";
 import { AiEngineCard } from "../components/integrations/AiEngineCard.tsx";
+import { SharingPolicyCard } from "../components/integrations/SharingPolicyCard.tsx";
 
 const CONNECTIONS = [
   { id: "google", name: "Google Calendar", desc: "See meetings and get one-click record prompts. Personal or work.", icon: Calendar, status: "first" },
@@ -15,11 +16,7 @@ const CONNECTIONS = [
   { id: "onenote", name: "OneNote", desc: "Export notes to a OneNote section.", icon: StickyNote, status: "planned" },
 ] as const;
 
-const POLICY_KEY = "parleynotes.org.defaultVisibility";
-
 export function Integrations() {
-  const [shareByDefault, setShareByDefault] = useState(() => localStorage.getItem(POLICY_KEY) === "org");
-  const setPolicy = (v: boolean) => { setShareByDefault(v); localStorage.setItem(POLICY_KEY, v ? "org" : "private"); };
   const { session } = useSession();
   const [authErr, setAuthErr] = useState("");
   const doSignIn = (p: "google" | "azure") => signInWith(p).catch((e) => setAuthErr(e instanceof Error ? e.message : String(e)));
@@ -82,20 +79,7 @@ export function Integrations() {
       <div className="mb-8"><AiEngineCard /></div>
 
       <SectionTitle icon={<ShieldCheck className="h-4 w-4" />} title="Sharing & privacy (admin)" />
-      <Card className="mb-8 p-5">
-        <div className="flex items-center justify-between gap-4">
-          <div className="flex items-start gap-3">
-            <Users className="mt-0.5 h-5 w-5 text-accent-strong" />
-            <div>
-              <div className="text-sm font-medium text-ink-text">Share new meetings with the team by default</div>
-              <p className="mt-0.5 max-w-md text-xs leading-relaxed text-muted">
-                When on, new meeting notes join the org "hive mind" so colleagues' AI can reference them. Members can still mark individual meetings private.
-              </p>
-            </div>
-          </div>
-          <Toggle on={shareByDefault} onChange={setPolicy} />
-        </div>
-      </Card>
+      <div className="mb-8"><SharingPolicyCard session={session} /></div>
 
       <SectionTitle icon={<Server className="h-4 w-4" />} title="Data access (MCP)" />
       <McpAccessCard session={session} />
@@ -105,13 +89,4 @@ export function Integrations() {
 
 function SectionTitle({ icon, title }: { icon: React.ReactNode; title: string }) {
   return <div className="mb-3 flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-muted">{icon}{title}</div>;
-}
-
-function Toggle({ on, onChange }: { on: boolean; onChange: (v: boolean) => void }) {
-  return (
-    <button onClick={() => onChange(!on)} role="switch" aria-checked={on}
-      className={`relative h-6 w-11 shrink-0 rounded-full transition-colors ${on ? "bg-accent-strong" : "bg-hairline"}`}>
-      <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-all ${on ? "left-[22px]" : "left-0.5"}`} />
-    </button>
-  );
 }

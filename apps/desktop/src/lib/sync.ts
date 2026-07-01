@@ -16,15 +16,21 @@ export async function pullMeetings(): Promise<Meeting[]> {
 }
 
 /** Push a completed local meeting to Supabase. Requires an org + auth session.
- *  Marks the local copy synced on success. Returns the remote meeting id. */
-export async function pushMeeting(orgId: string, ownerId: string, m: LocalMeeting): Promise<string> {
+ *  `visibility` controls whether it joins the org hive mind. Marks the local copy
+ *  synced on success. Returns the remote meeting id. */
+export async function pushMeeting(
+  orgId: string,
+  ownerId: string,
+  m: LocalMeeting,
+  visibility: "private" | "org" = "private",
+): Promise<string> {
   const sb = getSupabase();
   if (!sb) throw new Error("Backend not configured — cannot sync.");
 
   const { data: meeting, error: mErr } = await sb
     .from("meetings")
     .insert({
-      org_id: orgId, owner_id: ownerId, title: m.title, status: "complete",
+      org_id: orgId, owner_id: ownerId, title: m.title, status: "complete", visibility,
       started_at: m.startedAt, ended_at: m.endedAt, lang: m.lang,
     })
     .select("id")

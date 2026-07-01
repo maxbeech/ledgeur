@@ -4,6 +4,7 @@ import { ArrowLeft, Copy, Check, Trash2, FileText, ListChecks, MessageSquareText
 import { Page } from "../components/PageHeader.tsx";
 import { Button, Card, Chip, Spinner } from "../components/ui.tsx";
 import { getMeeting, deleteMeeting, type LocalMeeting } from "../lib/meetingsStore.ts";
+import { getCloudMeeting, deleteCloudMeeting } from "../lib/cloudMeeting.ts";
 import { hasBackend } from "../lib/config.ts";
 import { saveMeetingToNotion } from "../lib/notion.ts";
 
@@ -14,8 +15,21 @@ export function MeetingDetail() {
   const [tab, setTab] = useState<"notes" | "transcript">("notes");
   const [copied, setCopied] = useState(false);
   const [notion, setNotion] = useState<{ busy: boolean; msg: string; error: boolean }>({ busy: false, msg: "", error: false });
+  const [fromCloud, setFromCloud] = useState(false);
 
-  useEffect(() => { if (id) getMeeting(id).then(setMeeting); }, [id]);
+  useEffect(() => {
+    if (!id) return;
+    let cancelled = false;
+    getMeeting(id).then(async (local) => {
+      if (cancelled) return;
+      if (local) { setMeeting(local); return; }
+      // Not in the local cache — try the cloud (workspace meeting on another device).
+      const cloud = await getCloudMeeting(id).catch(() => null);
+      if (cancelled) return;
+      if (cloud) { setMeeting(cloud); setFromCloud(true); } else { setMeeting(null); }
+    });
+    return () => { cancelled = true; };
+  }, [id]);
 
   if (meeting === undefined) return <div className="flex items-center justify-center gap-2 py-20 text-sm text-muted"><Spinner /> Loading…</div>;
   if (meeting === null) return <Page><p className="text-sm text-muted">Meeting not found.</p></Page>;
@@ -26,7 +40,8 @@ export function MeetingDetail() {
     setTimeout(() => setCopied(false), 1500);
   }
   async function remove() {
-    await deleteMeeting(meeting!.id);
+    if (fromCloud) await deleteCloudMeeting(meeting!.id).catch(() => {});
+    else await deleteMeeting(meeting!.id);
     nav("/meetings");
   }
   async function saveNotion() {

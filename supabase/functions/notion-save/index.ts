@@ -32,11 +32,28 @@ Deno.serve(async (req) => {
   const { data: secret } = await admin
     .from("integration_secrets").select("access_token").eq("integration_id", integ.id).maybeSingle();
   if (!secret?.access_token) return json({ error: "Notion token missing — reconnect Notion." }, 400);
+  const token = secret.access_token;
 
-  const databaseId = (integ.config as { database_id?: string })?.database_id;
-  const parent = databaseId
-    ? { type: "database_id", database_id: databaseId }
-    : { type: "workspace", workspace: true };
+  // The Notion API can't create a page at the workspace root — it needs a
+  // database or page parent. Use the configured target, else discover the first
+  // database the integration can access; error clearly if there is none.
+  let databaseId = (integ.config as { database_id?: string })?.database_id;
+  if (!databaseId) {
+    const searchRes = await fetch("https://api.notion.com/v1/search", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json", "Notion-Version": "2022-06-28" },
+      body: JSON.stringify({ filter: { property: "object", value: "database" }, page_size: 1 }),
+    });
+    const found = await searchRes.json();
+    databaseId = found?.results?.[0]?.id;
+    if (databaseId) {
+      await admin.from("integrations").update({ config: { ...(integ.config ?? {}), database_id: databaseId } }).eq("id", integ.id);
+    }
+  }
+  if (!databaseId) {
+    return json({ error: "No Notion database is shared with ParleyNotes. Share a database with the integration, then try again." }, 400);
+  }
+  const parent = { type: "database_id", database_id: databaseId };
 
   const first = blocks.slice(0, 100);
   const rest = blocks.slice(100);
