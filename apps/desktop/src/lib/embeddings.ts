@@ -6,15 +6,12 @@
 import { meetingChunks, semanticSearch } from "@parleynotes/core";
 import { getSupabase } from "./supabase.ts";
 import { CONFIG } from "./config.ts";
+import { postToLocalModel } from "./modelFetch.ts";
 import type { ContextBlock } from "./chat.ts";
 
 /** Embed a single string via the local OpenAI-compatible embeddings endpoint. */
 export async function embedText(text: string): Promise<number[]> {
-  const res = await fetch(`${CONFIG.localLlmUrl}/embeddings`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ model: "nomic-embed-text", input: text }),
-  });
+  const res = await postToLocalModel(`${CONFIG.localLlmUrl}/embeddings`, { model: "nomic-embed-text", input: text });
   if (!res.ok) throw new Error(`Local embedding model unavailable (${res.status}). Start the on-device model.`);
   const data = (await res.json()) as { data?: { embedding: number[] }[] };
   const emb = data.data?.[0]?.embedding;

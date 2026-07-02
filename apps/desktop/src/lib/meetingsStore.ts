@@ -10,6 +10,8 @@ export interface LocalSegment {
   endMs: number;
   text: string;
   confidence: number | null;
+  /** Likelihood the speaker attribution is right (native voice-ID only). */
+  speakerConfidence?: number | null;
 }
 
 export interface LocalMeeting {
@@ -25,6 +27,8 @@ export interface LocalMeeting {
   decisions: string[];
   questions: string[];
   actionItems: string[];
+  /** Notes the user typed during the meeting (kept verbatim in the export). */
+  manualNotes?: string;
   noteMarkdown: string;
   wordCount: number;
   synced: boolean;

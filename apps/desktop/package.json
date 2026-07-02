@@ -18,6 +18,9 @@
     "ios:dev": "tauri ios dev"
   },
   "dependencies": {
+    "@fontsource-variable/fraunces": "^5.2.9",
+    "@fontsource-variable/schibsted-grotesk": "^5.2.8",
+    "@fontsource-variable/spline-sans-mono": "^5.2.8",
     "@parleynotes/core": "workspace:*",
     "@parleynotes/ui": "workspace:*",
     "@supabase/supabase-js": "^2.58.0",

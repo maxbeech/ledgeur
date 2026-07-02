@@ -39,9 +39,31 @@ export async function pushMeeting(
   const meetingId = (meeting as { id: string }).id;
 
   if (m.segments.length) {
+    // Create speaker rows first so who-said-what (and identity confidence)
+    // survives the trip to the cloud and back to other devices.
+    const labels = [...new Set(m.segments.map((s) => s.speakerLabel))];
+    const speakerIdByLabel = new Map<string, string>();
+    if (labels.length) {
+      const { data: speakerRows, error: sErr } = await sb
+        .from("speakers")
+        .insert(labels.map((label) => {
+          const identified = !/^Speaker \d+$/i.test(label);
+          const conf = m.segments.find((s) => s.speakerLabel === label && s.speakerConfidence != null)?.speakerConfidence ?? null;
+          return {
+            meeting_id: meetingId, label,
+            identified_name: identified ? label : null,
+            identity_confidence: identified ? conf : null,
+          };
+        }))
+        .select("id, label");
+      if (sErr) throw new Error(sErr.message);
+      for (const r of (speakerRows ?? []) as { id: string; label: string }[]) speakerIdByLabel.set(r.label, r.id);
+    }
+
     const { error } = await sb.from("transcript_segments").insert(
       m.segments.map((s) => ({
-        meeting_id: meetingId, start_ms: s.startMs, end_ms: s.endMs, text: s.text, confidence: s.confidence,
+        meeting_id: meetingId, speaker_id: speakerIdByLabel.get(s.speakerLabel) ?? null,
+        start_ms: s.startMs, end_ms: s.endMs, text: s.text, confidence: s.confidence,
       })),
     );
     if (error) throw new Error(error.message);

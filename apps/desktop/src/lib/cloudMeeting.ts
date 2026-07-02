@@ -15,12 +15,16 @@ export async function getCloudMeeting(id: string): Promise<LocalMeeting | null> 
   const full = await getCloud(sb, id);
   if (!full) return null;
 
-  const labelBySpeaker = new Map(full.speakers.map((s) => [s.id, s.label]));
-  const segments: LocalSegment[] = full.segments.map((s) => ({
-    id: s.id,
-    speakerLabel: (s.speakerId && labelBySpeaker.get(s.speakerId)) || "Speaker 1",
-    startMs: s.startMs, endMs: s.endMs, text: s.text, confidence: s.confidence,
-  }));
+  const bySpeaker = new Map(full.speakers.map((s) => [s.id, s]));
+  const segments: LocalSegment[] = full.segments.map((s) => {
+    const spk = s.speakerId ? bySpeaker.get(s.speakerId) : undefined;
+    return {
+      id: s.id,
+      speakerLabel: spk?.identifiedName || spk?.label || "Speaker 1",
+      speakerConfidence: spk?.identityConfidence ?? null,
+      startMs: s.startMs, endMs: s.endMs, text: s.text, confidence: s.confidence,
+    };
+  });
 
   // Action items for this meeting (cloud rows), if any.
   const { data: items } = await sb.from("action_items").select("title").eq("meeting_id", id);

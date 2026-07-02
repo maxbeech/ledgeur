@@ -1,6 +1,7 @@
 // The live recording engine as a React hook. Drives capture → periodic drain →
 // on-device transcription → live transcript segments, then generates notes on
-// stop and persists the meeting locally.
+// stop and persists the meeting locally. Mounted once at app level (see
+// recorderContext.tsx) so a recording survives navigating between screens.
 //
 // Two transcription backends: the native engine (whisper.cpp + sherpa-onnx
 // diarization, when the app is built with `--features native-ai` and models are
@@ -19,6 +20,8 @@ export type RecorderStatus = "idle" | "loading-model" | "recording" | "processin
 export interface RecorderState {
   status: RecorderStatus; elapsed: number; level: number; modelProgress: number;
   device: string; segments: LocalSegment[]; error: string; meetingId: string | null;
+  /** Notes the user types during the meeting — merged into the final summary. */
+  notes: string;
 }
 
 const DRAIN_MS = 5000;
@@ -27,12 +30,12 @@ const MAX_DIARIZE_SAMPLES = 45 * 60 * WHISPER_SAMPLE_RATE; // cap full-audio ret
 const uid = () => (crypto?.randomUUID ? crypto.randomUUID() : `id-${Date.now()}-${Math.round(Math.random() * 1e6)}`);
 const toLocal = (s: NativeSegment, offsetMs: number): LocalSegment => ({
   id: uid(), speakerLabel: s.speaker_label, startMs: offsetMs + s.start_ms, endMs: offsetMs + s.end_ms,
-  text: s.text, confidence: s.confidence,
+  text: s.text, confidence: s.confidence, speakerConfidence: s.speaker_confidence,
 });
 
-export function useRecorder(lang: string = "en") {
+export function useRecorder() {
   const [state, setState] = useState<RecorderState>({
-    status: "idle", elapsed: 0, level: 0, modelProgress: 0, device: "", segments: [], error: "", meetingId: null,
+    status: "idle", elapsed: 0, level: 0, modelProgress: 0, device: "", segments: [], error: "", meetingId: null, notes: "",
   });
   const capture = useRef<AudioCapture | null>(null);
   const transcriber = useRef<TranscriberController | null>(null);
@@ -41,11 +44,18 @@ export function useRecorder(lang: string = "en") {
   const segments = useRef<LocalSegment[]>([]);
   const startedAt = useRef<string>("");
   const native = useRef(false);
+  const lang = useRef("en");
+  const notesRef = useRef("");
   const fullAudio = useRef<Float32Array[]>([]);
   const fullLen = useRef(0);
   const capExceeded = useRef(false); // true once we stop retaining full audio (>cap)
 
   const patch = (p: Partial<RecorderState>) => setState((s) => ({ ...s, ...p }));
+
+  const setNotes = useCallback((text: string) => {
+    notesRef.current = text;
+    patch({ notes: text });
+  }, []);
 
   const drain = useCallback(async () => {
     const cap = capture.current;
@@ -65,9 +75,9 @@ export function useRecorder(lang: string = "en") {
         if (fullLen.current < MAX_DIARIZE_SAMPLES) { fullAudio.current.push(audio); fullLen.current += audio.length; }
         else { capExceeded.current = true; }
       } else {
-        const text = (await transcriber.current!.transcribe(audio, lang)).trim();
+        const text = (await transcriber.current!.transcribe(audio, lang.current)).trim();
         if (text) {
-          segments.current = [...segments.current, { id: uid(), speakerLabel: "Speaker 1", startMs: lastOffsetMs.current, endMs, text, confidence: null }];
+          segments.current = [...segments.current, { id: uid(), speakerLabel: "Speaker 1", startMs: lastOffsetMs.current, endMs, text, confidence: null, speakerConfidence: null }];
           patch({ segments: segments.current });
         }
       }
@@ -75,13 +85,15 @@ export function useRecorder(lang: string = "en") {
       patch({ error: e instanceof Error ? e.message : String(e) });
     }
     lastOffsetMs.current = endMs;
-  }, [lang]);
+  }, []);
 
-  const start = useCallback(async (opts: { mic: boolean; system: boolean }) => {
+  const start = useCallback(async (opts: { mic: boolean; system: boolean; lang?: string }) => {
     try {
       segments.current = []; lastOffsetMs.current = 0; fullAudio.current = []; fullLen.current = 0; capExceeded.current = false;
+      lang.current = opts.lang ?? "en";
+      notesRef.current = "";
       startedAt.current = new Date().toISOString();
-      patch({ status: "loading-model", error: "", segments: [], elapsed: 0, meetingId: null });
+      patch({ status: "loading-model", error: "", segments: [], elapsed: 0, meetingId: null, notes: "" });
 
       const status = await aiStatus();
       native.current = Boolean(status?.compiled && status?.models_ready);
@@ -93,7 +105,7 @@ export function useRecorder(lang: string = "en") {
           onProgress: (_f, p) => patch({ modelProgress: p }),
         });
         transcriber.current = tr;
-        await tr.preloadAndWait(lang);
+        await tr.preloadAndWait(lang.current);
       }
 
       const cap = new AudioCapture();
@@ -105,7 +117,7 @@ export function useRecorder(lang: string = "en") {
     } catch (e) {
       patch({ status: "error", error: e instanceof Error ? e.message : String(e) });
     }
-  }, [drain, lang]);
+  }, [drain]);
 
   const stop = useCallback(async (title: string): Promise<string | null> => {
     if (timer.current) { clearInterval(timer.current); timer.current = null; }
@@ -128,14 +140,16 @@ export function useRecorder(lang: string = "en") {
     }
 
     const transcript = segments.current.map((s) => s.text).join(" ");
+    const manualNotes = notesRef.current.trim();
     const notes = summarizeTranscript(transcript);
     const id = uid();
     const now = new Date().toISOString();
     const meeting: LocalMeeting = {
       id, title: title || "Untitled meeting", createdAt: now, startedAt: startedAt.current, endedAt: now,
-      status: "complete", lang, segments: segments.current,
+      status: "complete", lang: lang.current, segments: segments.current,
       summary: notes.summary, decisions: notes.decisions, questions: notes.questions, actionItems: notes.actionItems,
-      noteMarkdown: notesToMarkdown(title || "Untitled meeting", now.slice(0, 10), notes, transcript),
+      manualNotes,
+      noteMarkdown: notesToMarkdown(title || "Untitled meeting", now.slice(0, 10), notes, transcript, manualNotes),
       wordCount: notes.wordCount, synced: false,
     };
     await saveMeeting(meeting);
@@ -143,23 +157,23 @@ export function useRecorder(lang: string = "en") {
     fullAudio.current = []; fullLen.current = 0;
     patch({ status: "complete", meetingId: id });
     return id;
-  }, [drain, lang]);
+  }, [drain]);
 
   const reset = useCallback(() => {
     if (timer.current) { clearInterval(timer.current); timer.current = null; }
     capture.current?.stop(); transcriber.current?.dispose();
     capture.current = null; transcriber.current = null;
-    segments.current = []; fullAudio.current = []; fullLen.current = 0;
-    setState({ status: "idle", elapsed: 0, level: 0, modelProgress: 0, device: "", segments: [], error: "", meetingId: null });
+    segments.current = []; fullAudio.current = []; fullLen.current = 0; notesRef.current = "";
+    setState({ status: "idle", elapsed: 0, level: 0, modelProgress: 0, device: "", segments: [], error: "", meetingId: null, notes: "" });
   }, []);
 
-  // Stop capture + timers + worker if the screen unmounts mid-recording (prevents
-  // a leaked AudioContext / live mic + system-audio streams and the drain interval).
+  // Provider-level teardown (app close): stop capture, timers and the worker so
+  // nothing leaks. During normal navigation the provider stays mounted.
   useEffect(() => () => {
     if (timer.current) clearInterval(timer.current);
     void capture.current?.stop();
     transcriber.current?.dispose();
   }, []);
 
-  return { state, start, stop, reset };
+  return { state, start, stop, reset, setNotes };
 }

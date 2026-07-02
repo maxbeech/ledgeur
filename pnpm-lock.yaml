@@ -17,6 +17,15 @@ importers:
 
   apps/desktop:
     dependencies:
+      '@fontsource-variable/fraunces':
+        specifier: ^5.2.9
+        version: 5.2.9
+      '@fontsource-variable/schibsted-grotesk':
+        specifier: ^5.2.8
+        version: 5.2.8
+      '@fontsource-variable/spline-sans-mono':
+        specifier: ^5.2.8
+        version: 5.2.8
       '@parleynotes/core':
         specifier: workspace:*
         version: link:../../packages/core
@@ -607,6 +616,15 @@ packages:
   '@eslint/plugin-kit@0.4.1':
     resolution: {integrity: sha512-43/qtrDUokr7LJqoF2c3+RInu/t4zfrpYdoSDfYyhg52rwLV6TnOvdG4fXm7IkSB3wErkcmJS9iEhjVtOSEjjA==}
     engines: {node: ^18.18.0 || ^20.9.0 || >=21.1.0}
+
+  '@fontsource-variable/fraunces@5.2.9':
+    resolution: {integrity: sha512-Y6IjunlN9Ni723np+GIgAaKzCDBrPRrqNi01TZxHs5wtHYROWFM9W6yiT+/gGwSjWIRD18oX17kD/BRWekc/Lw==}
+
+  '@fontsource-variable/schibsted-grotesk@5.2.8':
+    resolution: {integrity: sha512-nZAorDrFue4dXZbI613WdvAhu5DPH1UJYNn5fWl7Poa+nl/s9o3VUcQImIiVZpQnYG/jkPVzHsTE7WZbSDvvkw==}
+
+  '@fontsource-variable/spline-sans-mono@5.2.8':
+    resolution: {integrity: sha512-Z1yYiEtP+8Gll5BJaR9dICK/ZTxoTWH+ZBH6rOTMWajPSOxwl7IZplkwX2J1QhMxqulhhdMrkRx6SkkLM+jLQw==}
 
   '@hono/node-server@1.19.14':
     resolution: {integrity: sha512-GwtvgtXxnWsucXvbQXkRgqksiH2Qed37H9xHZocE5sA3N8O8O8/8FA3uclQXxXVzc9XBZuEOMK7+r02FmSpHtw==}
@@ -3375,6 +3393,12 @@ snapshots:
     dependencies:
       '@eslint/core': 0.17.0
       levn: 0.4.1
+
+  '@fontsource-variable/fraunces@5.2.9': {}
+
+  '@fontsource-variable/schibsted-grotesk@5.2.8': {}
+
+  '@fontsource-variable/spline-sans-mono@5.2.8': {}
 
   '@hono/node-server@1.19.14(hono@4.12.27)':
     dependencies:

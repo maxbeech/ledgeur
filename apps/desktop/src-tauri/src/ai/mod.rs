@@ -4,10 +4,12 @@
 // return an explicit error (never fake results).
 
 use serde::Serialize;
+use std::collections::HashMap;
 use std::path::PathBuf;
 use tauri::Manager;
 
 pub mod engine;
+pub mod voices;
 
 #[derive(Serialize, Clone, Debug)]
 pub struct TranscriptSegment {
@@ -65,11 +67,21 @@ pub fn best_overlap_speaker(seg_start: i64, seg_end: i64, diar: &[DiarSegment]) 
 }
 
 /// Merge a transcript with diarization: label each segment by its dominant
-/// speaker. Pure — unit-tested.
-pub fn merge_speakers(mut transcript: Vec<TranscriptSegment>, diar: &[DiarSegment]) -> Vec<TranscriptSegment> {
+/// speaker, using the enrolled identity (name + confidence) where one matched
+/// and an anonymous "Speaker N" otherwise. Pure — unit-tested.
+pub fn merge_speakers(
+    mut transcript: Vec<TranscriptSegment>,
+    diar: &[DiarSegment],
+    identities: &HashMap<i32, (String, f32)>,
+) -> Vec<TranscriptSegment> {
     for seg in transcript.iter_mut() {
         if let Some(spk) = best_overlap_speaker(seg.start_ms, seg.end_ms, diar) {
-            seg.speaker_label = format!("Speaker {}", spk + 1);
+            if let Some((name, sim)) = identities.get(&spk) {
+                seg.speaker_label = name.clone();
+                seg.speaker_confidence = Some(*sim);
+            } else {
+                seg.speaker_label = format!("Speaker {}", spk + 1);
+            }
         }
     }
     transcript
@@ -102,12 +114,15 @@ pub fn transcribe_chunk(app: tauri::AppHandle, samples: Vec<f32>, sample_rate: u
     engine::transcribe(&app, &samples, sample_rate)
 }
 
-/// Full pass: transcribe + diarize + merge speaker labels (run on stop).
+/// Full pass, run on stop: transcribe + diarize + identify enrolled voices +
+/// merge speaker labels (with identity confidence where a voice matched).
 #[tauri::command]
 pub fn transcribe_diarize(app: tauri::AppHandle, samples: Vec<f32>, sample_rate: u32) -> Result<Vec<TranscriptSegment>, String> {
     let transcript = engine::transcribe(&app, &samples, sample_rate)?;
     let diar = engine::diarize(&app, &samples, sample_rate)?;
-    Ok(merge_speakers(transcript, &diar))
+    let profiles = voices::load_profiles(&app);
+    let identities = engine::identify_speakers(&app, &samples, sample_rate, &diar, &profiles);
+    Ok(merge_speakers(transcript, &diar, &identities))
 }
 
 #[cfg(test)]
@@ -129,7 +144,21 @@ mod tests {
     #[test]
     fn merge_labels_by_speaker() {
         let diar = vec![DiarSegment { start_ms: 0, end_ms: 5000, speaker: 2 }];
-        let out = merge_speakers(vec![seg(100, 900)], &diar);
+        let out = merge_speakers(vec![seg(100, 900)], &diar, &HashMap::new());
         assert_eq!(out[0].speaker_label, "Speaker 3");
+        assert_eq!(out[0].speaker_confidence, None);
+    }
+    #[test]
+    fn merge_uses_identified_name_and_confidence() {
+        let diar = vec![
+            DiarSegment { start_ms: 0, end_ms: 1000, speaker: 0 },
+            DiarSegment { start_ms: 1000, end_ms: 3000, speaker: 1 },
+        ];
+        let mut ids = HashMap::new();
+        ids.insert(1, ("Max Beech".to_string(), 0.87f32));
+        let out = merge_speakers(vec![seg(100, 900), seg(1200, 2800)], &diar, &ids);
+        assert_eq!(out[0].speaker_label, "Speaker 1");
+        assert_eq!(out[1].speaker_label, "Max Beech");
+        assert_eq!(out[1].speaker_confidence, Some(0.87));
     }
 }

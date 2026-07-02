@@ -9,7 +9,18 @@ heavy native engine is behind a Cargo feature so the base app stays fast to buil
 |---|---|---|
 | Real-time transcription | **whisper.cpp** (`whisper-rs`) | Rust command `transcribe_chunk` |
 | Speaker diarization + confidence | **sherpa-onnx** (`sherpa-rs`) | Rust command `transcribe_diarize` |
-| In-meeting / anytime chat + embeddings | **llama.cpp** server (OpenAI-compatible) | `http://127.0.0.1:8081/v1` |
+| Speaker **identification** (named voices) | **sherpa-onnx** speaker embeddings + cosine match | `enroll_voice` / `list_voice_profiles` / `delete_voice_profile`; applied inside `transcribe_diarize` |
+| In-meeting / anytime chat + embeddings + suggestions | **llama.cpp** server (OpenAI-compatible) | `http://127.0.0.1:8081/v1` |
+
+### Speaker identification
+
+Enrol a voice in **Settings → On-device AI → Voice profiles** (~10 s of clear
+speech). The embedding is stored in `voices.json` in the app data dir — voice
+prints never leave the device. On stop, `transcribe_diarize` embeds each
+diarized speaker's audio (up to 12 s) and cosine-matches against enrolled
+profiles; matches at ≥ 0.5 similarity label the transcript with the real name
+and a confidence figure (`speaker_confidence`). Unmatched speakers stay
+anonymous "Speaker N" — identity is never guessed.
 
 The webview fallback (transformers.js Whisper) is used automatically when the
 native engine isn't compiled/available, so the app always works.

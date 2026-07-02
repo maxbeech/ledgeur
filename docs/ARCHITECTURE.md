@@ -16,7 +16,13 @@
 3. **Cloud for the brain.** A meeting is only useful company-wide if it's
    searchable by others (with permission). Supabase is the shared source of
    truth; the device holds a fast local cache.
-4. **Premium by default.** The UI/UX is calm, fast and considered.
+4. **Premium by default.** The UI/UX is calm, fast and considered. The design
+   language is **"The Library of Record"**: warm paper pages inside dark
+   spruce-ink furniture; Fraunces display serif + Schibsted Grotesk UI +
+   Spline Sans Mono data type (bundled, offline); strict color semantics —
+   emerald = live/you, burnished gold = the brain speaking, madder = recording.
+   Tokens live in `packages/ui/src/tokens.ts` and are mirrored by the app's
+   `theme.css` `@theme` block.
 
 ## Monorepo layout
 
@@ -83,14 +89,18 @@ Calendar (Google/MS) ──▶ auto-prompt ("Record?") ──▶ Record screen
 - The MCP server authenticates as the user/org and reads through the same RLS,
   so external tools never bypass sharing rules. Access requires a paid plan.
 
-## Native AI (Rust) — planned interface
+## Native AI (Rust) — implemented interface
 
-The webview transcriber (`src/lib/transcriber.ts`) defines the contract the
-native engine implements as Tauri commands/sidecars:
+Tauri commands (real when built with `--features native-ai`; explicit errors otherwise):
 
-- `transcribe(pcm) -> segments` (whisper.cpp)
-- `diarize(pcm) -> [{speaker, start, end, confidence}]` (sherpa-onnx)
-- `identify(speaker_embedding) -> {profileId?, name?, confidence}` (voice match)
-- `chat(messages) -> stream` (llama.cpp, OpenAI-compatible on `:8081/v1`)
+- `transcribe_chunk(pcm) -> segments` (whisper.cpp, per-segment confidence)
+- `transcribe_diarize(pcm) -> segments` — full pass: transcription + sherpa-onnx
+  diarization + voice identification against enrolled profiles (named labels
+  with `speaker_confidence`, anonymous "Speaker N" otherwise)
+- `enroll_voice(name, pcm)` / `list_voice_profiles()` / `delete_voice_profile(id)`
+  — on-device voice prints (`voices.json`), cosine matching (tested)
+- Chat / embeddings / suggestions speak to llama.cpp (OpenAI-compatible, `:8081/v1`)
+  via the shared `modelFetch` wrapper, which turns connection failures into
+  explicit "model isn't running" errors.
 
 See `docs/ROADMAP.md` for sequencing.

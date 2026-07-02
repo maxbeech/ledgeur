@@ -3,6 +3,8 @@
 // It never fabricates: if the endpoint is unreachable the caller surfaces an
 // explicit failure state rather than a canned answer.
 
+import { postToLocalModel } from "./modelFetch.ts";
+
 export interface ContextBlock {
   source: string; // e.g. "Live transcript", "Meeting: Q3 planning", "Notion: Roadmap"
   text: string;
@@ -36,15 +38,19 @@ export async function askWithContext(opts: {
   context: ContextBlock[];
   signal?: AbortSignal;
 }): Promise<string> {
-  const res = await fetch(`${opts.baseUrl}/chat/completions`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      ...(opts.apiKey ? { Authorization: `Bearer ${opts.apiKey}` } : {}),
-    },
-    body: JSON.stringify(buildChatBody(opts.model || "local", opts.question, opts.context)),
-    signal: opts.signal,
-  });
+  let res: Response;
+  const body = buildChatBody(opts.model || "local", opts.question, opts.context);
+  if (opts.apiKey) {
+    // BYO-key cloud model — plain fetch so auth headers are included.
+    res = await fetch(`${opts.baseUrl}/chat/completions`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${opts.apiKey}` },
+      body: JSON.stringify(body),
+      signal: opts.signal,
+    });
+  } else {
+    res = await postToLocalModel(`${opts.baseUrl}/chat/completions`, body, opts.signal);
+  }
   if (!res.ok) {
     const detail = await res.text().catch(() => "");
     throw new Error(`Model error ${res.status}: ${detail.slice(0, 160)}`);

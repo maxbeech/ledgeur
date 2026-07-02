@@ -32,7 +32,7 @@ export function NotionCard({ signedIn }: { signedIn: boolean }) {
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
           <span className="text-sm font-semibold text-ink-text">Notion</span>
-          {connected ? <Chip tone="accent"><Check className="h-3 w-3" /> Connected</Chip> : <Chip tone="accent">First to ship</Chip>}
+          {connected ? <Chip tone="accent"><Check className="h-3 w-3" /> connected</Chip> : <Chip tone="accent">first to ship</Chip>}
         </div>
         <p className="mt-0.5 text-xs leading-relaxed text-muted">Save meeting notes to a Notion database.</p>
 
@@ -49,7 +49,7 @@ export function NotionCard({ signedIn }: { signedIn: boolean }) {
           <div className="mt-3 space-y-2">
             <Button variant="outline" onClick={() => void openExternal(notionAuthUrl())}>Authorize in Notion</Button>
             <div className="flex gap-2">
-              <input value={code} onChange={(e) => setCode(e.target.value)} placeholder="Paste the code Notion gives you"
+              <input value={code} onChange={(e) => setCode(e.target.value)} name="notion-code" placeholder="Paste the code Notion gives you"
                 className="flex-1 rounded-lg border border-hairline bg-surface px-3 py-1.5 text-xs outline-none focus:ring-2 focus:ring-accent/40" />
               <Button onClick={connect} disabled={!code.trim() || state.busy}>{state.busy ? <Spinner /> : "Finish"}</Button>
             </div>

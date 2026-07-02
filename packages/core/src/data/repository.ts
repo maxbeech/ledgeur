@@ -88,6 +88,36 @@ export async function listActionItems(
   return ((unwrap(await q)) as ActionItemRow[]).map(toActionItem);
 }
 
+export interface ActionItemWithMeeting extends ActionItem {
+  meetingTitle: string;
+}
+
+/** Action items joined with their meeting's title — powers the Tasks screen
+ *  cross-device (RLS scopes rows to what the caller can see). */
+export async function listActionItemsWithMeeting(
+  db: SupabaseClient,
+  limit = 200,
+): Promise<ActionItemWithMeeting[]> {
+  const rows = unwrap(
+    await db
+      .from("action_items")
+      .select("*, meetings(title)")
+      .order("created_at", { ascending: false })
+      .limit(limit),
+  ) as (ActionItemRow & { meetings: { title: string } | null })[];
+  return rows.map((r) => ({ ...toActionItem(r), meetingTitle: r.meetings?.title ?? "Untitled meeting" }));
+}
+
+/** Flip a task between open/done. RLS restricts writes to permitted rows. */
+export async function setActionItemStatus(
+  db: SupabaseClient,
+  id: string,
+  status: ActionItem["status"],
+): Promise<void> {
+  const { error } = await db.from("action_items").update({ status }).eq("id", id);
+  if (error) throw new Error(error.message);
+}
+
 /** Semantic search via the RLS-aware RPC. `queryEmbedding` must match the schema
  *  vector dimension (768). Returns matched chunks with similarity scores. */
 export async function semanticSearch(

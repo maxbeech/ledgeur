@@ -1,35 +1,42 @@
-import { NavLink } from "react-router-dom";
-import { Brain, CalendarClock, CircleDot, Sparkles, CheckSquare, Plug, Building2 } from "lucide-react";
-import { cn } from "@parleynotes/ui";
+// The app's dark "furniture": spruce-ink rail with the wordmark, primary nav,
+// a live-recording pill (recordings survive navigation) and the account footer.
+import { NavLink, useNavigate } from "react-router-dom";
+import { Landmark, House, CircleDot, Library, Sparkles, SquareCheck, Settings2, Command } from "lucide-react";
+import { cn, formatElapsed } from "@parleynotes/ui";
 import { hasBackend } from "../lib/config.ts";
 import { useSession } from "../lib/session.ts";
+import { useRecorderCtx } from "../lib/recorderContext.tsx";
 
-const NAV = [
-  { to: "/", label: "Brain", icon: Brain, end: true },
+export const NAV = [
+  { to: "/", label: "Home", icon: House, end: true },
   { to: "/record", label: "Record", icon: CircleDot },
-  { to: "/meetings", label: "Meetings", icon: CalendarClock },
+  { to: "/meetings", label: "Library", icon: Library },
   { to: "/ask", label: "Ask", icon: Sparkles },
-  { to: "/tasks", label: "Tasks", icon: CheckSquare },
-  { to: "/integrations", label: "Integrations", icon: Plug },
+  { to: "/tasks", label: "Tasks", icon: SquareCheck },
+  { to: "/integrations", label: "Settings", icon: Settings2 },
 ];
 
-export function Sidebar() {
+export function Sidebar({ onOpenPalette }: { onOpenPalette: () => void }) {
+  const nav = useNavigate();
   const { session } = useSession();
+  const { state } = useRecorderCtx();
   const email = session?.user?.email ?? null;
   const connected = hasBackend && !!session;
+  const recording = state.status === "recording";
+
   return (
-    <aside className="flex h-full w-[236px] shrink-0 flex-col bg-ink text-on-ink">
-      <div className="pn-drag flex items-center gap-2.5 px-5 pb-4 pt-11">
-        <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-accent text-white shadow-inner">
-          <Brain className="h-[18px] w-[18px]" strokeWidth={2.2} />
+    <aside className="hidden h-full w-[232px] shrink-0 flex-col bg-ink text-on-ink md:flex" aria-label="Primary">
+      <div className="pn-drag flex items-center gap-2.5 px-5 pb-5 pt-11">
+        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-accent/90 text-white">
+          <Landmark className="h-[16px] w-[16px]" strokeWidth={2.1} />
         </div>
         <div className="leading-tight">
-          <div className="text-[15px] font-semibold tracking-tight">ParleyNotes</div>
-          <div className="text-[11px] text-on-ink-muted">Company brain</div>
+          <div className="pn-display text-[17px] tracking-tight text-on-ink">ParleyNotes</div>
+          <div className="font-mono text-[9.5px] uppercase tracking-[0.18em] text-on-ink-muted">Library of record</div>
         </div>
       </div>
 
-      <nav className="flex-1 space-y-0.5 px-3 py-2">
+      <nav className="flex-1 space-y-0.5 px-3 py-1">
         {NAV.map(({ to, label, icon: Icon, end }) => (
           <NavLink
             key={to}
@@ -37,30 +44,63 @@ export function Sidebar() {
             end={end}
             className={({ isActive }) =>
               cn(
-                "group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors",
-                isActive ? "bg-white/12 text-white" : "text-on-ink-muted hover:bg-white/6 hover:text-on-ink",
+                "group relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium",
+                "transition-colors duration-150",
+                isActive ? "bg-white/10 text-white" : "text-on-ink-muted hover:bg-white/5 hover:text-on-ink",
               )
             }
           >
-            <Icon className="h-[18px] w-[18px]" strokeWidth={2} />
-            {label}
+            {({ isActive }) => (
+              <>
+                <span className={cn("absolute left-0 top-1/2 h-4 w-[2.5px] -translate-y-1/2 rounded-full bg-glow transition-opacity", isActive ? "opacity-100" : "opacity-0")} />
+                <Icon className="h-[17px] w-[17px]" strokeWidth={2} />
+                {label}
+                {to === "/record" && recording && (
+                  <span className="ml-auto flex items-center gap-1.5 font-mono text-[10.5px] text-red-300">
+                    <span className="pn-pulse h-1.5 w-1.5 rounded-full bg-red-400" />
+                    {formatElapsed(state.elapsed)}
+                  </span>
+                )}
+              </>
+            )}
           </NavLink>
         ))}
       </nav>
 
+      {recording && (
+        <button
+          onClick={() => nav("/record")}
+          className="mx-3 mb-2 flex items-center gap-2.5 rounded-xl border border-red-400/25 bg-red-400/10 px-3 py-2.5 text-left transition-colors hover:bg-red-400/15"
+        >
+          <span className="pn-halo flex h-2.5 w-2.5 shrink-0 rounded-full bg-red-400" />
+          <span className="min-w-0 leading-tight">
+            <span className="block truncate text-[12.5px] font-medium text-on-ink">Recording</span>
+            <span className="block font-mono text-[10.5px] text-on-ink-muted">{formatElapsed(state.elapsed)} · tap to return</span>
+          </span>
+        </button>
+      )}
+
+      <button
+        onClick={onOpenPalette}
+        className="mx-3 mb-2 flex items-center gap-2 rounded-xl border border-white/10 px-3 py-2 text-[12.5px] text-on-ink-muted transition-colors hover:bg-white/5 hover:text-on-ink"
+      >
+        <Command className="h-3.5 w-3.5" /> Quick actions
+        <kbd className="ml-auto rounded-md border border-white/15 px-1.5 py-0.5 font-mono text-[10px]">⌘K</kbd>
+      </button>
+
       <div className="border-t border-white/10 px-4 py-4">
-        <div className="flex items-center gap-2.5 rounded-xl px-2 py-2">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/10">
-            <Building2 className="h-4 w-4" />
+        <NavLink to="/integrations" className="flex items-center gap-2.5 rounded-xl px-2 py-1.5 transition-colors hover:bg-white/5">
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-accent/70 to-glow/60 font-mono text-[11px] font-semibold uppercase text-white">
+            {email ? email.slice(0, 2) : "PN"}
           </div>
           <div className="min-w-0 flex-1 leading-tight">
-            <div className="truncate text-[13px] font-medium text-on-ink">{email ?? "Personal workspace"}</div>
-            <div className="flex items-center gap-1.5 text-[11px] text-on-ink-muted">
-              <span className={cn("h-1.5 w-1.5 rounded-full", connected ? "bg-accent" : "bg-amber-400")} />
+            <div className="truncate text-[12.5px] font-medium text-on-ink">{email ?? "Personal workspace"}</div>
+            <div className="flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-wider text-on-ink-muted">
+              <span className={cn("h-1.5 w-1.5 rounded-full", connected ? "bg-accent" : "bg-amber-400/80")} />
               {connected ? "Synced" : hasBackend ? "Signed out" : "Local only"}
             </div>
           </div>
-        </div>
+        </NavLink>
       </div>
     </aside>
   );

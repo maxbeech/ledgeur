@@ -1,6 +1,6 @@
 {
   "name": "parleynotes-monorepo",
-  "version": "0.2.0",
+  "version": "0.4.0",
   "private": true,
   "description": "ParleyNotes — the centre of the company's brain. Cross-platform (Tauri 2) meeting intelligence with on-device transcription, diarization and a local AI, backed by Supabase.",
   "license": "MIT",

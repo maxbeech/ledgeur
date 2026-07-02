@@ -27,7 +27,7 @@ lands. Legend: ✅ done · 🟡 in progress · ⬜ planned.
 - ✅ sherpa-onnx diarization (sherpa-rs) → per-speaker segments; merge labels onto transcript (Rust-tested)
 - ✅ Recorder auto-selects native engine when compiled + models present; webview fallback otherwise
 - ✅ Model download command + Integrations "On-device AI" status card
-- 🟡 Voice-print enrolment for named-colleague identity likelihood (embedding extractor wired; enrolment UI pending)
+- ✅ Voice-print enrolment + identification: `enroll_voice`/`list_voice_profiles`/`delete_voice_profile` commands (sherpa-onnx embeddings, cosine match, tested); `transcribe_diarize` labels transcripts with enrolled names + confidence; enrolment UI in Settings
 - ✅ llama.cpp OpenAI-compatible endpoint (`:8081/v1`) used for chat + embeddings (documented in docs/NATIVE_AI.md)
 
 ## Phase 3 — Chat & RAG (task #9)
@@ -74,9 +74,18 @@ step (can't be verified headless):
 ### Known limitation (design follow-up)
 - **MCP credential revocation:** the MCP server authenticates with the user's Supabase refresh token, so "revoke" currently = sign out (rotates all sessions). `mcp_tokens` is an audit record; a dedicated revocable minted-token exchange (per-call `revoked`/plan check) is the follow-up. UI copy already states "revoke by signing out" (honest).
 
+## Redesign pass (2026-07-02) — "The Library of Record"
+
+- ✅ Full visual redesign: editorial design system (Fraunces/Schibsted/Spline Sans Mono, bundled offline), strict color semantics, paper grain, motion grammar (`pn-stagger`, halo, shimmer) with reduced-motion support
+- ✅ App shell: app-level recorder (recording survives navigation, live sidebar pill), ⌘K command palette, mobile bottom tab bar + responsive layouts, scroll-reset on navigation
+- ✅ Req 14 — manual in-meeting notes (Notes tab), woven verbatim into the summary/export (core, tested)
+- ✅ Req 13 — proactive "you could say" suggestions (Suggest tab) from the on-device model over the live transcript; parser in core (tested); explicit unavailable state
+- ✅ Speaker sync fidelity: `pushMeeting` writes `speakers` rows (label/name/confidence) + segment links; cloud read-back restores them
+- ✅ Tasks cross-device: cloud `action_items` with real DB status merged with unsynced local items
+- ✅ Friendly explicit local-model errors everywhere (shared `modelFetch`); delete confirmation; Meeting detail speaker legend + confidence figures
+
 ## Debt / follow-ups
 
-- ⬜ Tasks screen cross-device: show cloud `action_items` (with DB status) when signed in, grouped by meeting (currently local-only + localStorage done-state)
 - ⬜ Migrate `apps/marketing` off its local `lib/{summarize,audio,ai-notes}` copies onto `@parleynotes/core` (single source of truth)
 - ⬜ Update the Vercel project **Root Directory** to `apps/marketing` (monorepo move)
 - ⬜ Validate migrations against a live Supabase project (Docker/`supabase db reset`)

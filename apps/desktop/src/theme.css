@@ -1,31 +1,56 @@
+/* ParleyNotes — "The Library of Record" theme.
+   Tokens mirror packages/ui/src/tokens.ts (single source of truth).
+   Fonts are bundled (offline-first): Fraunces (display serif) ·
+   Schibsted Grotesk (UI) · Spline Sans Mono (data/timestamps). */
+@import "@fontsource-variable/fraunces";
+@import "@fontsource-variable/schibsted-grotesk";
+@import "@fontsource-variable/spline-sans-mono";
 @import "tailwindcss";
 
-/* ParleyNotes premium theme. Tokens mirror packages/ui/src/tokens.ts.
-   Tailwind v4 @theme maps them to utilities (bg-paper, text-ink, etc.). */
 @theme {
-  --color-paper: #f7f4ef;
-  --color-surface: #ffffff;
-  --color-surface-muted: #f1ede6;
-  --color-ink: #10201b;
-  --color-ink-soft: #1b3029;
-  --color-accent: #0b8f68;
-  --color-accent-strong: #047857;
-  --color-accent-soft: #d5efe6;
-  --color-glow: #b8892b;
-  --color-ink-text: #1c1917;
-  --color-muted: #57534e;
-  --color-on-ink: #eef2f0;
-  --color-on-ink-muted: #9db3aa;
-  --color-hairline: #e6e0d7;
-  --color-danger: #b91c1c;
+  --color-paper: #f6f2ea;
+  --color-surface: #fdfbf7;
+  --color-surface-muted: #efe9de;
+  --color-surface-sunken: #e9e2d4;
+
+  --color-ink: #0e1f19;
+  --color-ink-soft: #163026;
+  --color-ink-raised: #1d3a2e;
+
+  --color-accent: #0f8a63;
+  --color-accent-strong: #0a6b4d;
+  --color-accent-soft: #dcefe5;
+
+  --color-glow: #a87a24;
+  --color-glow-strong: #8a621a;
+  --color-glow-soft: #f3e8d2;
+
+  --color-danger: #a33636;
+  --color-danger-soft: #f6e0dc;
+  --color-warn: #a05f16;
+  --color-warn-soft: #f5e7d2;
+
+  --color-ink-text: #211d16;
+  --color-muted: #6d6558;
+  --color-faint: #988f7f;
+  --color-on-ink: #f0ede4;
+  --color-on-ink-muted: #93a89b;
+
+  --color-hairline: #e2dacb;
+  --color-hairline-strong: #cfc4ae;
 
   --radius-xl: 1.25rem;
 
-  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto,
-    "Helvetica Neue", Arial, sans-serif;
+  --font-display: "Fraunces Variable", "Iowan Old Style", Georgia, serif;
+  --font-sans: "Schibsted Grotesk Variable", "Avenir Next", "Segoe UI", sans-serif;
+  --font-mono: "Spline Sans Mono Variable", "SF Mono", ui-monospace, monospace;
 
-  --shadow-card: 0 1px 2px rgb(16 32 27 / 0.04), 0 8px 24px -12px rgb(16 32 27 / 0.12);
-  --shadow-float: 0 12px 40px -12px rgb(16 32 27 / 0.28);
+  --ease-settle: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-swift: cubic-bezier(0.4, 0, 0.2, 1);
+
+  --shadow-card: 0 1px 2px rgb(24 32 22 / 0.05), 0 10px 28px -14px rgb(24 32 22 / 0.14);
+  --shadow-float: 0 18px 50px -16px rgb(14 31 25 / 0.32);
+  --shadow-palette: 0 24px 80px -12px rgb(14 31 25 / 0.45);
 }
 
 * {
@@ -33,28 +58,54 @@
   text-rendering: optimizeLegibility;
 }
 
-html,
-body,
-#root {
-  height: 100%;
-}
+html, body, #root { height: 100%; }
 
 body {
   margin: 0;
   background: var(--color-paper);
   color: var(--color-ink-text);
   font-family: var(--font-sans);
-  /* Let the OS chrome show through on macOS for a native feel. */
   overflow: hidden;
+  user-select: none; /* app-like feel; re-enabled for reading surfaces */
 }
 
-/* Subtle, premium scrollbars. */
-::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
+/* Reading surfaces stay selectable (transcripts, notes, chat, inputs). */
+.pn-prose, .pn-prose *, input, textarea, pre, code {
+  user-select: text;
+  -webkit-user-select: text;
 }
+
+/* ---- Display type ------------------------------------------------------- */
+.pn-display {
+  font-family: var(--font-display);
+  font-variation-settings: "opsz" 40, "SOFT" 60, "WONK" 0;
+  font-weight: 560;
+  letter-spacing: -0.015em;
+}
+.pn-kicker {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--color-faint);
+}
+
+/* ---- Paper grain — quiet, print-like texture over the canvas ------------ */
+.pn-grain::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  pointer-events: none;
+  opacity: 0.30;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3CfeComponentTransfer%3E%3CfeFuncA type='linear' slope='0.05'/%3E%3C/feComponentTransfer%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+/* ---- Scrollbars ---------------------------------------------------------- */
+::-webkit-scrollbar { width: 10px; height: 10px; }
 ::-webkit-scrollbar-thumb {
-  background: color-mix(in srgb, var(--color-ink) 18%, transparent);
+  background: color-mix(in srgb, var(--color-ink) 16%, transparent);
   border-radius: 999px;
   border: 3px solid transparent;
   background-clip: content-box;
@@ -64,19 +115,73 @@ body {
   background-clip: content-box;
 }
 
-/* Recording pulse. */
+/* ---- Motion grammar ------------------------------------------------------ */
+@keyframes pn-rise {
+  from { opacity: 0; transform: translateY(10px); filter: blur(2px); }
+  to { opacity: 1; transform: translateY(0); filter: blur(0); }
+}
+.pn-rise { animation: pn-rise 0.45s var(--ease-settle) both; }
+/* Staggered page-load orchestration: apply .pn-stagger to a container. */
+.pn-stagger > * { animation: pn-rise 0.5s var(--ease-settle) both; }
+.pn-stagger > *:nth-child(1) { animation-delay: 0ms; }
+.pn-stagger > *:nth-child(2) { animation-delay: 60ms; }
+.pn-stagger > *:nth-child(3) { animation-delay: 120ms; }
+.pn-stagger > *:nth-child(4) { animation-delay: 180ms; }
+.pn-stagger > *:nth-child(5) { animation-delay: 240ms; }
+.pn-stagger > *:nth-child(6) { animation-delay: 300ms; }
+.pn-stagger > *:nth-child(n + 7) { animation-delay: 360ms; }
+
 @keyframes pn-pulse {
   0%, 100% { opacity: 1; transform: scale(1); }
-  50% { opacity: 0.35; transform: scale(0.82); }
+  50% { opacity: 0.35; transform: scale(0.8); }
 }
-.pn-pulse { animation: pn-pulse 1.4s ease-in-out infinite; }
+.pn-pulse { animation: pn-pulse 1.6s ease-in-out infinite; }
 
-@keyframes pn-rise {
-  from { opacity: 0; transform: translateY(6px); }
-  to { opacity: 1; transform: translateY(0); }
+/* Recording halo — a slow breathing ring around the live dot. */
+@keyframes pn-halo {
+  0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--color-danger) 36%, transparent); }
+  70% { box-shadow: 0 0 0 9px transparent; }
+  100% { box-shadow: 0 0 0 0 transparent; }
 }
-.pn-rise { animation: pn-rise 0.28s ease-out both; }
+.pn-halo { animation: pn-halo 2.2s var(--ease-swift) infinite; }
 
-/* Draggable region for the frameless macOS title bar. */
+/* The brain thinking — a gold shimmer sweep across a hairline. */
+@keyframes pn-shimmer {
+  from { background-position: -200% 0; }
+  to { background-position: 200% 0; }
+}
+.pn-shimmer {
+  background: linear-gradient(90deg, transparent 20%, color-mix(in srgb, var(--color-glow) 55%, transparent) 50%, transparent 80%);
+  background-size: 200% 100%;
+  animation: pn-shimmer 1.6s linear infinite;
+}
+
+/* Command palette entrance. */
+@keyframes pn-palette-in {
+  from { opacity: 0; transform: translateY(-8px) scale(0.985); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+.pn-palette-in { animation: pn-palette-in 0.18s var(--ease-settle) both; }
+@keyframes pn-fade-in { from { opacity: 0; } to { opacity: 1; } }
+.pn-fade-in { animation: pn-fade-in 0.16s ease-out both; }
+
+/* Live waveform bars (heights driven inline; this eases them). */
+.pn-eq-bar { transition: height 100ms var(--ease-swift), background-color 160ms; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* ---- Focus --------------------------------------------------------------- */
+:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--color-accent) 65%, transparent);
+  outline-offset: 2px;
+}
+
+/* ---- Frameless window chrome -------------------------------------------- */
 .pn-drag { -webkit-app-region: drag; }
 .pn-no-drag { -webkit-app-region: no-drag; }

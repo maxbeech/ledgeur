@@ -15,6 +15,9 @@ pub fn run() {
             ai::download_models,
             ai::transcribe_chunk,
             ai::transcribe_diarize,
+            ai::voices::list_voice_profiles,
+            ai::voices::enroll_voice,
+            ai::voices::delete_voice_profile,
         ])
         .run(tauri::generate_context!())
         .expect("error while running the ParleyNotes application");

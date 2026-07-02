@@ -9,7 +9,9 @@ Protocol (MCP) server that opens your knowledge base to Claude, ChatGPT and any
 MCP-aware tool, plus the cross-user **hive mind**.
 
 > Previously a browser-only meeting recorder — now a cross-platform product
-> (macOS · Windows · iOS · Android) built on Tauri 2 + Supabase. See
+> (macOS · Windows · iOS · Android) built on Tauri 2 + Supabase, wearing the
+> **"Library of Record"** design language (Fraunces · Schibsted Grotesk ·
+> Spline Sans Mono, bundled offline). See
 > [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) and [`docs/ROADMAP.md`](docs/ROADMAP.md).
 
 ## Monorepo
@@ -64,8 +66,13 @@ and apply the schema in `supabase/migrations` to your Supabase project.
 
 ## Status
 
-Phase 0 (foundation) is complete and the app builds and runs. See
-[`docs/ROADMAP.md`](docs/ROADMAP.md) for what's next.
+Phases 0–5 are code-complete, and the 2026-07 **"Library of Record" redesign**
+shipped: editorial design system, ⌘K palette, mobile tab bar, recordings that
+survive navigation, in-meeting manual notes + proactive suggestions, and named
+speaker identification with confidence (voice-print enrolment, on-device). See
+[`docs/ROADMAP.md`](docs/ROADMAP.md) for what's next and
+[`docs/MANUAL_TESTING.md`](docs/MANUAL_TESTING.md) for flows that need live
+services or a device.
 
 ## Licence
 

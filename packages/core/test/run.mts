@@ -1,5 +1,6 @@
 // @parleynotes/core test suite — pure-logic checks. Run: pnpm --filter @parleynotes/core test
 import { splitSentences, extractiveSummary, summarizeTranscript, notesToMarkdown } from "../src/notes/summarize.ts";
+import { parseSuggestions } from "../src/notes/suggest.ts";
 import { buildNotesRequest, providerById, AI_PROVIDERS } from "../src/notes/ai-notes.ts";
 import { toMeetingNote, actionItemsFromNotes } from "../src/notes/map.ts";
 import { resample, mergeToMono, rms, concatFloat32, WHISPER_SAMPLE_RATE } from "../src/audio/pcm.ts";
@@ -42,6 +43,21 @@ const md = notesToMarkdown("Planning call", "2026-06-14", notes, transcript);
 ok("markdown has title", md.startsWith("# Planning call"));
 ok("markdown has action items as checkboxes", md.includes("- [ ] "));
 ok("markdown includes transcript", md.includes("## Transcript"));
+ok("markdown omits manual notes when absent", !md.includes("## Your notes"));
+const mdManual = notesToMarkdown("Planning call", "2026-06-14", notes, transcript, "Remember: Priya owns rollout.\nBudget cap £40k.");
+ok("markdown includes manual notes verbatim", mdManual.includes("## Your notes") && mdManual.includes("Budget cap £40k."));
+ok("manual notes come before action items", mdManual.indexOf("## Your notes") < mdManual.indexOf("## Action items"));
+
+// --- suggestion parsing ---
+ok("suggestions: JSON array", parseSuggestions('["Ask about the deadline.", "Confirm the owner.", "Push for a decision."]').length === 3);
+ok("suggestions: JSON in prose", parseSuggestions('Sure! ["Ask about scope."] hope this helps').join() === "Ask about scope.");
+ok("suggestions: bulleted fallback", (() => {
+  const out = parseSuggestions("- Ask who owns the launch checklist.\n- Confirm the pricing decision.");
+  return out.length === 2 && out[0].startsWith("Ask who");
+})());
+ok("suggestions: numbered fallback", parseSuggestions("1. Clarify the budget ceiling.\n2) Suggest a follow-up on hiring.").length === 2);
+ok("suggestions: caps at three", parseSuggestions('["a suggestion one","b suggestion two","c suggestion three","d suggestion four"]').length === 3);
+ok("suggestions: garbage throws", (() => { try { parseSuggestions("ok"); return false; } catch { return true; } })());
 
 // --- notes -> domain mappers ---
 const mn = toMeetingNote({

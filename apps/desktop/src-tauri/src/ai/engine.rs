@@ -7,21 +7,30 @@ use super::{DiarSegment, TranscriptSegment};
 #[cfg(not(feature = "native-ai"))]
 mod inner {
     use super::*;
+    use crate::ai::voices::VoiceProfile;
+    use std::collections::HashMap;
     const MSG: &str =
         "On-device AI is not compiled into this build. Rebuild with `--features native-ai` (see docs/NATIVE_AI.md).";
     pub fn transcribe(_a: &tauri::AppHandle, _s: &[f32], _r: u32) -> Result<Vec<TranscriptSegment>, String> { Err(MSG.into()) }
     pub fn diarize(_a: &tauri::AppHandle, _s: &[f32], _r: u32) -> Result<Vec<DiarSegment>, String> { Err(MSG.into()) }
     pub fn download_models(_a: &tauri::AppHandle) -> Result<(), String> { Err(MSG.into()) }
+    pub fn embed_voice(_a: &tauri::AppHandle, _s: &[f32], _r: u32) -> Result<Vec<f32>, String> { Err(MSG.into()) }
+    pub fn identify_speakers(
+        _a: &tauri::AppHandle, _s: &[f32], _r: u32, _d: &[DiarSegment], _p: &[VoiceProfile],
+    ) -> HashMap<i32, (String, f32)> { HashMap::new() }
 }
 
 #[cfg(feature = "native-ai")]
 mod inner {
     use super::*;
+    use crate::ai::voices::{best_match, VoiceProfile};
     use crate::ai::{models_dir, EMBED_MODEL, SEG_MODEL, WHISPER_MODEL};
+    use std::collections::HashMap;
     use std::fs;
     use std::io::Write;
     use whisper_rs::{FullParams, SamplingStrategy, WhisperContext, WhisperContextParameters};
     use sherpa_rs::diarize::{Diarize, DiarizeConfig};
+    use sherpa_rs::speaker_id::{EmbeddingExtractor, ExtractorConfig};
 
     /// Linear resample to 16 kHz mono (whisper/sherpa require 16 kHz).
     fn resample_16k(samples: &[f32], rate: u32) -> Vec<f32> {
@@ -105,6 +114,69 @@ mod inner {
             .collect())
     }
 
+    /// Speaker embedding for a stretch of speech (voice enrolment + identification).
+    pub fn embed_voice(app: &tauri::AppHandle, samples: &[f32], rate: u32) -> Result<Vec<f32>, String> {
+        let audio = resample_16k(samples, rate);
+        let model = models_dir(app).join(EMBED_MODEL);
+        if !model.exists() {
+            return Err("Speaker-embedding model missing. Run download first.".into());
+        }
+        let mut extractor = EmbeddingExtractor::new(ExtractorConfig {
+            model: model.to_string_lossy().to_string(),
+            ..Default::default()
+        })
+        .map_err(|e| e.to_string())?;
+        extractor.compute_speaker_embedding(audio, 16000).map_err(|e| e.to_string())
+    }
+
+    /// Match each diarized speaker against enrolled voice profiles. Collects up
+    /// to ~12 s of that speaker's audio, embeds it, and keeps matches at/above
+    /// the cosine threshold. Failures degrade to anonymous "Speaker N" labels.
+    pub fn identify_speakers(
+        app: &tauri::AppHandle,
+        samples: &[f32],
+        rate: u32,
+        diar: &[DiarSegment],
+        profiles: &[VoiceProfile],
+    ) -> HashMap<i32, (String, f32)> {
+        let mut out = HashMap::new();
+        if profiles.is_empty() || diar.is_empty() {
+            return out;
+        }
+        let audio = resample_16k(samples, rate);
+        let max_samples = 12 * 16000usize;
+        let min_samples = 16000usize; // need ≥1 s of speech to identify
+        let mut speakers: Vec<i32> = diar.iter().map(|d| d.speaker).collect();
+        speakers.sort_unstable();
+        speakers.dedup();
+        for spk in speakers {
+            let mut clip: Vec<f32> = Vec::new();
+            for d in diar.iter().filter(|d| d.speaker == spk) {
+                let a = ((d.start_ms.max(0) as usize) * 16).min(audio.len());
+                let b = ((d.end_ms.max(0) as usize) * 16).min(audio.len());
+                if b > a {
+                    clip.extend_from_slice(&audio[a..b]);
+                }
+                if clip.len() >= max_samples {
+                    clip.truncate(max_samples);
+                    break;
+                }
+            }
+            if clip.len() < min_samples {
+                continue;
+            }
+            match embed_voice(app, &clip, 16000) {
+                Ok(embedding) => {
+                    if let Some((profile, sim)) = best_match(&embedding, profiles) {
+                        out.insert(spk, (profile.name.clone(), sim));
+                    }
+                }
+                Err(e) => eprintln!("voice identification failed for speaker {spk}: {e}"),
+            }
+        }
+        out
+    }
+
     // Direct single-file model downloads (documented in docs/NATIVE_AI.md).
     const DOWNLOADS: &[(&str, &str)] = &[
         (WHISPER_MODEL, "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.en.bin"),
@@ -138,4 +210,4 @@ mod inner {
     }
 }
 
-pub use inner::{diarize, download_models, transcribe};
+pub use inner::{diarize, download_models, embed_voice, identify_speakers, transcribe};
