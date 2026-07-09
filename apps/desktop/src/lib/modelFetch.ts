@@ -1,6 +1,7 @@
-// One place that talks HTTP to the on-device model server, so every feature
-// (chat, ask, suggestions, embeddings) fails the same honest, actionable way
-// when it isn't running — instead of leaking "Failed to fetch".
+// HTTP fallback to an OpenAI-compatible endpoint (a BYO cloud key or an
+// external llama.cpp), used only when the in-process native engine isn't
+// available. Fails the same honest, actionable way everywhere instead of
+// leaking "Failed to fetch" — answers are never invented without a model.
 
 export async function postToLocalModel(url: string, body: unknown, signal?: AbortSignal): Promise<Response> {
   try {
@@ -13,8 +14,8 @@ export async function postToLocalModel(url: string, body: unknown, signal?: Abor
   } catch (e) {
     if (e instanceof DOMException && e.name === "AbortError") throw e;
     throw new Error(
-      "The on-device model isn't running. Start a local llama.cpp server " +
-      "(Settings → On-device AI) and try again — answers are never invented without it.",
+      "The on-device model isn't ready yet. Open Settings → On-device AI to " +
+      "finish downloading it (a one-time ~1 GB download) — answers are never invented without it.",
     );
   }
 }

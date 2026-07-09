@@ -2,7 +2,7 @@
 // meeting view already renders — so workspace meetings open on any device without
 // a separate UI. Returns null if not signed in or not found.
 
-import { getMeeting as getCloud } from "@parleynotes/core";
+import { getMeeting as getCloud } from "@ledgeur/core";
 import { getSupabase } from "./supabase.ts";
 import type { LocalMeeting, LocalSegment } from "./meetingsStore.ts";
 

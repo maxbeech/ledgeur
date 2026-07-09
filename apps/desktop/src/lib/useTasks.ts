@@ -3,7 +3,7 @@
 // (done-state kept in localStorage until they do). Real data or explicit errors.
 
 import { useCallback, useEffect, useState } from "react";
-import { listActionItemsWithMeeting, setActionItemStatus } from "@parleynotes/core";
+import { listActionItemsWithMeeting, setActionItemStatus } from "@ledgeur/core";
 import { listMeetings as listLocal } from "./meetingsStore.ts";
 import { getSupabase } from "./supabase.ts";
 
@@ -16,7 +16,7 @@ export interface TaskItem {
   source: "cloud" | "local";
 }
 
-const DONE_KEY = "parleynotes.tasks.done";
+const DONE_KEY = "ledgeur.tasks.done";
 const loadDone = (): Set<string> => {
   try { return new Set(JSON.parse(localStorage.getItem(DONE_KEY) || "[]") as string[]); } catch { return new Set(); }
 };

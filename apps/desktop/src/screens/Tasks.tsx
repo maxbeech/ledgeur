@@ -3,7 +3,7 @@
 import { useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { SquareCheck, CircleDot } from "lucide-react";
-import { cn } from "@parleynotes/ui";
+import { cn } from "@ledgeur/ui";
 import { Page, PageHeader } from "../components/PageHeader.tsx";
 import { Button, Card, Chip, EmptyState, ErrorNote, Spinner } from "../components/ui.tsx";
 import { useTasks, type TaskItem } from "../lib/useTasks.ts";
@@ -48,12 +48,12 @@ export function Tasks() {
           />
         </Card>
       ) : (
-        <div className="pn-stagger space-y-6">
+        <div className="ldg-stagger space-y-6">
           {grouped.map(([meetingId, group]) => (
             <section key={meetingId}>
               <button
                 onClick={() => meetingId !== "unassigned" && nav(`/meetings/${meetingId}`)}
-                className="pn-kicker mb-2 transition-colors hover:text-ink-text"
+                className="ldg-kicker mb-2 transition-colors hover:text-ink-text"
               >
                 {group.title}
               </button>
@@ -66,7 +66,7 @@ export function Tasks() {
                       onChange={() => void toggle(t)}
                       className="mt-0.5 h-4 w-4 accent-[var(--color-accent-strong)]"
                     />
-                    <span className={cn("pn-prose flex-1 text-sm leading-relaxed text-ink-text transition-colors", t.done && "text-faint line-through")}>
+                    <span className={cn("ldg-prose flex-1 text-sm leading-relaxed text-ink-text transition-colors", t.done && "text-faint line-through")}>
                       {t.text}
                     </span>
                     {t.source === "local" && <Chip tone="warn">local</Chip>}

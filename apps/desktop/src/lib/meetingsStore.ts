@@ -14,6 +14,24 @@ export interface LocalSegment {
   speakerConfidence?: number | null;
 }
 
+/** A quoted bubble the user is replying to (transcript line or earlier message). */
+export interface ChatQuote {
+  text: string;
+  label: string;
+}
+
+/** A non-transcript entry in the live meeting thread: a copilot answer, a user
+ *  question, or a proactive coaching suggestion. Merged with transcript segments
+ *  (by `atMs`) to form one continuous conversation. */
+export interface ChatMessage {
+  id: string;
+  role: "user" | "assistant" | "suggestion" | "error";
+  text: string;
+  /** Milliseconds since the meeting started — orders it against transcript. */
+  atMs: number;
+  quote?: ChatQuote;
+}
+
 export interface LocalMeeting {
   id: string;
   title: string;
@@ -29,12 +47,15 @@ export interface LocalMeeting {
   actionItems: string[];
   /** Notes the user typed during the meeting (kept verbatim in the export). */
   manualNotes?: string;
+  /** Copilot/user/suggestion thread — persisted only when the user opts in
+   *  (Settings → "Save copilot chat with the meeting"). */
+  messages?: ChatMessage[];
   noteMarkdown: string;
   wordCount: number;
   synced: boolean;
 }
 
-const DB_NAME = "parleynotes";
+const DB_NAME = "ledgeur";
 const STORE = "meetings";
 const VERSION = 1;
 

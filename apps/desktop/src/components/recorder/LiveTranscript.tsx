@@ -3,7 +3,7 @@
 // confidence flagged when it drops. Speaker labels appear only when diarization
 // supplies them; nothing is fabricated.
 import { useEffect, useRef } from "react";
-import { formatElapsed, confidenceTier } from "@parleynotes/ui";
+import { formatElapsed, confidenceTier } from "@ledgeur/ui";
 import type { LocalSegment } from "../../lib/meetingsStore.ts";
 import { SpeakerTag } from "../SpeakerTag.tsx";
 
@@ -16,7 +16,7 @@ export function LiveTranscript({ segments, live }: { segments: LocalSegment[]; l
   if (segments.length === 0) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-3 px-6 text-center">
-        {live && <div className="pn-shimmer h-px w-40" />}
+        {live && <div className="ldg-shimmer h-px w-40" />}
         <p className="text-sm text-muted">
           {live ? "Listening… the transcript appears here as people speak." : "No transcript yet."}
         </p>
@@ -25,11 +25,11 @@ export function LiveTranscript({ segments, live }: { segments: LocalSegment[]; l
   }
 
   return (
-    <div className="pn-prose space-y-5 px-1 py-1">
+    <div className="ldg-prose space-y-5 px-1 py-1">
       {segments.map((s) => {
         const asr = confidenceTier(s.confidence);
         return (
-          <div key={s.id} className="pn-rise grid grid-cols-[52px_1fr] gap-x-3">
+          <div key={s.id} className="ldg-rise grid grid-cols-[52px_1fr] gap-x-3">
             <span className="pt-0.5 text-right font-mono text-[10.5px] tabular-nums leading-5 text-faint">
               {formatElapsed(s.startMs / 1000)}
             </span>

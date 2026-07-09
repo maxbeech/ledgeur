@@ -2,8 +2,8 @@
 // truth). Pull recent meetings for the signed-in user; push a locally-recorded
 // meeting (its notes, transcript and action items) up to the org.
 
-import { listMeetings as remoteList } from "@parleynotes/core";
-import type { Meeting } from "@parleynotes/core";
+import { listMeetings as remoteList } from "@ledgeur/core";
+import type { Meeting } from "@ledgeur/core";
 import { getSupabase } from "./supabase.ts";
 import type { LocalMeeting } from "./meetingsStore.ts";
 import { saveMeeting } from "./meetingsStore.ts";

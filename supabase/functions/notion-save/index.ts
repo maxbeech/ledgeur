@@ -1,5 +1,5 @@
 // Save a meeting's notes to Notion. The client converts note Markdown to Notion
-// blocks with @parleynotes/core (single source of truth) and posts them here; we
+// blocks with @ledgeur/core (single source of truth) and posts them here; we
 // attach the user's server-stored Notion token and create the page. Keeping the
 // token server-side means it never touches the device.
 
@@ -51,7 +51,7 @@ Deno.serve(async (req) => {
     }
   }
   if (!databaseId) {
-    return json({ error: "No Notion database is shared with ParleyNotes. Share a database with the integration, then try again." }, 400);
+    return json({ error: "No Notion database is shared with Ledgeur. Share a database with the integration, then try again." }, 400);
   }
   const parent = { type: "database_id", database_id: databaseId };
 

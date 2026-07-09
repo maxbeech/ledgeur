@@ -14,7 +14,7 @@ export default function UseCasesIndex() {
   return (
     <main className="mx-auto max-w-5xl px-5 py-14">
       <h1 className="text-3xl font-extrabold tracking-tight">Notes for every kind of meeting</h1>
-      <p className="mt-3 max-w-2xl text-stone-600">However you meet, ParleyNotes turns it into clean, private notes — on your device.</p>
+      <p className="mt-3 max-w-2xl text-stone-600">However you meet, Ledgeur turns it into clean, private notes — on your device.</p>
       <div className="mt-8 grid gap-3 sm:grid-cols-2">
         {USE_CASES.map((u) => (
           <Link key={u.slug} href={`/use-cases/${u.slug}`} className="rounded-xl border border-stone-200 bg-white p-5 hover:border-emerald-300">

@@ -2,8 +2,8 @@
 // connected provider, or an explicit error (e.g. token expired) — never faked.
 
 import { useEffect, useState } from "react";
-import type { CalendarEvent } from "@parleynotes/core";
-import { eventsToday } from "@parleynotes/core";
+import type { CalendarEvent } from "@ledgeur/core";
+import { eventsToday } from "@ledgeur/core";
 import { useSession } from "./session.ts";
 import { fetchTodayEvents } from "./calendar.ts";
 

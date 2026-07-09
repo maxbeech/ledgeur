@@ -4,7 +4,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { ArrowLeft, Copy, Check, Trash2, FileText, ListChecks, MessageSquareText, PenLine } from "lucide-react";
-import { formatElapsed } from "@parleynotes/ui";
+import { formatElapsed } from "@ledgeur/ui";
 import { Page } from "../components/PageHeader.tsx";
 import { Button, Card, ErrorNote, Kicker, Spinner } from "../components/ui.tsx";
 import { SpeakerTag } from "../components/SpeakerTag.tsx";
@@ -73,13 +73,13 @@ export function MeetingDetail() {
         <ArrowLeft className="h-4 w-4" /> Library
       </button>
 
-      <header className="pn-rise mb-6">
+      <header className="ldg-rise mb-6">
         <Kicker className="mb-2">
           {new Date(meeting.createdAt).toLocaleString(undefined, { dateStyle: "long", timeStyle: "short" })} · {meeting.wordCount} words
           {!meeting.synced && <span className="text-warn"> · local only</span>}
         </Kicker>
         <div className="flex flex-wrap items-start justify-between gap-4">
-          <h1 className="pn-display min-w-0 text-[28px] leading-tight text-ink-text">{meeting.title}</h1>
+          <h1 className="ldg-display min-w-0 text-[28px] leading-tight text-ink-text">{meeting.title}</h1>
           <div className="flex shrink-0 gap-2">
             <Button size="sm" variant="outline" onClick={saveNotion} disabled={notion.busy}
               title={hasBackend ? "Save these notes to Notion" : "Connect Notion in Settings to enable"}>
@@ -110,7 +110,7 @@ export function MeetingDetail() {
       </div>
 
       {tab === "notes" ? (
-        <div className="pn-stagger pn-prose space-y-5">
+        <div className="ldg-stagger ldg-prose space-y-5">
           <NoteBlock title="Summary" items={meeting.summary} />
           {meeting.manualNotes?.trim() && (
             <Card className="border-glow/25 p-6">
@@ -137,7 +137,7 @@ export function MeetingDetail() {
           )}
         </div>
       ) : (
-        <Card className="pn-prose p-6">
+        <Card className="ldg-prose p-6">
           {speakers.length > 1 && (
             <div className="mb-6 flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-hairline pb-4">
               <Kicker>Speakers</Kicker>

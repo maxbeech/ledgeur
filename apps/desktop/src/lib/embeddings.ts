@@ -3,21 +3,12 @@
 // Ask uses semantic search when a backend + model are available, else falls back
 // to keyword search — always real, never fabricated.
 
-import { meetingChunks, semanticSearch } from "@parleynotes/core";
+import { meetingChunks, semanticSearch } from "@ledgeur/core";
 import { getSupabase } from "./supabase.ts";
-import { CONFIG } from "./config.ts";
-import { postToLocalModel } from "./modelFetch.ts";
+import { embedText } from "./llm.ts";
 import type { ContextBlock } from "./chat.ts";
 
-/** Embed a single string via the local OpenAI-compatible embeddings endpoint. */
-export async function embedText(text: string): Promise<number[]> {
-  const res = await postToLocalModel(`${CONFIG.localLlmUrl}/embeddings`, { model: "nomic-embed-text", input: text });
-  if (!res.ok) throw new Error(`Local embedding model unavailable (${res.status}). Start the on-device model.`);
-  const data = (await res.json()) as { data?: { embedding: number[] }[] };
-  const emb = data.data?.[0]?.embedding;
-  if (!emb) throw new Error("Embedding endpoint returned no vector.");
-  return emb;
-}
+export { embedText };
 
 /** Chunk + embed a meeting and upsert its vectors for the org hive mind. */
 export async function indexMeeting(

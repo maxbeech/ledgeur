@@ -7,8 +7,11 @@ import { getSupabase } from "./supabase.ts";
 import { pushMeeting } from "./sync.ts";
 import { indexMeeting } from "./embeddings.ts";
 import { saveMeetingToNotion } from "./notion.ts";
+import { createLogger } from "./logger.ts";
 
-const AUTOSAVE_KEY = "parleynotes.notion.autosave";
+const log = createLogger("after-meeting");
+
+const AUTOSAVE_KEY = "ledgeur.notion.autosave";
 export const notionAutoSaveEnabled = (): boolean => localStorage.getItem(AUTOSAVE_KEY) === "1";
 export const setNotionAutoSave = (v: boolean): void => localStorage.setItem(AUTOSAVE_KEY, v ? "1" : "0");
 
@@ -30,11 +33,11 @@ export async function finalizeMeeting(localId: string): Promise<void> {
     // RAG indexing needs the local model; don't block the flow if it's off.
     await indexMeeting(org.id, remoteId, {
       title: m.title, summary: m.summary, transcript: m.segments.map((s) => s.text).join(" "),
-    }).catch((e) => console.error("indexMeeting:", e));
+    }).catch((e) => log.error("indexMeeting failed", e));
     if (notionAutoSaveEnabled()) {
-      await saveMeetingToNotion(m.title, m.noteMarkdown).catch((e) => console.error("notion autosave:", e));
+      await saveMeetingToNotion(m.title, m.noteMarkdown).catch((e) => log.error("notion autosave failed", e));
     }
   } catch (e) {
-    console.error("finalizeMeeting sync failed:", e);
+    log.error("finalizeMeeting sync failed", e);
   }
 }

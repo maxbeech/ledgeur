@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { CircleDot, Sparkles, CalendarClock, CornerDownLeft } from "lucide-react";
-import { cn, relativeTime } from "@parleynotes/ui";
+import { cn, relativeTime } from "@ledgeur/ui";
 import { NAV } from "./Sidebar.tsx";
 import { useMeetings } from "../lib/useMeetings.ts";
 
@@ -70,9 +70,9 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
   if (!open) return null;
 
   return (
-    <div className="pn-fade-in fixed inset-0 z-50 flex items-start justify-center bg-ink/35 px-4 pt-[14vh] backdrop-blur-[2px]" onMouseDown={onClose} role="dialog" aria-modal="true" aria-label="Quick actions">
+    <div className="ldg-fade-in fixed inset-0 z-50 flex items-start justify-center bg-ink/35 px-4 pt-[14vh] backdrop-blur-[2px]" onMouseDown={onClose} role="dialog" aria-modal="true" aria-label="Quick actions">
       <div
-        className="pn-palette-in w-full max-w-lg overflow-hidden rounded-2xl border border-hairline bg-surface shadow-[var(--shadow-palette)]"
+        className="ldg-palette-in w-full max-w-lg overflow-hidden rounded-2xl border border-hairline bg-surface shadow-[var(--shadow-palette)]"
         onMouseDown={(e) => e.stopPropagation()}
       >
         <input

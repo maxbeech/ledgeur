@@ -6,7 +6,7 @@ import { AI_PROVIDERS, generateAiNotes, providerById } from "@/lib/ai-notes";
 import { saveMeeting, type Meeting } from "@/lib/db";
 import SavedMeetings from "./SavedMeetings";
 
-const KEY_STORE = "parleynotes.aikey";
+const KEY_STORE = "ledgeur.aikey";
 
 export default function NotesPanel({ transcript, durationSec }: { transcript: string; durationSec: number }) {
   const [notes, setNotes] = useState("");

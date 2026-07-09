@@ -24,7 +24,7 @@ export function LevelMeter({ level }: { level: number }) {
         return (
           <span
             key={i}
-            className="pn-eq-bar w-[3px] rounded-full"
+            className="ldg-eq-bar w-[3px] rounded-full"
             style={{
               height: `${8 + v * 84}%`,
               backgroundColor: v > 0.02

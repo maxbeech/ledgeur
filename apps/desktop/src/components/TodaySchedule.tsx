@@ -2,7 +2,7 @@
 // native auto-prompt watcher. Honest states: signed-out, error, loading, empty.
 import { useNavigate } from "react-router-dom";
 import { CalendarClock, Video, CircleDot } from "lucide-react";
-import { formatClock } from "@parleynotes/ui";
+import { formatClock } from "@ledgeur/ui";
 import { Button, Card, EmptyState, ErrorNote, Spinner } from "./ui.tsx";
 import { useTodayEvents } from "../lib/useCalendar.ts";
 import { useMeetingPrompts } from "../lib/meetingPrompt.ts";
@@ -55,7 +55,7 @@ export function TodaySchedule() {
                 </div>
                 {live && (
                   <span className="flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-wider text-danger">
-                    <span className="pn-pulse h-1.5 w-1.5 rounded-full bg-danger" /> Happening now
+                    <span className="ldg-pulse h-1.5 w-1.5 rounded-full bg-danger" /> Happening now
                   </span>
                 )}
               </div>

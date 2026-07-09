@@ -17,7 +17,7 @@ export const USE_CASES: UseCase[] = [
     slug: "sales-calls",
     name: "Sales calls",
     headline: "AI notes for sales calls — without a bot tipping off the prospect",
-    why: "A notetaker bot joining the call signals 'you're being recorded for our CRM'. ParleyNotes captures the call tab quietly and privately, so reps get clean notes without the awkward bot.",
+    why: "A notetaker bot joining the call signals 'you're being recorded for our CRM'. Ledgeur captures the call tab quietly and privately, so reps get clean notes without the awkward bot.",
     captures: ["Prospect pain points and objections", "Pricing and next-step commitments", "Action items and follow-up dates", "Verbatim quotes for the CRM"],
   },
   {

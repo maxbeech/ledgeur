@@ -9,6 +9,7 @@ use std::path::PathBuf;
 use tauri::Manager;
 
 pub mod engine;
+pub mod llm;
 pub mod voices;
 
 #[derive(Serialize, Clone, Debug)]
@@ -106,20 +107,48 @@ pub fn ai_status(app: tauri::AppHandle) -> AiStatus {
 
 #[tauri::command]
 pub fn download_models(app: tauri::AppHandle) -> Result<(), String> {
-    engine::download_models(&app)
+    log::info!("download_models: starting");
+    engine::download_models(&app).inspect_err(|e| log::error!("download_models failed: {e}"))
+}
+
+// ---- On-device LLM (copilot, suggestions, notes) ----
+
+#[tauri::command]
+pub fn llm_status(app: tauri::AppHandle) -> llm::LlmStatus {
+    llm::status(&app)
+}
+
+/// Download the on-device LLM weights (one-time, ~1 GB). Runs on a blocking
+/// thread so the UI stays responsive; progress is polled via `llm_status`.
+#[tauri::command]
+pub async fn download_llm(app: tauri::AppHandle) -> Result<(), String> {
+    log::info!("download_llm: starting");
+    tauri::async_runtime::spawn_blocking(move || llm::download_model(&app))
+        .await
+        .map_err(|e| e.to_string())?
+        .inspect_err(|e| log::error!("download_llm failed: {e}"))
+}
+
+#[tauri::command]
+pub async fn llm_chat(app: tauri::AppHandle, messages: Vec<llm::ChatMsg>, temperature: f32, max_tokens: u32) -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(move || llm::chat(&app, &messages, temperature, max_tokens))
+        .await
+        .map_err(|e| e.to_string())?
+        .inspect_err(|e| log::error!("llm_chat failed: {e}"))
 }
 
 #[tauri::command]
 pub fn transcribe_chunk(app: tauri::AppHandle, samples: Vec<f32>, sample_rate: u32) -> Result<Vec<TranscriptSegment>, String> {
-    engine::transcribe(&app, &samples, sample_rate)
+    engine::transcribe(&app, &samples, sample_rate).inspect_err(|e| log::error!("transcribe_chunk failed: {e}"))
 }
 
 /// Full pass, run on stop: transcribe + diarize + identify enrolled voices +
 /// merge speaker labels (with identity confidence where a voice matched).
 #[tauri::command]
 pub fn transcribe_diarize(app: tauri::AppHandle, samples: Vec<f32>, sample_rate: u32) -> Result<Vec<TranscriptSegment>, String> {
-    let transcript = engine::transcribe(&app, &samples, sample_rate)?;
-    let diar = engine::diarize(&app, &samples, sample_rate)?;
+    log::info!("transcribe_diarize: starting full pass ({} samples)", samples.len());
+    let transcript = engine::transcribe(&app, &samples, sample_rate).inspect_err(|e| log::error!("transcribe_diarize: transcribe step failed: {e}"))?;
+    let diar = engine::diarize(&app, &samples, sample_rate).inspect_err(|e| log::error!("transcribe_diarize: diarize step failed: {e}"))?;
     let profiles = voices::load_profiles(&app);
     let identities = engine::identify_speakers(&app, &samples, sample_rate, &diar, &profiles);
     Ok(merge_speakers(transcript, &diar, &identities))

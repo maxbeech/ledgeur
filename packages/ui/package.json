@@ -1,8 +1,8 @@
 {
-  "name": "@parleynotes/ui",
+  "name": "@ledgeur/ui",
   "version": "0.2.0",
   "private": true,
-  "description": "ParleyNotes design tokens + shared UI helpers (single source of truth for the premium look & feel).",
+  "description": "Ledgeur design tokens + shared UI helpers (single source of truth for the premium look & feel).",
   "license": "MIT",
   "type": "module",
   "exports": {

@@ -1,22 +1,23 @@
 // Settings — account, connections, on-device AI, voices, sharing and the paid
 // MCP data tier. Every card reflects real state; nothing is mocked.
 import { useState } from "react";
-import { FileText, Calendar, Cloud, StickyNote, LogIn, LogOut } from "lucide-react";
+import { FileText, Cloud, StickyNote, LogIn, LogOut } from "lucide-react";
 import { Page, PageHeader } from "../components/PageHeader.tsx";
 import { Button, Card, Chip, ErrorNote, Kicker } from "../components/ui.tsx";
 import { hasBackend } from "../lib/config.ts";
 import { useSession, signInWith, signOut } from "../lib/session.ts";
 import { NotionCard } from "../components/integrations/NotionCard.tsx";
+import { GoogleCalendarCard } from "../components/integrations/GoogleCalendarCard.tsx";
 import { McpAccessCard } from "../components/integrations/McpAccessCard.tsx";
 import { AiEngineCard } from "../components/integrations/AiEngineCard.tsx";
+import { CopilotCard } from "../components/integrations/CopilotCard.tsx";
 import { VoicesCard } from "../components/integrations/VoicesCard.tsx";
 import { SharingPolicyCard } from "../components/integrations/SharingPolicyCard.tsx";
 
 const CONNECTIONS = [
-  { id: "google", name: "Google Calendar", desc: "See meetings and get one-click record prompts. Personal or work.", icon: Calendar, status: "first" },
-  { id: "microsoft", name: "Microsoft 365", desc: "Outlook calendar + Teams meeting detection.", icon: Cloud, status: "planned" },
-  { id: "google_docs", name: "Google Docs", desc: "Export notes to a Google Doc.", icon: FileText, status: "planned" },
-  { id: "onenote", name: "OneNote", desc: "Export notes to a OneNote section.", icon: StickyNote, status: "planned" },
+  { id: "microsoft", name: "Microsoft 365", desc: "Outlook calendar + Teams meeting detection.", icon: Cloud },
+  { id: "google_docs", name: "Google Docs", desc: "Export notes to a Google Doc.", icon: FileText },
+  { id: "onenote", name: "OneNote", desc: "Export notes to a OneNote section.", icon: StickyNote },
 ] as const;
 
 export function Integrations() {
@@ -32,7 +33,7 @@ export function Integrations() {
         subtitle="Connect your tools, control sharing, and open your brain to other apps."
       />
 
-      <div className="pn-stagger">
+      <div className="ldg-stagger">
         <Section title="Account">
           <Card className="flex flex-wrap items-center justify-between gap-4 p-5">
             {session ? (
@@ -69,13 +70,14 @@ export function Integrations() {
         <Section title="Connections">
           <div className="grid gap-3 sm:grid-cols-2">
             <NotionCard signedIn={Boolean(session)} />
+            <GoogleCalendarCard />
             {CONNECTIONS.map((c) => (
               <Card key={c.id} className="flex items-start gap-3 p-4">
                 <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-surface-muted text-ink-text"><c.icon className="h-5 w-5" /></span>
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
                     <span className="text-sm font-semibold text-ink-text">{c.name}</span>
-                    {c.status === "first" ? <Chip tone="accent">first to ship</Chip> : <Chip>planned</Chip>}
+                    <Chip>planned</Chip>
                   </div>
                   <p className="mt-0.5 text-xs leading-relaxed text-muted">{c.desc}</p>
                   <div className="mt-3">
@@ -92,6 +94,7 @@ export function Integrations() {
         <Section title="On-device AI">
           <div className="space-y-3">
             <AiEngineCard />
+            <CopilotCard />
             <VoicesCard />
           </div>
         </Section>

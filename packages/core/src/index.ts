@@ -1,4 +1,4 @@
-// Public surface of @parleynotes/core — the shared brain of every ParleyNotes app.
+// Public surface of @ledgeur/core — the shared brain of every Ledgeur app.
 export * from "./domain/index.ts";
 export * from "./notes/index.ts";
 export * from "./audio/pcm.ts";

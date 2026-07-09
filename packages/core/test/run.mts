@@ -1,4 +1,4 @@
-// @parleynotes/core test suite — pure-logic checks. Run: pnpm --filter @parleynotes/core test
+// @ledgeur/core test suite — pure-logic checks. Run: pnpm --filter @ledgeur/core test
 import { splitSentences, extractiveSummary, summarizeTranscript, notesToMarkdown } from "../src/notes/summarize.ts";
 import { parseSuggestions } from "../src/notes/suggest.ts";
 import { buildNotesRequest, providerById, AI_PROVIDERS } from "../src/notes/ai-notes.ts";
@@ -6,7 +6,7 @@ import { toMeetingNote, actionItemsFromNotes } from "../src/notes/map.ts";
 import { resample, mergeToMono, rms, concatFloat32, WHISPER_SAMPLE_RATE } from "../src/audio/pcm.ts";
 import { markdownToNotionBlocks, chunkBlocks, buildNotionPage } from "../src/integrations/notion.ts";
 import { chunkText, meetingChunks } from "../src/rag/chunk.ts";
-import { eventsToday, nextUpcoming, eventsNeedingPrompt } from "../src/calendar/schedule.ts";
+import { eventsToday, nextUpcoming, eventsNeedingPrompt, formatEventsForContext } from "../src/calendar/schedule.ts";
 import type { CalendarEvent } from "../src/domain/entities.ts";
 
 let pass = 0, fail = 0;
@@ -144,6 +144,9 @@ ok("eventsToday returns same-day sorted", eventsToday(evs, now).length >= 1);
 ok("eventsNeedingPrompt within lead window", eventsNeedingPrompt(evs, now, 10 * 60000, new Set()).map((e) => e.id).join() === "a");
 ok("eventsNeedingPrompt skips already-prompted", eventsNeedingPrompt(evs, now, 10 * 60000, new Set(["a"])).length === 0);
 ok("eventsNeedingPrompt skips far-future", !eventsNeedingPrompt(evs, now, 10 * 60000, new Set()).some((e) => e.id === "b"));
+ok("formatEventsForContext lists every event's title", formatEventsForContext(evs).split("\n").length === evs.length);
+ok("formatEventsForContext marks online events", formatEventsForContext([ev("a", 5)]).includes("(online)"));
+ok("formatEventsForContext is empty for no events", formatEventsForContext([]) === "");
 
 console.log(`\n${pass} passed, ${fail} failed`);
 if (fail > 0) process.exit(1);

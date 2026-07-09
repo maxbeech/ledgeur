@@ -1,4 +1,4 @@
--- ParleyNotes core schema. Source of truth for the domain model mirrored in
+-- Ledgeur core schema. Source of truth for the domain model mirrored in
 -- packages/core/src/domain/entities.ts. Cloud-primary: the device is a cache.
 --
 -- Entities: profiles, orgs, memberships, meetings, speakers, transcript

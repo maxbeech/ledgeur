@@ -4,7 +4,7 @@
 
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
-export interface ParleyClientOptions {
+export interface LedgeurClientOptions {
   /** Persist the auth session (true in the app; false for one-shot server use). */
   persistSession?: boolean;
   /** Custom storage (e.g. Tauri secure store) for the auth session. */
@@ -18,18 +18,18 @@ export interface ParleyClientOptions {
 }
 
 /**
- * Create a ParleyNotes Supabase client.
+ * Create a Ledgeur Supabase client.
  * @param url  Supabase project URL (e.g. https://xyz.supabase.co)
  * @param key  anon key (client) or service-role key (trusted server only)
  */
-export function createParleyClient(
+export function createLedgeurClient(
   url: string,
   key: string,
-  opts: ParleyClientOptions = {},
+  opts: LedgeurClientOptions = {},
 ): SupabaseClient {
   if (!url || !key) {
     throw new Error(
-      "Supabase URL and key are required. Set PARLEY_SUPABASE_URL / PARLEY_SUPABASE_ANON_KEY.",
+      "Supabase URL and key are required. Set LEDGEUR_SUPABASE_URL / LEDGEUR_SUPABASE_ANON_KEY.",
     );
   }
   return createClient(url, key, {

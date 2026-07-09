@@ -6,7 +6,7 @@ import { SITE } from "@/lib/site";
 export const metadata: Metadata = {
   title: "Guides — AI meeting notes, transcription & privacy",
   description:
-    "Guides on AI meeting notes, free meeting transcription, on-device privacy and choosing the right notetaker. From the ParleyNotes team.",
+    "Guides on AI meeting notes, free meeting transcription, on-device privacy and choosing the right notetaker. From the Ledgeur team.",
   alternates: { canonical: `${SITE.url}/blog` },
 };
 

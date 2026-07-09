@@ -2,5 +2,5 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 fn main() {
-    parleynotes_lib::run()
+    ledgeur_lib::run()
 }

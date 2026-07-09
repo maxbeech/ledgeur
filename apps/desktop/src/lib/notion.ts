@@ -1,13 +1,14 @@
 // Notion integration (client side). The Markdown→blocks conversion is done here
-// with @parleynotes/core (single source of truth); the token exchange and the
+// with @ledgeur/core (single source of truth); the token exchange and the
 // actual API calls run in edge functions so the Notion secret/token stay server-side.
 
-import { markdownToNotionBlocks } from "@parleynotes/core";
+import { markdownToNotionBlocks } from "@ledgeur/core";
 import { getSupabase } from "./supabase.ts";
+import type { ContextBlock } from "./chat.ts";
 
 const NOTION_CLIENT_ID = import.meta.env.VITE_NOTION_CLIENT_ID ?? "";
 /** Hosted OAuth callback (a marketing-site page) that returns the code to paste. */
-export const NOTION_REDIRECT_URI = import.meta.env.VITE_NOTION_REDIRECT_URI ?? "https://parleynotes.com/oauth/notion";
+export const NOTION_REDIRECT_URI = import.meta.env.VITE_NOTION_REDIRECT_URI ?? "https://ledgeur.com/oauth/notion";
 
 export function notionConfigured(): boolean {
   return Boolean(NOTION_CLIENT_ID);
@@ -41,6 +42,21 @@ export async function isNotionConnected(): Promise<boolean> {
   if (!sb) return false;
   const { data } = await sb.from("integrations").select("id").eq("provider", "notion").maybeSingle();
   return Boolean(data);
+}
+
+/** Notion pages matching the question, as Ask context. Never throws — no
+ *  connection or a Notion API error just means no Notion context, not a
+ *  broken Ask. */
+export async function notionContext(question: string): Promise<ContextBlock[]> {
+  const sb = getSupabase();
+  if (!sb) return [];
+  try {
+    const { data, error } = await sb.functions.invoke("notion-context", { body: { query: question } });
+    if (error || !(data as { ok?: boolean })?.ok) return [];
+    return (data as { blocks?: ContextBlock[] }).blocks ?? [];
+  } catch {
+    return [];
+  }
 }
 
 /** Save a meeting's notes to Notion. Returns the created page URL. */

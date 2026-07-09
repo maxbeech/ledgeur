@@ -7,7 +7,7 @@ import { CircleDot, Mic, MonitorSpeaker, Info, CheckCircle2 } from "lucide-react
 import { Page, PageHeader } from "../components/PageHeader.tsx";
 import { Button, Card, ErrorNote } from "../components/ui.tsx";
 import { LiveMeeting } from "../components/recorder/LiveMeeting.tsx";
-import { useRecorderCtx } from "../lib/recorderContext.tsx";
+import { useRecorderCtx } from "../lib/useRecorderCtx.ts";
 import { finalizeMeeting } from "../lib/afterMeeting.ts";
 import { isTauri } from "../lib/runtime.ts";
 
@@ -37,10 +37,10 @@ export function Record() {
   if (state.status === "complete") {
     return (
       <Page>
-        <Card className="pn-rise mx-auto mt-10 flex max-w-md flex-col items-center gap-4 p-10 text-center">
+        <Card className="ldg-rise mx-auto mt-10 flex max-w-md flex-col items-center gap-4 p-10 text-center">
           <CheckCircle2 className="h-10 w-10 text-accent-strong" />
           <div>
-            <div className="pn-display text-[20px] text-ink-text">The record is written</div>
+            <div className="ldg-display text-[20px] text-ink-text">The record is written</div>
             <div className="mt-1 text-sm text-muted">Summary, decisions and action items were generated on-device{state.notes.trim() ? " — with your notes woven in" : ""}.</div>
           </div>
           <div className="flex gap-3">
@@ -59,15 +59,15 @@ export function Record() {
         title="Record a meeting"
         subtitle="Transcribed on your device as it happens. No bot joins the call; nothing leaves the machine."
       />
-      <div className="pn-stagger mx-auto max-w-2xl">
+      <div className="ldg-stagger mx-auto max-w-2xl">
         <Card className="p-6 sm:p-8">
-          <label htmlFor="rec-title" className="pn-kicker mb-2 block">Title</label>
+          <label htmlFor="rec-title" className="ldg-kicker mb-2 block">Title</label>
           <input
             id="rec-title"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             placeholder="e.g. Weekly product sync"
-            className="pn-display mb-7 w-full border-b border-hairline bg-transparent pb-2 text-[22px] text-ink-text outline-none transition-colors placeholder:text-faint/60 focus:border-ink/40"
+            className="ldg-display mb-7 w-full border-b border-hairline bg-transparent pb-2 text-[22px] text-ink-text outline-none transition-colors placeholder:text-faint/60 focus:border-ink/40"
           />
 
           <div className="mb-6 grid gap-3 sm:grid-cols-2">
@@ -76,7 +76,7 @@ export function Record() {
           </div>
 
           <div className="mb-7">
-            <label htmlFor="rec-lang" className="pn-kicker mb-2 block">Language</label>
+            <label htmlFor="rec-lang" className="ldg-kicker mb-2 block">Language</label>
             <select
               id="rec-lang"
               value={lang}

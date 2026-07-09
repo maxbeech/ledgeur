@@ -1,4 +1,4 @@
-# ParleyNotes — Overhaul Roadmap
+# Ledgeur — Overhaul Roadmap
 
 Status of the transformation from a browser-only meeting recorder into the
 cross-platform "company brain". This file is the living plan — update it as work
@@ -19,6 +19,8 @@ lands. Legend: ✅ done · 🟡 in progress · ⬜ planned.
 - ✅ Supabase Auth: Google + Microsoft (Azure) OAuth, personal **and** work; sign-in UI + session
 - ✅ Calendar read scopes + fetch (Google Calendar / Microsoft Graph) → today's events
 - ✅ Meeting auto-prompt: native Tauri notification ~1 min before start with one-click **Record** (Today list on Brain)
+- ✅ Google Calendar card in Integrations reflects real connection state (was a dead placeholder); calendar events (next 7 days) are now an Ask context source (`calendar.ts` `calendarContext()`)
+- ✅ CSP: `googleapis.com` / `graph.microsoft.com` added to `connect-src` so calendar fetches actually work in the packaged Tauri app, not just dev/browser-preview
 - ⬜ Org creation flow + membership admin (first user becomes admin) — needs live backend
 
 ## Phase 2 — Native on-device AI (task #8)
@@ -40,6 +42,7 @@ lands. Legend: ✅ done · 🟡 in progress · ⬜ planned.
 
 - ✅ Notion: markdown→blocks converter (core, tested) + OAuth (`notion-oauth` edge fn) + server-side save (`notion-save` edge fn, token stays off-device)
 - ✅ "Save to Notion" (meeting view) + auto-save-on-completion toggle
+- ✅ Notion as Ask context: `notion-context` edge fn does a live Notion search per question and returns page snippets (title-matching, not full-text — a Notion API limitation, not indexed/synced)
 - ✅ Generic integrations table/framework (secrets in `integration_secrets`); OneNote + Google Docs are next
 - ⬜ Two-way task sync
 
@@ -56,7 +59,7 @@ The shared Tauri codebase + full icon set (macOS/Windows/iOS/Android, generated)
 are in place. Bringing up each mobile target is an interactive, device-tested
 step (can't be verified headless):
 
-- ⬜ iOS: `pnpm --filter @parleynotes/desktop tauri ios init` then `… tauri ios dev` (Xcode 26.6 present). Native mic capture via the shell.
+- ⬜ iOS: `pnpm --filter @ledgeur/desktop tauri ios init` then `… tauri ios dev` (Xcode 26.6 present). Native mic capture via the shell.
 - ⬜ Android: install NDK, `tauri android init`, `tauri android dev`.
 - ⬜ Windows: `tauri build` on a Windows host.
 - Note: the webview recorder (getUserMedia) works in all shells today; the native whisper/sherpa engine needs per-platform lib linking (see docs/NATIVE_AI.md, sherpa-rs cross-compile notes).
@@ -86,7 +89,7 @@ step (can't be verified headless):
 
 ## Debt / follow-ups
 
-- ⬜ Migrate `apps/marketing` off its local `lib/{summarize,audio,ai-notes}` copies onto `@parleynotes/core` (single source of truth)
+- ⬜ Migrate `apps/marketing` off its local `lib/{summarize,audio,ai-notes}` copies onto `@ledgeur/core` (single source of truth)
 - ⬜ Update the Vercel project **Root Directory** to `apps/marketing` (monorepo move)
 - ⬜ Validate migrations against a live Supabase project (Docker/`supabase db reset`)
 - ⬜ Manual test: live mic/system-audio recording end-to-end in the native shell

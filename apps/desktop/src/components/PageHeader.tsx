@@ -10,7 +10,7 @@ export function PageHeader({ kicker, title, subtitle, action }: {
       <div className="flex items-end justify-between gap-4">
         <div className="min-w-0">
           {kicker && <Kicker className="mb-2">{kicker}</Kicker>}
-          <h1 className="pn-display text-[30px] leading-tight text-ink-text">{title}</h1>
+          <h1 className="ldg-display text-[30px] leading-tight text-ink-text">{title}</h1>
           {subtitle && <p className="mt-1.5 text-sm text-muted">{subtitle}</p>}
         </div>
         {action && <div className="shrink-0 pb-1">{action}</div>}

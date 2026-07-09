@@ -4,7 +4,7 @@
 // local silently so the app always works.
 
 import { useCallback, useEffect, useState } from "react";
-import { listMeetingSummaries } from "@parleynotes/core";
+import { listMeetingSummaries } from "@ledgeur/core";
 import { listMeetings as listLocal } from "./meetingsStore.ts";
 import { getSupabase } from "./supabase.ts";
 

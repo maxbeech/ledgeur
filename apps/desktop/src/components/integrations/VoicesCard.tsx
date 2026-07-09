@@ -3,7 +3,7 @@
 // browser preview → explains it's native-only; native errors surface verbatim.
 import { useEffect, useRef, useState } from "react";
 import { AudioLines, Mic, Square, Trash2 } from "lucide-react";
-import { resample, WHISPER_SAMPLE_RATE, concatFloat32 } from "@parleynotes/core";
+import { resample, WHISPER_SAMPLE_RATE, concatFloat32 } from "@ledgeur/core";
 import { Button, Card, Chip, ErrorNote, Spinner } from "../ui.tsx";
 import { isTauri } from "../../lib/runtime.ts";
 import { AudioCapture } from "../../lib/capture.ts";
@@ -119,7 +119,7 @@ export function VoicesCard() {
               </div>
               {recording && (
                 <div className="mt-2 flex items-center gap-2 font-mono text-[10.5px] text-danger">
-                  <span className="pn-pulse h-1.5 w-1.5 rounded-full bg-danger" /> Speak naturally — reading a sentence or two works well.
+                  <span className="ldg-pulse h-1.5 w-1.5 rounded-full bg-danger" /> Speak naturally — reading a sentence or two works well.
                 </div>
               )}
 

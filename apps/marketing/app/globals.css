@@ -1,6 +1,6 @@
 @import "tailwindcss";
 
-/* ParleyNotes ships a single, intentional warm LIGHT theme. Every surface uses
+/* Ledgeur ships a single, intentional warm LIGHT theme. Every surface uses
    explicit Tailwind colors (cream page, white cards, ink text, emerald accent).
    We do NOT honour prefers-color-scheme: a dark body background would sit behind
    the light-theme text and break contrast (an unlayered body{background} rule

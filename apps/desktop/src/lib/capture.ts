@@ -2,7 +2,7 @@
 // meeting audio (getDisplayMedia) into one mono PCM stream and accumulates it so
 // the recorder can drain new audio periodically for live transcription.
 
-import { concatFloat32 } from "@parleynotes/core";
+import { concatFloat32 } from "@ledgeur/core";
 
 export class AudioCapture {
   private ctx: AudioContext | null = null;

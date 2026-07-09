@@ -37,8 +37,8 @@ function Header() {
     <header className="sticky top-0 z-20 border-b border-stone-200 bg-[var(--paper)]/85 backdrop-blur">
       <div className="mx-auto flex max-w-6xl items-center justify-between px-5 py-3">
         <Link href="/" className="flex items-center gap-2 font-bold tracking-tight">
-          <span className="grid h-7 w-7 place-items-center rounded-lg bg-emerald-700 text-sm text-white">P</span>
-          Parley<span className="text-emerald-700">Notes</span>
+          <span className="grid h-7 w-7 place-items-center rounded-lg bg-emerald-700 text-sm text-white">L</span>
+          Ledgeur
         </Link>
         {/* Desktop nav */}
         <nav aria-label="Primary" className="hidden items-center gap-4 text-sm text-stone-600 sm:flex">

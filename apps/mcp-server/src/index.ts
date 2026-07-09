@@ -1,4 +1,4 @@
-// Entry point for the ParleyNotes MCP server (stdio transport — the shape Claude
+// Entry point for the Ledgeur MCP server (stdio transport — the shape Claude
 // Desktop, Cursor and other MCP clients expect). Fails loudly if unconfigured.
 
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
@@ -11,10 +11,10 @@ async function main() {
   const transport = new StdioServerTransport();
   await server.connect(transport);
   // Log to stderr — stdout is reserved for the MCP protocol stream.
-  console.error("ParleyNotes MCP server ready (stdio).");
+  console.error("Ledgeur MCP server ready (stdio).");
 }
 
 main().catch((err) => {
-  console.error("ParleyNotes MCP server failed to start:", err instanceof Error ? err.message : err);
+  console.error("Ledgeur MCP server failed to start:", err instanceof Error ? err.message : err);
   process.exit(1);
 });

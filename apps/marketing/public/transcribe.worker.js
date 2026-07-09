@@ -1,4 +1,4 @@
-// ParleyNotes in-browser transcription worker.
+// Ledgeur in-browser transcription worker.
 //
 // Loads transformers.js straight from the jsDelivr CDN (so the Next.js build
 // never has to bundle the onnxruntime ML stack — fast deploys, no OOM) and runs

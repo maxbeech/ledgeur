@@ -35,7 +35,7 @@ export default function Home() {
 
       {/* Value props */}
       <section className="mx-auto max-w-6xl px-5 py-12">
-        <h2 className="sr-only">Why ParleyNotes</h2>
+        <h2 className="sr-only">Why Ledgeur</h2>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {VALUE_PROPS.map((v) => (
             <div key={v.title} className="rounded-2xl border border-stone-200 bg-white p-5 shadow-sm">
@@ -85,7 +85,7 @@ export default function Home() {
         <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {COMPETITORS.slice(0, 6).map((c) => (
             <Link key={c.slug} href={`/alternatives/${c.slug}`} className="rounded-xl border border-stone-200 bg-white p-4 hover:border-emerald-300">
-              <div className="font-semibold">ParleyNotes vs {c.name}</div>
+              <div className="font-semibold">Ledgeur vs {c.name}</div>
               <div className="mt-1 text-sm text-stone-600">{c.what}</div>
             </Link>
           ))}

@@ -1,16 +1,16 @@
-// Builds the ParleyNotes MCP server and registers its tools. Each tool reads the
-// user's knowledge base through @parleynotes/core's repository (RLS-enforced).
+// Builds the Ledgeur MCP server and registers its tools. Each tool reads the
+// user's knowledge base through @ledgeur/core's repository (RLS-enforced).
 
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import type { SupabaseClient } from "@parleynotes/core";
-import { listMeetings, getMeeting, searchMeetings, listActionItems } from "@parleynotes/core";
+import type { SupabaseClient } from "@ledgeur/core";
+import { listMeetings, getMeeting, searchMeetings, listActionItems } from "@ledgeur/core";
 
 const text = (s: string) => ({ content: [{ type: "text" as const, text: s }] });
 const json = (v: unknown) => text(JSON.stringify(v, null, 2));
 
 export function buildServer(db: SupabaseClient): McpServer {
-  const server = new McpServer({ name: "parleynotes", version: "0.2.0" });
+  const server = new McpServer({ name: "ledgeur", version: "0.2.0" });
 
   server.tool(
     "list_meetings",

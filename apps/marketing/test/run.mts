@@ -1,4 +1,4 @@
-// ParleyNotes test suite. Pure-logic + data-integrity checks. Run: npm test
+// Ledgeur test suite. Pure-logic + data-integrity checks. Run: npm test
 import { splitSentences, extractiveSummary, summarizeTranscript, notesToMarkdown } from "../lib/summarize.ts";
 import { resample, mergeToMono, rms, concatFloat32, WHISPER_SAMPLE_RATE } from "../lib/audio.ts";
 import { buildNotesRequest, providerById, AI_PROVIDERS } from "../lib/ai-notes.ts";

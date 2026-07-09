@@ -1,8 +1,8 @@
 {
-  "name": "parleynotes-monorepo",
+  "name": "ledgeur-monorepo",
   "version": "0.4.0",
   "private": true,
-  "description": "ParleyNotes — the centre of the company's brain. Cross-platform (Tauri 2) meeting intelligence with on-device transcription, diarization and a local AI, backed by Supabase.",
+  "description": "Ledgeur — the centre of the company's brain. Cross-platform (Tauri 2) meeting intelligence with on-device transcription, diarization and a local AI, backed by Supabase.",
   "license": "MIT",
   "packageManager": "pnpm@10.14.0",
   "engines": {
@@ -14,9 +14,9 @@
     "lint": "turbo run lint",
     "test": "turbo run test",
     "typecheck": "turbo run typecheck",
-    "marketing:dev": "pnpm --filter @parleynotes/marketing dev",
-    "desktop:dev": "pnpm --filter @parleynotes/desktop dev",
-    "desktop:tauri": "pnpm --filter @parleynotes/desktop tauri"
+    "marketing:dev": "pnpm --filter @ledgeur/marketing dev",
+    "desktop:dev": "pnpm --filter @ledgeur/desktop dev",
+    "desktop:tauri": "pnpm --filter @ledgeur/desktop tauri"
   },
   "devDependencies": {
     "turbo": "^2.5.5",

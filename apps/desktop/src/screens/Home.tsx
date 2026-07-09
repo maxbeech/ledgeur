@@ -4,7 +4,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Sparkles, CircleDot, ArrowUpRight, Clock } from "lucide-react";
-import { relativeTime } from "@parleynotes/ui";
+import { relativeTime } from "@ledgeur/ui";
 import { Page } from "../components/PageHeader.tsx";
 import { Button, Card, Chip, EmptyState, Kicker, SectionHeader } from "../components/ui.tsx";
 import { TodaySchedule } from "../components/TodaySchedule.tsx";
@@ -23,12 +23,12 @@ export function Home() {
 
   return (
     <Page>
-      <div className="pn-stagger">
+      <div className="ldg-stagger">
         <header className="mb-7">
           <Kicker className="mb-2">
             {now.toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" })}
           </Kicker>
-          <h1 className="pn-display text-[34px] leading-tight text-ink-text">The record is open.</h1>
+          <h1 className="ldg-display text-[34px] leading-tight text-ink-text">The record is open.</h1>
         </header>
 
         {/* Ask anything — the brain's front door. Gold = the brain. */}
@@ -39,7 +39,7 @@ export function Home() {
             onChange={(e) => setQ(e.target.value)}
             onKeyDown={(e) => { if (e.key === "Enter") ask(); }}
             placeholder="Ask anything across your meetings, notes and connected tools…"
-            className="pn-prose min-w-0 flex-1 bg-transparent text-[15px] outline-none placeholder:text-faint"
+            className="ldg-prose min-w-0 flex-1 bg-transparent text-[15px] outline-none placeholder:text-faint"
             aria-label="Ask your knowledge base" name="home-ask"
           />
           <Button variant="gold" size="sm" onClick={ask} disabled={!q.trim()}>Ask</Button>
@@ -54,7 +54,7 @@ export function Home() {
             className="group col-span-2 flex items-center justify-between rounded-2xl bg-ink p-5 text-left shadow-[var(--shadow-card)] transition-all duration-200 ease-[var(--ease-settle)] hover:-translate-y-0.5 hover:shadow-[var(--shadow-float)] sm:col-span-1"
           >
             <span>
-              <span className="pn-display block text-[19px] text-on-ink">Record</span>
+              <span className="ldg-display block text-[19px] text-on-ink">Record</span>
               <span className="block text-xs text-on-ink-muted">Start a new entry</span>
             </span>
             <span className="flex h-10 w-10 items-center justify-center rounded-full bg-danger/90 text-white transition-transform duration-200 group-hover:scale-105">
@@ -120,7 +120,7 @@ function StatTile({ label, value, onClick }: { label: string; value: string; onC
       onClick={onClick}
       className="rounded-2xl border border-hairline bg-surface p-5 text-left shadow-[var(--shadow-card)] transition-all duration-200 ease-[var(--ease-settle)] hover:-translate-y-0.5 hover:shadow-[var(--shadow-float)]"
     >
-      <span className="pn-display block text-[26px] tabular-nums text-ink-text">{value}</span>
+      <span className="ldg-display block text-[26px] tabular-nums text-ink-text">{value}</span>
       <span className="mt-0.5 block text-xs text-muted">{label}</span>
     </button>
   );

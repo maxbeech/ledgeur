@@ -11,7 +11,7 @@ export interface Meeting {
   durationSec: number;
 }
 
-const DB_NAME = "parleynotes";
+const DB_NAME = "ledgeur";
 const STORE = "meetings";
 
 function open(): Promise<IDBDatabase> {

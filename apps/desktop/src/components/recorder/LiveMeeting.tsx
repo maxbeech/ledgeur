@@ -1,38 +1,34 @@
-// The live meeting room: transcript being typeset on the left; on the right a
-// rail with the brain (chat), your notes, and proactive suggestions. Recording
-// state lives at app level, so leaving this screen does not stop the take.
-import { useState } from "react";
-import { Square, MessageCircleQuestion, PenLine, Lightbulb } from "lucide-react";
-import { cn, formatElapsed } from "@parleynotes/ui";
+// The live meeting room. One conversation on the left — the transcript, the
+// copilot's answers, your questions and its proactive suggestions, all as chat
+// bubbles you can quote. Replies are sent from the app's ever-present bottom
+// input (which targets this meeting while recording). The right rail is now just
+// your notes. Recording state lives at app level, so leaving this screen does
+// not stop the take.
+import { useMemo } from "react";
+import { Square, PenLine } from "lucide-react";
+import { formatElapsed } from "@ledgeur/ui";
 import { Button, Card, ErrorNote, Spinner } from "../ui.tsx";
 import { LevelMeter } from "./LevelMeter.tsx";
-import { LiveTranscript } from "./LiveTranscript.tsx";
-import { MeetingChat } from "./MeetingChat.tsx";
 import { NotesPanel } from "./NotesPanel.tsx";
-import { SuggestPanel } from "./SuggestPanel.tsx";
-import { useRecorderCtx } from "../../lib/recorderContext.tsx";
-
-const TABS = [
-  { id: "chat", label: "Copilot", icon: MessageCircleQuestion },
-  { id: "notes", label: "Notes", icon: PenLine },
-  { id: "suggest", label: "Suggest", icon: Lightbulb },
-] as const;
-type TabId = (typeof TABS)[number]["id"];
+import { ThreadView } from "../chat/ThreadView.tsx";
+import { mergeThread } from "../../lib/thread.ts";
+import { useRecorderCtx } from "../../lib/useRecorderCtx.ts";
+import { useChatDock } from "../../lib/useChatDock.ts";
 
 export function LiveMeeting({ onStop }: { onStop: () => void }) {
-  const { state, title, setNotes } = useRecorderCtx();
-  const [tab, setTab] = useState<TabId>("chat");
-  const transcriptText = () => state.segments.map((s) => s.text).join(" ");
+  const { state, title, setNotes, messages, chatBusy } = useRecorderCtx();
+  const { onQuote } = useChatDock();
   const loading = state.status === "loading-model";
   const processing = state.status === "processing";
+  const items = useMemo(() => mergeThread(state.segments, messages), [state.segments, messages]);
 
   return (
-    <div className="grid h-full grid-rows-[auto_1fr] gap-4 px-5 pb-4 sm:px-8 lg:grid-cols-[1fr_370px] lg:grid-rows-1 lg:gap-6">
+    <div className="grid h-full grid-rows-[auto_1fr] gap-4 px-5 pb-4 sm:px-8 lg:grid-cols-[1fr_340px] lg:grid-rows-1 lg:gap-6">
       <div className="flex min-h-0 flex-col">
         <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
           <div className="flex min-w-0 items-center gap-3">
-            <span className="pn-halo flex h-3 w-3 shrink-0 rounded-full bg-danger" />
-            <h1 className="pn-display min-w-0 truncate text-[22px] text-ink-text">{title || "Live meeting"}</h1>
+            <span className="ldg-halo flex h-3 w-3 shrink-0 rounded-full bg-danger" />
+            <h1 className="ldg-display min-w-0 truncate text-[22px] text-ink-text">{title || "Live meeting"}</h1>
             <span className="rounded-full bg-surface-muted px-2.5 py-0.5 font-mono text-[11.5px] tabular-nums text-muted">
               {formatElapsed(state.elapsed)}
             </span>
@@ -57,8 +53,8 @@ export function LiveMeeting({ onStop }: { onStop: () => void }) {
         ) : (
           <>
             <div className="mb-3"><LevelMeter level={state.level} /></div>
-            <Card className="min-h-0 flex-1 overflow-y-auto p-5">
-              <LiveTranscript segments={state.segments} live />
+            <Card className="flex min-h-0 flex-1 flex-col overflow-hidden">
+              <ThreadView items={items} busy={chatBusy} live onQuote={onQuote} />
             </Card>
             {processing && (
               <div className="mt-3 flex items-center gap-2 text-sm text-muted">
@@ -71,26 +67,11 @@ export function LiveMeeting({ onStop }: { onStop: () => void }) {
       </div>
 
       <Card className="flex min-h-[320px] flex-col overflow-hidden lg:min-h-0">
-        <div className="flex border-b border-hairline" role="tablist" aria-label="Meeting tools">
-          {TABS.map(({ id, label, icon: Icon }) => (
-            <button
-              key={id}
-              role="tab"
-              aria-selected={tab === id}
-              onClick={() => setTab(id)}
-              className={cn(
-                "flex flex-1 items-center justify-center gap-1.5 border-b-2 px-2 py-2.5 text-[12.5px] font-medium transition-colors",
-                tab === id ? "border-glow text-ink-text" : "border-transparent text-faint hover:text-muted",
-              )}
-            >
-              <Icon className="h-3.5 w-3.5" /> {label}
-            </button>
-          ))}
+        <div className="flex items-center gap-2 border-b border-hairline px-4 py-2.5 text-[12.5px] font-medium text-ink-text">
+          <PenLine className="h-3.5 w-3.5 text-muted" /> Notes
         </div>
         <div className="min-h-0 flex-1">
-          {tab === "chat" && <MeetingChat getContext={() => [{ source: "Live transcript", text: transcriptText() }]} />}
-          {tab === "notes" && <NotesPanel value={state.notes} onChange={setNotes} />}
-          {tab === "suggest" && <SuggestPanel getTranscript={transcriptText} />}
+          <NotesPanel value={state.notes} onChange={setNotes} />
         </div>
       </Card>
     </div>

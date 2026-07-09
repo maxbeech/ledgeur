@@ -1,4 +1,4 @@
--- Row-level security for ParleyNotes. The default deny + explicit policies below
+-- Row-level security for Ledgeur. The default deny + explicit policies below
 -- enforce: you see your own data, plus org-shared meetings (the "hive mind")
 -- when your admin has enabled sharing. Helper functions are SECURITY DEFINER to
 -- avoid recursive RLS evaluation.

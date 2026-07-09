@@ -1,6 +1,6 @@
 // Generate the MCP client config (the paid data tier). Plan-gated: free orgs get
 // an explicit upgrade signal; paid orgs get a ready-to-paste config that points
-// an MCP client at the ParleyNotes server, authenticated as this user.
+// an MCP client at the Ledgeur server, authenticated as this user.
 
 import type { Session } from "@supabase/supabase-js";
 import { getSupabase } from "./supabase.ts";
@@ -28,13 +28,13 @@ export async function generateMcpConfig(session: Session): Promise<McpConfigResu
   const config = JSON.stringify(
     {
       mcpServers: {
-        parleynotes: {
+        ledgeur: {
           command: "pnpm",
-          args: ["--filter", "@parleynotes/mcp-server", "start"],
+          args: ["--filter", "@ledgeur/mcp-server", "start"],
           env: {
-            PARLEY_SUPABASE_URL: CONFIG.supabaseUrl,
-            PARLEY_SUPABASE_ANON_KEY: CONFIG.supabaseAnonKey,
-            PARLEY_REFRESH_TOKEN: session.refresh_token,
+            LEDGEUR_SUPABASE_URL: CONFIG.supabaseUrl,
+            LEDGEUR_SUPABASE_ANON_KEY: CONFIG.supabaseAnonKey,
+            LEDGEUR_REFRESH_TOKEN: session.refresh_token,
           },
         },
       },

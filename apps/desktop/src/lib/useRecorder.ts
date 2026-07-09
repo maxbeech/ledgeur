@@ -9,11 +9,16 @@
 // per-speaker labels + confidence; the webview path labels a single speaker.
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { resample, WHISPER_SAMPLE_RATE, rms, concatFloat32, summarizeTranscript, notesToMarkdown } from "@parleynotes/core";
+import { resample, WHISPER_SAMPLE_RATE, rms, concatFloat32, notesToMarkdown } from "@ledgeur/core";
 import { AudioCapture } from "./capture.ts";
 import { TranscriberController } from "./transcriber.ts";
 import { aiStatus, nativeTranscribeChunk, nativeTranscribeDiarize, type NativeSegment } from "./nativeAI.ts";
-import { saveMeeting, type LocalMeeting, type LocalSegment } from "./meetingsStore.ts";
+import { saveMeeting, type LocalMeeting, type LocalSegment, type ChatMessage } from "./meetingsStore.ts";
+import { generateMeetingNotes } from "./notes.ts";
+import { getSettings } from "./settings.ts";
+import { createLogger } from "./logger.ts";
+
+const log = createLogger("recorder");
 
 export type RecorderStatus = "idle" | "loading-model" | "recording" | "processing" | "complete" | "error";
 
@@ -33,7 +38,7 @@ const toLocal = (s: NativeSegment, offsetMs: number): LocalSegment => ({
   text: s.text, confidence: s.confidence, speakerConfidence: s.speaker_confidence,
 });
 
-export function useRecorder() {
+export function useRecorder(getThreadMessages?: () => ChatMessage[]) {
   const [state, setState] = useState<RecorderState>({
     status: "idle", elapsed: 0, level: 0, modelProgress: 0, device: "", segments: [], error: "", meetingId: null, notes: "",
   });
@@ -46,11 +51,18 @@ export function useRecorder() {
   const native = useRef(false);
   const lang = useRef("en");
   const notesRef = useRef("");
+  const threadRef = useRef<(() => ChatMessage[]) | undefined>(getThreadMessages);
+  threadRef.current = getThreadMessages;
   const fullAudio = useRef<Float32Array[]>([]);
   const fullLen = useRef(0);
   const capExceeded = useRef(false); // true once we stop retaining full audio (>cap)
+  const statusRef = useRef<RecorderStatus>("idle");
 
-  const patch = (p: Partial<RecorderState>) => setState((s) => ({ ...s, ...p }));
+  const patch = (p: Partial<RecorderState>) => setState((s) => {
+    const next = { ...s, ...p };
+    statusRef.current = next.status;
+    return next;
+  });
 
   const setNotes = useCallback((text: string) => {
     notesRef.current = text;
@@ -82,12 +94,14 @@ export function useRecorder() {
         }
       }
     } catch (e) {
+      log.error("transcription chunk failed", e);
       patch({ error: e instanceof Error ? e.message : String(e) });
     }
     lastOffsetMs.current = endMs;
   }, []);
 
   const start = useCallback(async (opts: { mic: boolean; system: boolean; lang?: string }) => {
+    log.info("start requested", opts);
     try {
       segments.current = []; lastOffsetMs.current = 0; fullAudio.current = []; fullLen.current = 0; capExceeded.current = false;
       lang.current = opts.lang ?? "en";
@@ -113,13 +127,16 @@ export function useRecorder() {
       await cap.start(opts);
       capture.current = cap;
       patch({ status: "recording" });
+      log.info("recording started", { native: native.current });
       timer.current = setInterval(() => { patch({ elapsed: cap.totalSeconds() }); void drain(); }, DRAIN_MS);
     } catch (e) {
+      log.error("start failed", e);
       patch({ status: "error", error: e instanceof Error ? e.message : String(e) });
     }
   }, [drain]);
 
   const stop = useCallback(async (title: string): Promise<string | null> => {
+    log.info("stop requested", { title, segments: segments.current.length });
     if (timer.current) { clearInterval(timer.current); timer.current = null; }
     patch({ status: "processing" });
     await drain();
@@ -135,13 +152,19 @@ export function useRecorder() {
         const finalSegs = await nativeTranscribeDiarize(concatFloat32(fullAudio.current));
         if (finalSegs.length) { segments.current = finalSegs.map((s) => toLocal(s, 0)); patch({ segments: segments.current }); }
       } catch (e) {
-        console.error("diarization pass failed, keeping live transcript:", e);
+        log.error("diarization pass failed, keeping live transcript", e);
       }
     }
 
     const transcript = segments.current.map((s) => s.text).join(" ");
     const manualNotes = notesRef.current.trim();
-    const notes = summarizeTranscript(transcript);
+    // Notes are written by the on-device model, falling back to the local
+    // heuristic extractor when no model is available (task #3).
+    const notes = await generateMeetingNotes(transcript);
+    // The copilot/user thread is saved with the meeting only when the user opts
+    // in — by default just the spoken transcript is kept (task #2).
+    const saveChat = getSettings().saveChatWithMeeting;
+    const messages = saveChat ? threadRef.current?.() ?? [] : [];
     const id = uid();
     const now = new Date().toISOString();
     const meeting: LocalMeeting = {
@@ -149,6 +172,7 @@ export function useRecorder() {
       status: "complete", lang: lang.current, segments: segments.current,
       summary: notes.summary, decisions: notes.decisions, questions: notes.questions, actionItems: notes.actionItems,
       manualNotes,
+      messages: messages.length ? messages : undefined,
       noteMarkdown: notesToMarkdown(title || "Untitled meeting", now.slice(0, 10), notes, transcript, manualNotes),
       wordCount: notes.wordCount, synced: false,
     };
@@ -156,6 +180,7 @@ export function useRecorder() {
     transcriber.current?.dispose(); transcriber.current = null;
     fullAudio.current = []; fullLen.current = 0;
     patch({ status: "complete", meetingId: id });
+    log.info("recording saved", { meetingId: id, segments: meeting.segments.length, wordCount: notes.wordCount });
     return id;
   }, [drain]);
 
@@ -164,13 +189,18 @@ export function useRecorder() {
     capture.current?.stop(); transcriber.current?.dispose();
     capture.current = null; transcriber.current = null;
     segments.current = []; fullAudio.current = []; fullLen.current = 0; notesRef.current = "";
+    statusRef.current = "idle";
     setState({ status: "idle", elapsed: 0, level: 0, modelProgress: 0, device: "", segments: [], error: "", meetingId: null, notes: "" });
   }, []);
 
   // Provider-level teardown (app close): stop capture, timers and the worker so
-  // nothing leaks. During normal navigation the provider stays mounted.
+  // nothing leaks. During normal navigation the provider stays mounted. If this
+  // fires while still "recording", something remounted RecorderProvider
+  // unexpectedly (e.g. a Fast Refresh full-reload) and the recording is being
+  // cut short — log loudly so that's diagnosable instead of a silent reset.
   useEffect(() => () => {
     if (timer.current) clearInterval(timer.current);
+    if (statusRef.current === "recording") log.warn("recorder unmounted mid-recording — capture stopped");
     void capture.current?.stop();
     transcriber.current?.dispose();
   }, []);

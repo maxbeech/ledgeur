@@ -1,6 +1,6 @@
-# @parleynotes/mcp-server
+# @ledgeur/mcp-server
 
-The **paid tier**: an MCP server that opens a user's ParleyNotes knowledge base
+The **paid tier**: an MCP server that opens a user's Ledgeur knowledge base
 to Claude, ChatGPT, Cursor and any MCP-aware tool. Every query runs under the
 user's Supabase RLS, so nothing leaks past your sharing rules.
 
@@ -14,10 +14,10 @@ user's Supabase RLS, so nothing leaks past your sharing rules.
 ## Run
 
 ```bash
-PARLEY_SUPABASE_URL=https://xxxx.supabase.co \
-PARLEY_SUPABASE_ANON_KEY=... \
-PARLEY_ACCESS_TOKEN=<user JWT from a paid plan> \
-pnpm --filter @parleynotes/mcp-server start
+LEDGEUR_SUPABASE_URL=https://xxxx.supabase.co \
+LEDGEUR_SUPABASE_ANON_KEY=... \
+LEDGEUR_ACCESS_TOKEN=<user JWT from a paid plan> \
+pnpm --filter @ledgeur/mcp-server start
 ```
 
 ## Claude Desktop config
@@ -25,13 +25,13 @@ pnpm --filter @parleynotes/mcp-server start
 ```json
 {
   "mcpServers": {
-    "parleynotes": {
+    "ledgeur": {
       "command": "pnpm",
-      "args": ["--filter", "@parleynotes/mcp-server", "start"],
+      "args": ["--filter", "@ledgeur/mcp-server", "start"],
       "env": {
-        "PARLEY_SUPABASE_URL": "https://xxxx.supabase.co",
-        "PARLEY_SUPABASE_ANON_KEY": "...",
-        "PARLEY_ACCESS_TOKEN": "..."
+        "LEDGEUR_SUPABASE_URL": "https://xxxx.supabase.co",
+        "LEDGEUR_SUPABASE_ANON_KEY": "...",
+        "LEDGEUR_ACCESS_TOKEN": "..."
       }
     }
   }

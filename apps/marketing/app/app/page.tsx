@@ -3,9 +3,9 @@ import Recorder from "@/components/Recorder";
 import { SITE } from "@/lib/site";
 
 export const metadata: Metadata = {
-  title: "ParleyNotes app — record, transcribe & summarise meetings privately",
+  title: "Ledgeur app — record, transcribe & summarise meetings privately",
   description:
-    "The ParleyNotes web app. Record a meeting or upload audio, get an on-device transcript and AI notes. Nothing is uploaded — everything runs in your browser.",
+    "The Ledgeur web app. Record a meeting or upload audio, get an on-device transcript and AI notes. Nothing is uploaded — everything runs in your browser.",
   alternates: { canonical: `${SITE.url}/app` },
 };
 

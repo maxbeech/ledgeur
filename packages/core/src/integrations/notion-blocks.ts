@@ -1,4 +1,4 @@
-// Convert ParleyNotes note Markdown into Notion block objects. Pure and
+// Convert Ledgeur note Markdown into Notion block objects. Pure and
 // dependency-free, so it is unit-tested. Supports the subset our notes emit:
 // H1/H2 headings, bulleted list items, to-do checkboxes, and paragraphs.
 

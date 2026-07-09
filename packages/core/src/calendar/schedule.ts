@@ -38,3 +38,10 @@ export function eventsNeedingPrompt(
     return start - t <= leadMs && end > t; // within the lead window and not over
   });
 }
+
+/** Human-readable event list for the Ask copilot's context block. */
+export function formatEventsForContext(events: CalendarEvent[]): string {
+  return events
+    .map((e) => `${e.title} — ${new Date(e.startsAt).toLocaleString()}${e.isOnline ? " (online)" : ""}`)
+    .join("\n");
+}

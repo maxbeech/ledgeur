@@ -2,7 +2,7 @@
 // Voice: "Library of Record". Ink buttons, paper sheets, mono kickers.
 // Color semantics: emerald = live/you · gold = the brain · madder = recording.
 import type { ButtonHTMLAttributes, ReactNode } from "react";
-import { cn } from "@parleynotes/ui";
+import { cn } from "@ledgeur/ui";
 
 type Variant = "primary" | "accent" | "gold" | "ghost" | "outline" | "danger";
 const VARIANTS: Record<Variant, string> = {
@@ -43,7 +43,7 @@ export function Card({ className, children }: { className?: string; children: Re
 
 /** Mono small-caps label — the editorial section voice. */
 export function Kicker({ children, className }: { children: ReactNode; className?: string }) {
-  return <div className={cn("pn-kicker", className)}>{children}</div>;
+  return <div className={cn("ldg-kicker", className)}>{children}</div>;
 }
 
 export function Chip({ children, tone = "neutral" }: { children: ReactNode; tone?: "neutral" | "accent" | "gold" | "warn" | "danger" }) {
@@ -74,7 +74,7 @@ export function EmptyState({ icon, title, body, action }: { icon?: ReactNode; ti
   return (
     <div className="flex flex-col items-center justify-center px-6 py-14 text-center">
       {icon && <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl border border-hairline bg-surface-muted/60 text-muted">{icon}</div>}
-      <h3 className="pn-display text-[19px] text-ink-text">{title}</h3>
+      <h3 className="ldg-display text-[19px] text-ink-text">{title}</h3>
       <p className="mt-1.5 max-w-sm text-sm leading-relaxed text-muted">{body}</p>
       {action && <div className="mt-5">{action}</div>}
     </div>

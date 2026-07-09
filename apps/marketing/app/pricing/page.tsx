@@ -2,11 +2,12 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { SITE } from "@/lib/site";
 import CheckoutButton from "@/components/CheckoutButton";
+import EmailLink from "@/components/EmailLink";
 
 export const metadata: Metadata = {
   title: "Pricing — free for individuals, company licenses for teams",
   description:
-    "ParleyNotes is free forever for individuals. Paid Team and Company licenses add a shared workspace, SSO, admin controls and a supported self-host bundle.",
+    "Ledgeur is free forever for individuals. Paid Team and Company licenses add a shared workspace, SSO, admin controls and a supported self-host bundle.",
   alternates: { canonical: `${SITE.url}/pricing` },
 };
 
@@ -60,7 +61,13 @@ export default function Pricing() {
             <div className="mt-6">
               {t.cta === "personal" && <Link href="/app" className="block rounded-xl bg-stone-900 px-4 py-2.5 text-center text-sm font-semibold text-white hover:bg-stone-700">Open the app</Link>}
               {t.cta === "team" && <CheckoutButton />}
-              {t.cta === "company" && <a href={`mailto:${SITE.contactEmail}?subject=ParleyNotes%20company%20license`} className="block rounded-xl border border-stone-300 px-4 py-2.5 text-center text-sm font-semibold hover:bg-stone-50">Talk to us</a>}
+              {t.cta === "company" && (
+                <EmailLink
+                  label="Talk to us"
+                  subject="Ledgeur company license"
+                  className="block w-full rounded-xl border border-stone-300 px-4 py-2.5 text-center text-sm font-semibold hover:bg-stone-50"
+                />
+              )}
             </div>
           </div>
         ))}

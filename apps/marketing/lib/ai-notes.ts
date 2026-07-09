@@ -1,6 +1,6 @@
 // Optional "bring your own key" AI notes. The transcript is sent directly from
 // the browser to the user's chosen provider — it never passes through a
-// ParleyNotes server. The local summarizer (lib/summarize.ts) remains the
+// Ledgeur server. The local summarizer (lib/summarize.ts) remains the
 // zero-setup default; this is a power-user upgrade.
 
 export interface AiProvider {

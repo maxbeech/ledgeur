@@ -1,4 +1,4 @@
-// Design tokens — the single source of truth for the ParleyNotes look & feel.
+// Design tokens — the single source of truth for the Ledgeur look & feel.
 // Aesthetic: "The Library of Record" — dark spruce-ink furniture around warm
 // paper pages; serif display type; strict color semantics (emerald = live/you,
 // gold = the brain speaking, madder = recording/danger).

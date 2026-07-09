@@ -1,8 +1,8 @@
-# ParleyNotes
+# Ledgeur
 
 **Open-source, private AI meeting notes that run 100% in your browser.**
 
-ParleyNotes is the open alternative to Granola, Otter and Fireflies. Record (or
+Ledgeur is the open alternative to Granola, Otter and Fireflies. Record (or
 upload) a meeting and get an instant transcript and structured notes —
 transcribed entirely on your device with [OpenAI Whisper](https://github.com/openai/whisper)
 via [transformers.js](https://github.com/huggingface/transformers.js). No bot
@@ -50,11 +50,11 @@ an admin console and an SLA. You can always self-host the open-source build for 
 
 ## Privacy
 
-ParleyNotes has no server-side processing of your meetings. Audio is captured and
+Ledgeur has no server-side processing of your meetings. Audio is captured and
 transcribed in the browser; notes are stored in your browser's IndexedDB. If you
 add your own AI key, the transcript is sent **directly** from your browser to your
-chosen provider — never through a ParleyNotes server.
+chosen provider — never through a Ledgeur server.
 
 ## Licence
 
-MIT © ParleyNotes
+MIT © Ledgeur

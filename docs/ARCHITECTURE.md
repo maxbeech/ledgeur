@@ -1,4 +1,4 @@
-# ParleyNotes — Architecture
+# Ledgeur — Architecture
 
 > The centre of the company's brain. A cross-platform app that records and
 > transcribes meetings on-device, turns them into notes + tasks, and lets anyone
@@ -27,7 +27,7 @@
 ## Monorepo layout
 
 ```
-parleynotes/
+ledgeur/
 ├─ apps/
 │  ├─ marketing/        Next.js 16 SEO/marketing site (Vercel)
 │  └─ desktop/          Tauri 2 app — macOS · Windows · iOS · Android
@@ -56,6 +56,26 @@ server, so entity shapes have a single definition (mirrored in `supabase/`).
 | Backend | **Supabase** | Postgres + Auth (Google/Microsoft/SAML) + RLS + pgvector + Storage in one. |
 | Semantic search | **pgvector** | RAG over the org hive mind, gated by RLS. |
 | Data access (paid) | **MCP server** | Exposes the knowledge base to Claude/ChatGPT/any MCP tool. |
+| Error tracking | **Sentry** (`@sentry/react` + the `sentry` Rust crate) | One project (`ledgeur/ledgeur-desktop`) receiving both frontend and native events. Opt-in via `VITE_SENTRY_DSN`/`SENTRY_DSN` in `.env` — blank disables it entirely. |
+
+## Observability
+
+- **Frontend**: `apps/desktop/src/lib/logger.ts` — a scoped `createLogger(name)`
+  that always prints a timestamped line to the console (real `pnpm dev`/`tauri
+  dev` logs, not just Vite's HMR noise) and, when Sentry is configured, sends
+  `warn`/`error` as events and `info`/`debug` as breadcrumbs. `AppErrorBoundary`
+  catches render crashes instead of a blank screen; `main.tsx` also installs
+  `window.onerror`/`unhandledrejection` handlers.
+- **Native**: `tauri-plugin-log` writes Rust `log::info!`/`log::error!` calls to
+  the terminal running `tauri dev` and the webview devtools console; the
+  `sentry` crate (initialized in `src-tauri/src/lib.rs`) captures panics and
+  explicit `capture`/`inspect_err` calls in `src/ai/mod.rs`.
+- **Fast Refresh gotcha**: a `.tsx` file that exports both a component and a
+  hook (or any other non-component value) breaks Vite Fast Refresh — editing it
+  forces a full remount instead of a state-preserving hot update. This is what
+  caused an in-progress recording to silently reset during dev (fixed by moving
+  `useRecorderCtx`/`useChatDock` into their own files). Keep provider/component
+  files and hook files separate.
 
 ## Data flow — a meeting
 
@@ -67,7 +87,7 @@ Calendar (Google/MS) ──▶ auto-prompt ("Record?") ──▶ Record screen
  (mic + system)                                   │            (who spoke, p=…)
                                                   ▼
  in-meeting chat ◀── llama.cpp ◀── context (live transcript + past meetings +
-                                             Notion + colleagues' shared notes)
+                                    Notion + calendar + colleagues' shared notes)
         │
         ▼ (on stop)
  notes + action items ──▶ local cache (SQLite/IndexedDB) ──▶ Supabase sync

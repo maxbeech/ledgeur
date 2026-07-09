@@ -1,4 +1,4 @@
-# Supabase — ParleyNotes backend
+# Supabase — Ledgeur backend
 
 The database schema in `migrations/` is the **source of truth** for the app's
 data shapes (mirrored in `packages/core/src/domain/entities.ts`).

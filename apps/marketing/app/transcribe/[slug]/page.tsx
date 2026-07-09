@@ -12,8 +12,8 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   const { slug } = await params;
   const p = platformBySlug(slug);
   if (!p) return {};
-  const title = `${p.name} transcription — free, private & on-device | ParleyNotes`;
-  const description = `How to transcribe ${p.name} meetings for free with ParleyNotes. On-device AI transcription and notes — no bot joins the call, no cloud upload.`;
+  const title = `${p.name} transcription — free, private & on-device`;
+  const description = `How to transcribe ${p.name} meetings for free with Ledgeur. On-device AI transcription and notes — no bot joins the call, no cloud upload.`;
   return { title, description, alternates: { canonical: `${SITE.url}/transcribe/${p.slug}` }, openGraph: { title, description, type: "article", images: ["/opengraph-image"] } };
 }
 
@@ -25,7 +25,7 @@ export default async function PlatformPage({ params }: { params: Promise<{ slug:
   const jsonLd = {
     "@context": "https://schema.org",
     "@type": "HowTo",
-    name: `How to transcribe a ${p.name} meeting with ParleyNotes`,
+    name: `How to transcribe a ${p.name} meeting with Ledgeur`,
     step: p.tips.map((t, i) => ({ "@type": "HowToStep", position: i + 1, text: t })),
   };
 
@@ -49,7 +49,7 @@ export default async function PlatformPage({ params }: { params: Promise<{ slug:
       <div className="mt-10 rounded-2xl border border-emerald-200 bg-emerald-50 p-6 text-center">
         <h2 className="text-lg font-bold capitalize">Transcribe your next {p.name} call</h2>
         <p className="mt-1 text-sm text-stone-600">Free, private, and no bot in the participant list.</p>
-        <Link href="/app" className="mt-3 inline-block rounded-lg bg-emerald-700 px-5 py-2.5 text-sm font-semibold text-white hover:bg-emerald-600">Open ParleyNotes →</Link>
+        <Link href="/app" className="mt-3 inline-block rounded-lg bg-emerald-700 px-5 py-2.5 text-sm font-semibold text-white hover:bg-emerald-600">Open Ledgeur →</Link>
       </div>
 
       <p className="mt-6 text-xs text-stone-600">Search demand (live Google Ads, US): {p.demand}.</p>

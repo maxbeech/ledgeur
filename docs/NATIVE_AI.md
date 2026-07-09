@@ -1,6 +1,6 @@
 # On-device AI (native engine)
 
-ParleyNotes transcribes, diarizes and reasons entirely on the user's device. The
+Ledgeur transcribes, diarizes and reasons entirely on the user's device. The
 heavy native engine is behind a Cargo feature so the base app stays fast to build.
 
 ## What runs where
@@ -10,7 +10,8 @@ heavy native engine is behind a Cargo feature so the base app stays fast to buil
 | Real-time transcription | **whisper.cpp** (`whisper-rs`) | Rust command `transcribe_chunk` |
 | Speaker diarization + confidence | **sherpa-onnx** (`sherpa-rs`) | Rust command `transcribe_diarize` |
 | Speaker **identification** (named voices) | **sherpa-onnx** speaker embeddings + cosine match | `enroll_voice` / `list_voice_profiles` / `delete_voice_profile`; applied inside `transcribe_diarize` |
-| In-meeting / anytime chat + embeddings + suggestions | **llama.cpp** server (OpenAI-compatible) | `http://127.0.0.1:8081/v1` |
+| Copilot chat · coaching suggestions · post-meeting notes | **llama.cpp in-process** (`llama-cpp-2`) | Rust commands `llm_chat` / `llm_status` / `download_llm` — no server, no third-party app |
+| RAG embeddings (Ask semantic search) | OpenAI-compatible HTTP endpoint | `VITE_LOCAL_LLM_URL` (BYO key or external llama.cpp) — optional; Ask falls back to keyword search |
 
 ### Speaker identification
 
@@ -31,16 +32,18 @@ Requires a C/C++ toolchain + CMake (both present on macOS with Xcode + Homebrew)
 
 ```bash
 # Desktop, native engine on:
-pnpm --filter @parleynotes/desktop tauri:dev:ai      # dev
-pnpm --filter @parleynotes/desktop tauri:build:ai    # release
+pnpm --filter @ledgeur/desktop tauri:dev:ai      # dev
+pnpm --filter @ledgeur/desktop tauri:build:ai    # release
 
 # Or check just the Rust crate:
 cd apps/desktop/src-tauri && cargo check --features native-ai
 ```
 
-`whisper-rs` compiles whisper.cpp via CMake; `sherpa-rs` downloads prebuilt
-sherpa-onnx libs from GitHub releases (set `UNSAFE_DISABLE_CHECKSUM_VALIDATION=1`
-only if a release checksum lags a new version).
+`whisper-rs` and `llama-cpp-2` compile whisper.cpp / llama.cpp via CMake (picking
+up Metal on macOS, CUDA/Vulkan where the toolchain provides it); `sherpa-rs`
+downloads prebuilt sherpa-onnx libs from GitHub releases (set
+`UNSAFE_DISABLE_CHECKSUM_VALIDATION=1` only if a release checksum lags a new
+version).
 
 ### Offline / CI build (no GitHub release download)
 
@@ -62,28 +65,54 @@ cargo check --features native-ai   # verified compiling on macOS arm64
 `Integrations → On-device AI → Download models` (or the `download_models`
 command) fetches into the app data dir:
 
+Transcription/diarization models (`download_models`):
+
 | File | Source |
 |---|---|
 | `ggml-base.en.bin` | huggingface.co/ggerganov/whisper.cpp |
 | `pyannote-segmentation-3.0.onnx` | sherpa-onnx pyannote segmentation |
 | `speaker-embedding.onnx` | sherpa-onnx 3D-Speaker embedding |
 
-## Local chat/embeddings server (llama.cpp)
+Copilot LLM (`download_llm`, one tap in **Settings → On-device AI → Download
+assistant**, or the inline prompt the first time you use the copilot):
 
-The chat + RAG features talk to an OpenAI-compatible endpoint (default
-`VITE_LOCAL_LLM_URL=http://127.0.0.1:8081/v1`). Run any llama.cpp server, e.g.:
+| File | Source | Size |
+|---|---|---|
+| `qwen2.5-1.5b-instruct-q4_k_m.gguf` | huggingface.co/Qwen/Qwen2.5-1.5B-Instruct-GGUF | ~1.1 GB |
 
-```bash
-llama-server -hf ggml-org/gemma-3-4b-it-GGUF --port 8081 --embeddings
-```
+## Copilot LLM (in-process, no server)
 
-Point the embeddings model at `nomic-embed-text` (768-dim, matching the
-`embeddings.embedding vector(768)` column). If the server isn't running, chat and
-indexing show an explicit "model unavailable" error — never a fabricated answer.
+Chat, coaching suggestions and post-meeting notes run **inside the app** via
+`llama-cpp-2` (`src-tauri/src/ai/llm.rs`) — there is no separate process and
+nothing for the user to install. The weights are downloaded once (streamed with
+progress) into the app data dir and cached; the model is loaded once and reused.
+
+- Frontend entry point: `src/lib/llm.ts` (`chatComplete`) — **native first**,
+  then an OpenAI-compatible HTTP fallback (`VITE_LOCAL_LLM_URL`, for a BYO cloud
+  key or an external llama.cpp), then an explicit error. Never fabricates.
+- Prompt format: Qwen ChatML (`render_chatml`, unit-tested). Sampler: top-k/top-p
+  + temperature. Context window 8192; over-long prompts keep the most recent
+  tokens (the question is at the tail).
+- Post-meeting notes: `src/lib/notes.ts` asks the model for structured JSON
+  (summary / action items / decisions / questions) and falls back to the local
+  heuristic extractor (`packages/core` `summarizeTranscript`) when no model is
+  available — so notes are always real, never blank, never invented.
+
+RAG embeddings still use the HTTP endpoint (point it at `nomic-embed-text`,
+768-dim, matching the `embeddings.embedding vector(768)` column). Native
+embeddings are a follow-up; Ask degrades to keyword search without them.
 
 ## Manual test checklist (can't be verified headless)
 
-- [ ] `tauri:dev:ai` launches; `ai_status` reports `compiled: true`.
-- [ ] Download models; record a short meeting → live transcript appears; on stop,
-      the transcript shows multiple `Speaker N` labels + per-segment confidence.
-- [ ] Start a llama.cpp server → in-meeting chat + Ask return grounded answers.
+- [ ] `tauri:dev:ai` launches; `ai_status` reports `compiled: true`, `llm_status`
+      reports `compiled: true`.
+- [ ] Download models; record a short meeting → live transcript appears as chat
+      bubbles; on stop, multiple `Speaker N` labels + per-segment confidence.
+- [ ] First copilot message shows the one-tap **Download assistant (~1 GB)**
+      prompt; after download, `llm_status.model_ready` is true.
+- [ ] In a meeting, type in the bottom input → copilot answers as a gold bubble;
+      quoting a transcript line prepends it to the question. Proactive suggestions
+      appear when enabled (Settings → Meeting copilot).
+- [ ] Stop the meeting → summary + action items are written by the model (or the
+      heuristic fallback if the model isn't downloaded). With "Save copilot chat"
+      off (default), the saved meeting holds only the transcript.

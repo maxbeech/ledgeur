@@ -1,13 +1,13 @@
-# Supabase local config for ParleyNotes. `supabase start` boots the full stack
+# Supabase local config for Ledgeur. `supabase start` boots the full stack
 # locally; `supabase db reset` applies migrations in ./migrations in order.
-project_id = "parleynotes"
+project_id = "ledgeur"
 
 [db]
-major_version = 15
+major_version = 17
 
 [auth]
 # OAuth providers are enabled here once client IDs/secrets are set as env vars.
-# ParleyNotes supports Google and Microsoft (Azure) — both personal and work
+# Ledgeur supports Google and Microsoft (Azure) — both personal and work
 # accounts — plus SAML SSO for enterprise. See supabase/README.md.
 enable_signup = true
 

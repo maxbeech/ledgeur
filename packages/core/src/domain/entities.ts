@@ -1,4 +1,4 @@
-// The ParleyNotes domain model — the single source of truth for entity shapes
+// The Ledgeur domain model — the single source of truth for entity shapes
 // shared across the desktop/mobile app, the backend, and the MCP server. These
 // mirror the Supabase schema in supabase/migrations. Keep field names in sync.
 

@@ -12,7 +12,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   const { slug } = await params;
   const u = findUseCase(slug);
   if (!u) return {};
-  const description = `${u.headline}. Private, on-device AI transcription and notes with ParleyNotes — free for individuals.`;
+  const description = `${u.headline}. Private, on-device AI transcription and notes with Ledgeur — free for individuals.`;
   return { title: u.headline, description, alternates: { canonical: `${SITE.url}/use-cases/${u.slug}` }, openGraph: { title: u.headline, description, type: "article", images: ["/opengraph-image"] } };
 }
 
@@ -35,7 +35,7 @@ export default async function UseCasePage({ params }: { params: Promise<{ slug: 
       </ul>
 
       <div className="mt-10 rounded-2xl border border-emerald-200 bg-emerald-50 p-6 text-center">
-        <h2 className="text-lg font-bold">Use ParleyNotes for {u.name.toLowerCase()}</h2>
+        <h2 className="text-lg font-bold">Use Ledgeur for {u.name.toLowerCase()}</h2>
         <p className="mt-1 text-sm text-stone-600">Free, private, on-device. Record or upload — your notes are ready in seconds.</p>
         <Link href="/app" className="mt-3 inline-block rounded-lg bg-emerald-700 px-5 py-2.5 text-sm font-semibold text-white hover:bg-emerald-600">Open the app →</Link>
       </div>

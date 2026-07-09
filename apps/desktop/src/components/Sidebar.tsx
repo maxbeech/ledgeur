@@ -2,10 +2,10 @@
 // a live-recording pill (recordings survive navigation) and the account footer.
 import { NavLink, useNavigate } from "react-router-dom";
 import { Landmark, House, CircleDot, Library, Sparkles, SquareCheck, Settings2, Command } from "lucide-react";
-import { cn, formatElapsed } from "@parleynotes/ui";
+import { cn, formatElapsed } from "@ledgeur/ui";
 import { hasBackend } from "../lib/config.ts";
 import { useSession } from "../lib/session.ts";
-import { useRecorderCtx } from "../lib/recorderContext.tsx";
+import { useRecorderCtx } from "../lib/useRecorderCtx.ts";
 
 export const NAV = [
   { to: "/", label: "Home", icon: House, end: true },
@@ -26,12 +26,12 @@ export function Sidebar({ onOpenPalette }: { onOpenPalette: () => void }) {
 
   return (
     <aside className="hidden h-full w-[232px] shrink-0 flex-col bg-ink text-on-ink md:flex" aria-label="Primary">
-      <div className="pn-drag flex items-center gap-2.5 px-5 pb-5 pt-11">
+      <div className="ldg-drag flex items-center gap-2.5 px-5 pb-5 pt-11">
         <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-accent/90 text-white">
           <Landmark className="h-[16px] w-[16px]" strokeWidth={2.1} />
         </div>
         <div className="leading-tight">
-          <div className="pn-display text-[17px] tracking-tight text-on-ink">ParleyNotes</div>
+          <div className="ldg-display text-[17px] tracking-tight text-on-ink">Ledgeur</div>
           <div className="font-mono text-[9.5px] uppercase tracking-[0.18em] text-on-ink-muted">Library of record</div>
         </div>
       </div>
@@ -57,7 +57,7 @@ export function Sidebar({ onOpenPalette }: { onOpenPalette: () => void }) {
                 {label}
                 {to === "/record" && recording && (
                   <span className="ml-auto flex items-center gap-1.5 font-mono text-[10.5px] text-red-300">
-                    <span className="pn-pulse h-1.5 w-1.5 rounded-full bg-red-400" />
+                    <span className="ldg-pulse h-1.5 w-1.5 rounded-full bg-red-400" />
                     {formatElapsed(state.elapsed)}
                   </span>
                 )}
@@ -72,7 +72,7 @@ export function Sidebar({ onOpenPalette }: { onOpenPalette: () => void }) {
           onClick={() => nav("/record")}
           className="mx-3 mb-2 flex items-center gap-2.5 rounded-xl border border-red-400/25 bg-red-400/10 px-3 py-2.5 text-left transition-colors hover:bg-red-400/15"
         >
-          <span className="pn-halo flex h-2.5 w-2.5 shrink-0 rounded-full bg-red-400" />
+          <span className="ldg-halo flex h-2.5 w-2.5 shrink-0 rounded-full bg-red-400" />
           <span className="min-w-0 leading-tight">
             <span className="block truncate text-[12.5px] font-medium text-on-ink">Recording</span>
             <span className="block font-mono text-[10.5px] text-on-ink-muted">{formatElapsed(state.elapsed)} · tap to return</span>

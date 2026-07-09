@@ -4,7 +4,7 @@ import type { Metadata } from "next";
 // redirects here with ?code=…; the user copies it into the app to finish. This
 // page is intentionally noindex and excluded from the sitemap.
 export const metadata: Metadata = {
-  title: "Connect Notion — ParleyNotes",
+  title: "Connect Notion — Ledgeur",
   robots: { index: false, follow: false },
 };
 
@@ -16,7 +16,7 @@ export default async function NotionCallback({
   const { code, error } = await searchParams;
   return (
     <main className="mx-auto max-w-xl px-5 py-20 text-center">
-      <h1 className="text-2xl font-extrabold tracking-tight">Connect Notion to ParleyNotes</h1>
+      <h1 className="text-2xl font-extrabold tracking-tight">Connect Notion to Ledgeur</h1>
       {error ? (
         <p className="mt-6 rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700">
           Notion returned an error: {error}. Please try connecting again from the app.
@@ -24,7 +24,7 @@ export default async function NotionCallback({
       ) : code ? (
         <>
           <p className="mt-4 text-stone-600">
-            Copy this code and paste it into ParleyNotes (Integrations → Notion → Finish):
+            Copy this code and paste it into Ledgeur (Integrations → Notion → Finish):
           </p>
           <code className="mt-5 block break-all rounded-xl bg-stone-900 px-4 py-3 text-sm text-emerald-300">
             {code}

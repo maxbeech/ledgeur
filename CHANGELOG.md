@@ -1,5 +1,124 @@
 # Changelog
 
+## [0.6.2] — 2026-07-08 — Rebrand: ParleyNotes → Ledgeur
+
+Full rebrand across the monorepo, docs and infrastructure — no functional
+changes.
+
+- **Naming**: `ParleyNotes`/`parleynotes` → `Ledgeur`/`ledgeur` everywhere —
+  npm scope (`@parleynotes/*` → `@ledgeur/*`), Rust crate (`parleynotes` →
+  `ledgeur`, `parleynotes_lib` → `ledgeur_lib`), Tauri identifier
+  (`com.parleynotes.app` → `com.ledgeur.app`), env var prefix (`PARLEY_*` →
+  `LEDGEUR_*`), internal CSS class prefix (`pn-*` → `ldg-*`), and the
+  `fireflies-vs-otter-vs-parleynotes` blog slug.
+- **Domain**: `parleynotes.com` → `ledgeur.com` in `apps/marketing/lib/site.ts`
+  (single source of truth for brand/domain), `.env.example`, docs.
+- **Infra**: GitHub repo and Vercel project renamed to `ledgeur`; local
+  workspace folder renamed from `parleynotes` to `ledgeur`.
+- Lockfiles (`pnpm-lock.yaml`, `Cargo.lock`) regenerated; `cargo check`,
+  `pnpm typecheck`, `pnpm lint` and `pnpm test` all pass post-rename.
+
+## [0.6.1] — 2026-07-08 — Fix HMR-driven recording reset, add Sentry + real dev logs
+
+A live recording could be silently stopped and reset during `pnpm dev`: editing
+`recorderContext.tsx` or `chatDock.tsx` (or a file that imports them) forced a
+full Vite Fast Refresh reload instead of a state-preserving hot update, because
+each file mixed a component export with a hook export — a documented Fast
+Refresh incompatibility. The reload remounted `RecorderProvider`, whose cleanup
+effect tore down the live capture/transcriber and reset state to idle.
+
+- **Fix**: split `useRecorderCtx`/`useChatDock` into their own modules
+  (`lib/useRecorderCtx.ts`, `lib/useChatDock.ts`); `recorderContext.tsx` and
+  `chatDock.tsx` now export components only.
+- **Diagnosability**: `useRecorder.ts`'s unmount cleanup now warns loudly if it
+  fires while still `"recording"`, instead of silently resetting.
+- **Sentry** (desktop app): `@sentry/react` on the frontend, the `sentry` crate
+  (panic capture) on the Rust side — both opt-in via `VITE_SENTRY_DSN`/
+  `SENTRY_DSN` in `.env` (blank = fully disabled, no network calls). New
+  `lib/logger.ts` scoped logger wraps console + Sentry breadcrumbs/events; a new
+  `AppErrorBoundary` catches render crashes instead of blank-screening.
+- **Local dev logs**: Rust backend previously had zero logging infrastructure.
+  Added `tauri-plugin-log` + `log` crate calls at AI command entry/error points
+  (model downloads, transcription, LLM chat) — visible in the `tauri dev`
+  terminal and webview devtools console.
+
+## [0.6.0] — 2026-07-06 — Notion + Calendar as Ask context, real Google Calendar card
+
+Notion save-to-page and Google Calendar read/auto-prompt already shipped; this
+pass adds the missing piece — pulling both into the Ask copilot's grounding
+context — and fixes a dead placeholder card plus a CSP gap.
+
+- **Notion as Ask context**: new `notion-context` edge function does a live
+  Notion search per question (title-matching, same as Notion's own search UI)
+  and returns page snippets; wired into `askContext.ts`'s `gatherContext()` as
+  a `"Notion: <page>"` context source, alongside the existing semantic-search
+  and local-meeting sources.
+- **Calendar as Ask context**: `calendar.ts` gained `fetchUpcomingEvents`
+  (generalized from the day-only `fetchTodayEvents`) and `calendarContext()`,
+  which surfaces the next 7 days of events as a `"Calendar"` context source.
+  New pure `formatEventsForContext` in `packages/core` (unit-tested).
+- **Google Calendar card fixed**: Integrations previously showed a disabled,
+  hardcoded "planned" placeholder for Google Calendar even though calendar
+  read + the record auto-prompt already worked via the Account Google sign-in.
+  New `GoogleCalendarCard` reflects real connection state and live event count.
+- **CSP fix**: `tauri.conf.json`'s `connect-src` was missing `googleapis.com`
+  and `graph.microsoft.com` — calendar fetches were likely silently blocked in
+  the packaged native app (only worked in dev/browser-preview, which has no
+  CSP). Both domains are now allow-listed.
+
+## [0.5.0] — 2026-07-03 — Seamless on-device copilot, unified meeting thread, chat-first shell
+
+Everything the copilot does now runs on the user's own device with nothing to
+install, the live meeting is one continuous chat thread, and the whole app is a
+chat surface with an ever-present input.
+
+### Seamless on-device LLM — no third-party app
+- The copilot (chat), coaching suggestions and post-meeting notes now run **in
+  process** via `llama-cpp-2` (`src-tauri/src/ai/llm.rs`) — no separate server,
+  nothing for the user to install. Weights (Qwen2.5-1.5B-Instruct, ~1.1 GB) are
+  **auto-downloaded once** (streamed with progress) and cached; the model loads
+  once and is reused. New Tauri commands: `llm_status`, `download_llm`, `llm_chat`.
+- New frontend abstraction `src/lib/llm.ts` (`chatComplete`): **native first**,
+  OpenAI-compatible HTTP fallback (BYO key / external llama.cpp), then an honest
+  error — `chat.ts`, `suggestions.ts`, `embeddings.ts` all route through it (one
+  source of truth). The old "start a local llama.cpp server" message is gone.
+- First time you use the copilot, a **one-tap "Download assistant"** prompt
+  appears inline (and in Settings → On-device AI) — the model download is
+  automated and seamless.
+
+### Notes are written by the model (req 3)
+- On stop, the summary / action items / decisions / questions are generated by
+  the on-device model (`src/lib/notes.ts`), falling back to the local heuristic
+  extractor (`packages/core` `summarizeTranscript`) when no model is present —
+  always real, never blank, never invented. Structured-JSON parsing is unit-tested.
+
+### One unified meeting thread (req 2)
+- The live transcript, the copilot's answers, your questions and its proactive
+  suggestions are now **one continuous chat thread** (`mergeThread`, time-ordered,
+  unit-tested) — spoken lines render as bubbles too. The old three-tab rail
+  (Copilot / Notes / Suggest) is gone.
+- **Quote any bubble** — a transcript line or any message — and it's prepended to
+  your reply's context.
+- **Proactive suggestions** post into the thread as the copilot speaking
+  (toggle in Settings → Meeting copilot; interval configurable).
+- The right rail is now **just your notes**.
+- By default the saved meeting keeps **only the transcript**; a setting ("Save
+  copilot chat with the meeting") opts the copilot/user messages in.
+
+### Chat-first app shell (req 4)
+- The app is now a **persistent chat surface** (MainDraw-style): a dark nav rail,
+  the current screen rendered as an embedded "window" card, and **one
+  ever-present bottom input** that never unmounts on navigation.
+- The bottom input is context-aware: it talks to the app copilot normally, and to
+  the **live meeting's** copilot while recording. Reusable bubble/composer/thread
+  components live in `src/components/chat/`; the shell in `src/components/shell/`.
+- `Ask` is now the shared copilot conversation rendered by the global thread.
+
+### Fixes & housekeeping
+- Resolved the `apps/marketing/lib/posts/set-3.ts` merge with origin/master.
+- `config.ts` guards `import.meta.env` so lib modules are unit-testable under Node;
+  added a desktop pure-logic test runner (`apps/desktop/test/run.mts`, 14 checks).
+
 ## [0.4.0] — 2026-07-02 — "Library of Record" redesign, in-meeting notes & suggestions, speaker identification
 
 A ground-up redesign of the app around a distinctive editorial identity, plus
@@ -68,8 +187,8 @@ on-device AI and a Supabase backend.
 
 ### Added
 - **Monorepo** (pnpm workspaces + Turborepo): `apps/marketing`, `apps/desktop`, `packages/core`, `packages/ui`, `supabase/`.
-- **`@parleynotes/core`** — shared domain model, ported notes/audio logic, note→domain mappers, Supabase client factory. 28 unit tests.
-- **`@parleynotes/ui`** — design tokens + framework-agnostic helpers (single source of truth for the premium look & feel).
+- **`@ledgeur/core`** — shared domain model, ported notes/audio logic, note→domain mappers, Supabase client factory. 28 unit tests.
+- **`@ledgeur/ui`** — design tokens + framework-agnostic helpers (single source of truth for the premium look & feel).
 - **`apps/desktop`** — Tauri 2 + Vite + React app targeting all four platforms:
   - Premium UI with 6 screens: Brain (home), Record, Meetings, Meeting detail, Ask, Tasks, Integrations.
   - Working **record → on-device transcribe → notes → tasks** vertical slice (webview path), cached locally in IndexedDB.
@@ -78,12 +197,12 @@ on-device AI and a Supabase backend.
   - Generated app icon + full macOS/Windows/iOS/Android icon set.
 - **Supabase schema** (`supabase/migrations`): orgs, profiles, memberships, meetings, speakers, transcript segments, notes, action items, integrations, and pgvector embeddings — with full **RLS** enforcing the hive-mind sharing model and a `match_embeddings` RAG RPC.
 - **Shared data layer** (`packages/core/src/data`): RLS-aware Supabase repository (list/get/search meetings, tasks, semantic-search RPC) used by both the app and the MCP server.
-- **`@parleynotes/mcp-server`** — the paid tier: a Model Context Protocol server (stdio) exposing `list_meetings`, `search_meetings`, `get_meeting`, `list_tasks` to Claude/Cursor/etc., authenticated per-user so RLS is never bypassed.
+- **`@ledgeur/mcp-server`** — the paid tier: a Model Context Protocol server (stdio) exposing `list_meetings`, `search_meetings`, `get_meeting`, `list_tasks` to Claude/Cursor/etc., authenticated per-user so RLS is never bypassed.
 - **Notion export** (`packages/core/src/integrations`): pure, tested markdown→Notion-blocks converter + API client; "Save to Notion" wired in the meeting view.
 - **Docs**: `docs/ARCHITECTURE.md`, `docs/ROADMAP.md`.
 
 ### Changed
-- Existing Next.js marketing site moved intact to `apps/marketing` (history preserved). Package renamed `@parleynotes/marketing`. Its 38 tests still pass.
+- Existing Next.js marketing site moved intact to `apps/marketing` (history preserved). Package renamed `@ledgeur/marketing`. Its 38 tests still pass.
 - Standardised the workspace on **pnpm** (removed the npm lockfile).
 
 ### Migration notes

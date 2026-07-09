@@ -11,7 +11,7 @@ import { SITE } from "@/lib/site";
 
 type ModelState = "idle" | "loading" | "ready";
 const CHUNK_MS = 20000; // transcribe every 20s of speech for a live feel
-const DRAFT_KEY = "parleynotes.draft"; // autosave of the working transcript
+const DRAFT_KEY = "ledgeur.draft"; // autosave of the working transcript
 
 export default function Recorder() {
   const [model, setModel] = useState<ModelState>("idle");

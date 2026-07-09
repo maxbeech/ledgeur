@@ -3,8 +3,8 @@
 // native shell; no-ops (safely) in the browser preview.
 
 import { useEffect, useRef } from "react";
-import type { CalendarEvent } from "@parleynotes/core";
-import { eventsNeedingPrompt } from "@parleynotes/core";
+import type { CalendarEvent } from "@ledgeur/core";
+import { eventsNeedingPrompt } from "@ledgeur/core";
 import { isTauri } from "./runtime.ts";
 
 const LEAD_MS = 60_000; // prompt ~1 minute before a meeting starts
@@ -18,7 +18,7 @@ async function notify(event: CalendarEvent) {
   if (!granted) return;
   sendNotification({
     title: `Starting now: ${event.title}`,
-    body: "Tap to record this meeting in ParleyNotes.",
+    body: "Tap to record this meeting in Ledgeur.",
   });
 }
 

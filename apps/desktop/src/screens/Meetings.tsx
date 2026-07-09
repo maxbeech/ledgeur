@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Search, CircleDot, Library as LibraryIcon, ArrowUpRight } from "lucide-react";
-import { relativeTime } from "@parleynotes/ui";
+import { relativeTime } from "@ledgeur/ui";
 import { Page, PageHeader } from "../components/PageHeader.tsx";
 import { Button, Card, Chip, EmptyState, ErrorNote, Spinner } from "../components/ui.tsx";
 import { useMeetings } from "../lib/useMeetings.ts";
@@ -26,14 +26,14 @@ export function Meetings() {
         action={<Button variant="accent" onClick={() => nav("/record")}><CircleDot className="h-4 w-4" /> Record</Button>}
       />
 
-      <div className="pn-stagger">
+      <div className="ldg-stagger">
         <div className="mb-5 flex items-center gap-2.5 rounded-xl border border-hairline bg-surface px-3.5 py-2.5 transition-shadow focus-within:shadow-[var(--shadow-card)] focus-within:ring-2 focus-within:ring-accent/30">
           <Search className="h-4 w-4 shrink-0 text-faint" />
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             name="library-search" placeholder="Search meetings and transcripts…"
-            className="pn-prose min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-faint"
+            className="ldg-prose min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-faint"
             aria-label="Search meetings"
           />
         </div>

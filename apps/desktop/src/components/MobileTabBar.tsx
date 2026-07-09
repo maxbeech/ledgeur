@@ -2,8 +2,8 @@
 // sits centre in a raised circle; while recording it pulses with the elapsed time.
 import { NavLink } from "react-router-dom";
 import { House, CircleDot, Library, Sparkles, Settings2 } from "lucide-react";
-import { cn, formatElapsed } from "@parleynotes/ui";
-import { useRecorderCtx } from "../lib/recorderContext.tsx";
+import { cn, formatElapsed } from "@ledgeur/ui";
+import { useRecorderCtx } from "../lib/useRecorderCtx.ts";
 
 const SIDE = [
   { to: "/", label: "Home", icon: House, end: true },
@@ -47,7 +47,7 @@ export function MobileTabBar() {
           >
             {recording ? (
               <>
-                <span className="pn-pulse h-2.5 w-2.5 rounded-full bg-red-400" />
+                <span className="ldg-pulse h-2.5 w-2.5 rounded-full bg-red-400" />
                 <span className="mt-0.5 font-mono text-[9px] text-on-ink-muted">{formatElapsed(state.elapsed)}</span>
               </>
             ) : (

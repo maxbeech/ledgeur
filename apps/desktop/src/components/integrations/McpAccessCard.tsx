@@ -4,7 +4,8 @@ import type { Session } from "@supabase/supabase-js";
 import { Button, Card, Chip, Spinner } from "../ui.tsx";
 import { generateMcpConfig } from "../../lib/mcp.ts";
 import { openExternal } from "../../lib/runtime.ts";
-import { SITE_PRICING_URL } from "../../lib/links.ts";
+import { pricingUrlForOrg } from "../../lib/links.ts";
+import { getSupabase } from "../../lib/supabase.ts";
 
 /** The paid MCP data-access card. Plan-gated: free → upgrade CTA; paid → config. */
 export function McpAccessCard({ session }: { session: Session | null }) {
@@ -31,7 +32,7 @@ export function McpAccessCard({ session }: { session: Session | null }) {
         <Server className="mt-0.5 h-5 w-5 text-glow" />
         <div className="flex-1">
           <div className="flex items-center gap-2">
-            <span className="text-sm font-medium text-ink-text">ParleyNotes MCP server</span>
+            <span className="text-sm font-medium text-ink-text">Ledgeur MCP server</span>
             <Chip tone="warn">Paid</Chip>
           </div>
           <p className="mt-0.5 max-w-xl text-xs leading-relaxed text-muted">
@@ -47,7 +48,15 @@ export function McpAccessCard({ session }: { session: Session | null }) {
           {state.upgrade && (
             <div className="mt-3 flex items-center gap-3 rounded-xl bg-amber-50 px-3.5 py-2.5 text-xs text-amber-800">
               Your workspace is on the free plan. Upgrade to unlock data access.
-              <Button onClick={() => void openExternal(SITE_PRICING_URL)}>Upgrade</Button>
+              <Button
+                onClick={async () => {
+                  const sb = getSupabase();
+                  const { data: org } = (await sb?.from("orgs").select("id").limit(1).maybeSingle()) ?? { data: null };
+                  void openExternal(pricingUrlForOrg(org?.id));
+                }}
+              >
+                Upgrade
+              </Button>
             </div>
           )}
           {state.err && <div className="mt-3 text-xs text-red-600">{state.err}</div>}

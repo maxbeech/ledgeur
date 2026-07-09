@@ -1,23 +1,30 @@
 [package]
-name = "parleynotes"
+name = "ledgeur"
 version = "0.2.0"
-description = "ParleyNotes — the centre of the company's brain"
-authors = ["ParleyNotes"]
+description = "Ledgeur — the centre of the company's brain"
+authors = ["Ledgeur"]
 edition = "2021"
 rust-version = "1.77.2"
 
 # The library the desktop binary and the mobile entry points both call into.
 [lib]
-name = "parleynotes_lib"
+name = "ledgeur_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
+# Reads SENTRY_DSN out of apps/desktop/.env at build time so the frontend
+# (VITE_SENTRY_DSN) and native layer (SENTRY_DSN) share one source of truth.
+dotenvy = "0.15"
 
 [dependencies]
 tauri = { version = "2", features = [] }
 tauri-plugin-notification = "2"
 tauri-plugin-opener = "2"
+# Local dev logs (terminal + webview devtools console) and prod crash reporting.
+tauri-plugin-log = "2"
+log = "0.4"
+sentry = { version = "0.48", default-features = false, features = ["backtrace", "contexts", "panic", "reqwest", "rustls"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 
@@ -30,10 +37,14 @@ whisper-rs = { version = "0.16", optional = true }
 # SHERPA_LIB_PATH at a pre-downloaded lib dir (see docs/NATIVE_AI.md).
 sherpa-rs = { version = "0.6", optional = true }
 reqwest = { version = "0.12", default-features = false, features = ["blocking", "rustls-tls"], optional = true }
+# In-process LLM (copilot, coaching suggestions, post-meeting notes). CPU by
+# default; picks up Metal/CUDA/Vulkan where the platform toolchain provides it.
+llama-cpp-2 = { version = "0.1", optional = true }
+encoding_rs = { version = "0.8", optional = true }
 
 [features]
 # Enabled by tauri on desktop builds for custom protocol asset serving.
 custom-protocol = ["tauri/custom-protocol"]
 # On-device transcription (whisper.cpp), diarization (sherpa-onnx) and model
 # downloads. Heavy native build; opt-in.
-native-ai = ["dep:whisper-rs", "dep:sherpa-rs", "dep:reqwest"]
+native-ai = ["dep:whisper-rs", "dep:sherpa-rs", "dep:reqwest", "dep:llama-cpp-2", "dep:encoding_rs"]

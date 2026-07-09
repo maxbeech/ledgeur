@@ -3,15 +3,13 @@
 // the name, domain, pricing or repo URL.
 
 export const SITE = {
-  name: "ParleyNotes",
-  domain: "parleynotes.com",
-  // Until the custom domain DNS is attached this is the canonical live URL.
-  url: "https://parleynotes.vercel.app",
+  name: "Ledgeur",
+  domain: "ledgeur.com",
+  url: "https://ledgeur.com",
   tagline: "Open-source, private AI meeting notes",
   description:
-    "ParleyNotes is the open-source AI meeting assistant that runs 100% in your browser. Record or upload a meeting, get an instant private transcript and structured notes — no account, no cloud upload, no per-seat fee. Free forever for individuals; company licenses for teams.",
-  repo: "https://github.com/maxbeech/parleynotes",
-  contactEmail: "hello@parleynotes.com",
+    "Ledgeur is the open-source AI meeting assistant that runs 100% in your browser. Record or upload a meeting, get an instant private transcript and structured notes — no account, no cloud upload, no per-seat fee. Free forever for individuals; company licenses for teams.",
+  repo: "https://github.com/maxbeech/ledgeur",
   // A real, CORS-enabled audio clip used by the "Try a sample" button so a
   // first-time visitor can see on-device transcription work in seconds.
   sampleAudioUrl: "https://huggingface.co/datasets/Xenova/transformers.js-docs/resolve/main/jfk.wav",
@@ -35,7 +33,7 @@ export const VALUE_PROPS = [
   },
   {
     title: "No bot joins your call",
-    body: "Unlike notetaker bots, ParleyNotes captures the meeting tab's audio directly. No awkward 'ParleyNotes has joined' in the participant list.",
+    body: "Unlike notetaker bots, Ledgeur captures the meeting tab's audio directly. No awkward 'Ledgeur has joined' in the participant list.",
   },
   {
     title: "Free for individuals",

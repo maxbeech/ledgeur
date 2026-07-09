@@ -1,4 +1,4 @@
-/* ParleyNotes — "The Library of Record" theme.
+/* Ledgeur — "The Library of Record" theme.
    Tokens mirror packages/ui/src/tokens.ts (single source of truth).
    Fonts are bundled (offline-first): Fraunces (display serif) ·
    Schibsted Grotesk (UI) · Spline Sans Mono (data/timestamps). */
@@ -70,19 +70,19 @@ body {
 }
 
 /* Reading surfaces stay selectable (transcripts, notes, chat, inputs). */
-.pn-prose, .pn-prose *, input, textarea, pre, code {
+.ldg-prose, .ldg-prose *, input, textarea, pre, code {
   user-select: text;
   -webkit-user-select: text;
 }
 
 /* ---- Display type ------------------------------------------------------- */
-.pn-display {
+.ldg-display {
   font-family: var(--font-display);
   font-variation-settings: "opsz" 40, "SOFT" 60, "WONK" 0;
   font-weight: 560;
   letter-spacing: -0.015em;
 }
-.pn-kicker {
+.ldg-kicker {
   font-family: var(--font-mono);
   font-size: 10.5px;
   font-weight: 500;
@@ -92,7 +92,7 @@ body {
 }
 
 /* ---- Paper grain — quiet, print-like texture over the canvas ------------ */
-.pn-grain::before {
+.ldg-grain::before {
   content: "";
   position: fixed;
   inset: 0;
@@ -116,57 +116,57 @@ body {
 }
 
 /* ---- Motion grammar ------------------------------------------------------ */
-@keyframes pn-rise {
+@keyframes ldg-rise {
   from { opacity: 0; transform: translateY(10px); filter: blur(2px); }
   to { opacity: 1; transform: translateY(0); filter: blur(0); }
 }
-.pn-rise { animation: pn-rise 0.45s var(--ease-settle) both; }
-/* Staggered page-load orchestration: apply .pn-stagger to a container. */
-.pn-stagger > * { animation: pn-rise 0.5s var(--ease-settle) both; }
-.pn-stagger > *:nth-child(1) { animation-delay: 0ms; }
-.pn-stagger > *:nth-child(2) { animation-delay: 60ms; }
-.pn-stagger > *:nth-child(3) { animation-delay: 120ms; }
-.pn-stagger > *:nth-child(4) { animation-delay: 180ms; }
-.pn-stagger > *:nth-child(5) { animation-delay: 240ms; }
-.pn-stagger > *:nth-child(6) { animation-delay: 300ms; }
-.pn-stagger > *:nth-child(n + 7) { animation-delay: 360ms; }
+.ldg-rise { animation: ldg-rise 0.45s var(--ease-settle) both; }
+/* Staggered page-load orchestration: apply .ldg-stagger to a container. */
+.ldg-stagger > * { animation: ldg-rise 0.5s var(--ease-settle) both; }
+.ldg-stagger > *:nth-child(1) { animation-delay: 0ms; }
+.ldg-stagger > *:nth-child(2) { animation-delay: 60ms; }
+.ldg-stagger > *:nth-child(3) { animation-delay: 120ms; }
+.ldg-stagger > *:nth-child(4) { animation-delay: 180ms; }
+.ldg-stagger > *:nth-child(5) { animation-delay: 240ms; }
+.ldg-stagger > *:nth-child(6) { animation-delay: 300ms; }
+.ldg-stagger > *:nth-child(n + 7) { animation-delay: 360ms; }
 
-@keyframes pn-pulse {
+@keyframes ldg-pulse {
   0%, 100% { opacity: 1; transform: scale(1); }
   50% { opacity: 0.35; transform: scale(0.8); }
 }
-.pn-pulse { animation: pn-pulse 1.6s ease-in-out infinite; }
+.ldg-pulse { animation: ldg-pulse 1.6s ease-in-out infinite; }
 
 /* Recording halo — a slow breathing ring around the live dot. */
-@keyframes pn-halo {
+@keyframes ldg-halo {
   0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--color-danger) 36%, transparent); }
   70% { box-shadow: 0 0 0 9px transparent; }
   100% { box-shadow: 0 0 0 0 transparent; }
 }
-.pn-halo { animation: pn-halo 2.2s var(--ease-swift) infinite; }
+.ldg-halo { animation: ldg-halo 2.2s var(--ease-swift) infinite; }
 
 /* The brain thinking — a gold shimmer sweep across a hairline. */
-@keyframes pn-shimmer {
+@keyframes ldg-shimmer {
   from { background-position: -200% 0; }
   to { background-position: 200% 0; }
 }
-.pn-shimmer {
+.ldg-shimmer {
   background: linear-gradient(90deg, transparent 20%, color-mix(in srgb, var(--color-glow) 55%, transparent) 50%, transparent 80%);
   background-size: 200% 100%;
-  animation: pn-shimmer 1.6s linear infinite;
+  animation: ldg-shimmer 1.6s linear infinite;
 }
 
 /* Command palette entrance. */
-@keyframes pn-palette-in {
+@keyframes ldg-palette-in {
   from { opacity: 0; transform: translateY(-8px) scale(0.985); }
   to { opacity: 1; transform: translateY(0) scale(1); }
 }
-.pn-palette-in { animation: pn-palette-in 0.18s var(--ease-settle) both; }
-@keyframes pn-fade-in { from { opacity: 0; } to { opacity: 1; } }
-.pn-fade-in { animation: pn-fade-in 0.16s ease-out both; }
+.ldg-palette-in { animation: ldg-palette-in 0.18s var(--ease-settle) both; }
+@keyframes ldg-fade-in { from { opacity: 0; } to { opacity: 1; } }
+.ldg-fade-in { animation: ldg-fade-in 0.16s ease-out both; }
 
 /* Live waveform bars (heights driven inline; this eases them). */
-.pn-eq-bar { transition: height 100ms var(--ease-swift), background-color 160ms; }
+.ldg-eq-bar { transition: height 100ms var(--ease-swift), background-color 160ms; }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
@@ -183,5 +183,5 @@ body {
 }
 
 /* ---- Frameless window chrome -------------------------------------------- */
-.pn-drag { -webkit-app-region: drag; }
-.pn-no-drag { -webkit-app-region: no-drag; }
+.ldg-drag { -webkit-app-region: drag; }
+.ldg-no-drag { -webkit-app-region: no-drag; }

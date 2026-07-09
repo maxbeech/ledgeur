@@ -12,7 +12,7 @@ export interface Competitor {
   what: string;
   /** How they price / their model — public positioning. */
   model: string;
-  /** Concrete points where ParleyNotes differs. */
+  /** Concrete points where Ledgeur differs. */
   diff: string[];
 }
 
@@ -24,7 +24,7 @@ export const COMPETITORS: Competitor[] = [
     what: "A macOS AI notepad that listens to your meeting audio and enhances your typed notes with an AI summary after the call.",
     model: "Paid subscription per seat after a free trial; macOS-first desktop app; transcripts and notes are processed in its cloud.",
     diff: [
-      "ParleyNotes is open source (MIT) — Granola is closed source.",
+      "Ledgeur is open source (MIT) — Granola is closed source.",
       "Transcription runs locally in your browser; Granola sends audio to its servers for processing.",
       "Works on any OS with a Chromium browser, not just macOS.",
       "Free forever for individuals — no trial clock, no per-seat fee until you want team features.",
@@ -39,7 +39,7 @@ export const COMPETITORS: Competitor[] = [
     diff: [
       "No monthly minute caps — transcribe as much as you want, it runs on your device.",
       "Your recordings never leave the browser; Otter stores everything in its cloud.",
-      "No notetaker bot joins the call — ParleyNotes captures the meeting tab audio directly.",
+      "No notetaker bot joins the call — Ledgeur captures the meeting tab audio directly.",
       "Self-hostable and open source for organisations with data-residency rules.",
     ],
   },
@@ -63,7 +63,7 @@ export const COMPETITORS: Competitor[] = [
     what: "A free-for-individuals notetaker that records Zoom/Meet/Teams calls via a bot and produces highlights and summaries.",
     model: "Free tier for individuals with paid team plans; cloud recording and storage; a bot joins the call.",
     diff: [
-      "ParleyNotes is open source; Fathom is closed source.",
+      "Ledgeur is open source; Fathom is closed source.",
       "On-device transcription — no cloud upload of your meeting audio.",
       "No bot joining the meeting; works from any meeting tab.",
       "Bring your own AI key for summaries, or use the built-in offline summarizer with no key at all.",
@@ -76,7 +76,7 @@ export const COMPETITORS: Competitor[] = [
     what: "A meeting recorder that captures Zoom/Meet/Teams calls with a bot, timestamps highlights, and shares clips.",
     model: "Freemium per-seat SaaS; bot-based recording; clips and transcripts hosted in tl;dv's cloud.",
     diff: [
-      "No recording bot — ParleyNotes captures the tab audio directly.",
+      "No recording bot — Ledgeur captures the tab audio directly.",
       "Local-first: transcripts stay in your browser unless you export them.",
       "Open source and self-hostable.",
       "No per-seat paywall for the core notetaking individuals rely on.",

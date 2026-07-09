@@ -1,6 +1,6 @@
 // Speaker attribution mark: heritage-toned small-caps name with an optional
 // identity-confidence figure (shown only when the engine really produced one).
-import { speakerColor, confidenceTier } from "@parleynotes/ui";
+import { speakerColor, confidenceTier } from "@ledgeur/ui";
 
 export function SpeakerTag({ label, confidence }: { label: string; confidence?: number | null }) {
   const c = speakerColor(label);
