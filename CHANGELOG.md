@@ -1,5 +1,57 @@
 # Changelog
 
+## [0.6.3] — 2026-08-17 — Fix: browser transcription was dead for every user without WebGPU
+
+A user reported that Ledgeur could not transcribe at all:
+
+```
+Can't create a session. ERROR_CODE: 1, ERROR_MESSAGE: qdq_actions.cc:137
+TransposeDQWeightsForMatMulNBits Missing required scale:
+model.decoder.embed_tokens.weight_merged_0_scale
+```
+
+**Cause.** The transcription worker loaded `@huggingface/transformers@4.2.0`,
+whose bundled onnxruntime-web dev build rejects the published int8 ("q8")
+Whisper exports. q8 is the default dtype on the WASM backend, so *everyone
+without WebGPU* — older machines, locked-down corporate browsers, Safari — hit
+it on first use. WebGPU users were unaffected, which is why it went unnoticed.
+Upstream: https://github.com/huggingface/transformers.js/issues/1707
+
+Verified in Chrome 152, each case in a clean browser profile with real audio:
+
+| runtime | device | dtype | result |
+| ------- | ------ | ----- | ------ |
+| 4.2.0   | wasm   | q8    | **fails** (the error above) |
+| 4.2.0   | wasm   | fp32  | ok — 152 MB, ~27 s first load |
+| 3.8.1   | wasm   | q8    | ok — 41 MB, ~9 s first load |
+| 3.8.1   | webgpu | fp32  | ok |
+| 4.2.0   | webgpu | fp32  | ok |
+
+- **Fix**: pin the runtime to the newest release that loads the int8 exports,
+  and pin an explicit `dtype` on every path instead of inheriting a runtime
+  default that changes between releases.
+- **Resilience**: model loading now walks an ordered *plan* (WebGPU → CPU int8 →
+  CPU fp32) instead of a single hardcoded choice. A failed onnxruntime session
+  poisons the runtime — a later load of a known-good model in the same worker
+  fails with the same stale error — so each rung is attempted in a **fresh
+  worker**, torn down between attempts.
+- **Explicit failure states**: raw onnxruntime text is mapped to a message a
+  person can act on (update your browser / check the firewall / close tabs),
+  with the raw error kept on a second line for support. Load failures now
+  surface in the UI; previously `preload()` could fail silently and the user
+  only saw a raw runtime error later, mid-recording.
+- **Audio is no longer lost on a retry**: `transcribe()` waits for a live
+  pipeline before transferring the audio buffer into the worker.
+- **Single source of truth**: the worker and its load plan were a byte-identical
+  copy-paste in two apps. They now live once in `packages/asr/` and are synced
+  into each app's `public/` by `predev`/`prebuild`; a test fails if a copy
+  drifts.
+- **Tests**: new `@ledgeur/asr` suite (58 assertions) covers the plan, the
+  runtime/dtype invariant that caused the outage, lang handling and error
+  mapping. End-to-end, a real browser with WebGPU disabled now transcribes the
+  sample clip, and an injected dead first rung is proven to recover in a fresh
+  worker.
+
 ## [0.6.2] — 2026-07-08 — Rebrand: ParleyNotes → Ledgeur
 
 Full rebrand across the monorepo, docs and infrastructure — no functional

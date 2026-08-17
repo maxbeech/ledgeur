@@ -50,7 +50,9 @@ export default function Recorder() {
   const getTranscriber = useCallback(() => {
     if (!trans.current) {
       trans.current = new TranscriberController({
-        onDevice: (d) => setDevice(d),
+        // `info.label` is the human name of the rung that started ("WebGPU",
+        // "CPU"); it changes if the first choice could not start.
+        onDevice: (d, info) => setDevice(info?.label ?? d),
         onProgress: (_f, p) => setProgress(p),
         onReady: () => setModel("ready"),
       });
@@ -63,7 +65,11 @@ export default function Recorder() {
   const loadModel = useCallback(() => {
     if (model !== "idle") return;
     setModel("loading"); setError(null);
-    getTranscriber().preload(langRef.current);
+    // The controller walks a fallback plan; this only rejects once every option
+    // has failed, and the message already says what the user can do about it.
+    getTranscriber().preload(langRef.current).catch((e: Error) => {
+      setModel("idle"); setProgress(0); setError(e.message);
+    });
   }, [model, getTranscriber]);
 
   const transcribeBuffer = useCallback(async (audio: Float32Array, rate: number) => {
@@ -176,7 +182,7 @@ export default function Recorder() {
           </div>
         )}
         {working && <p className="mt-3 text-sm text-stone-600">Transcribing on your device…</p>}
-        {error && <p className="mt-3 rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</p>}
+        {error && <p className="mt-3 whitespace-pre-line rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</p>}
         <p className="mt-4 text-xs text-stone-600">
           Tip: when sharing your meeting tab, tick <b>“Share tab audio”</b> so the other participants are captured. Audio never leaves your browser.
         </p>

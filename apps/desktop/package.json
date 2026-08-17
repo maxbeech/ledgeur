@@ -6,7 +6,9 @@
   "license": "MIT",
   "type": "module",
   "scripts": {
+    "predev": "node ../../packages/asr/sync.mjs public",
     "dev": "vite",
+    "prebuild": "node ../../packages/asr/sync.mjs public",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",

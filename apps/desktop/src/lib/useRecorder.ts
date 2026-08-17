@@ -115,7 +115,9 @@ export function useRecorder(getThreadMessages?: () => ChatMessage[]) {
         patch({ device: "whisper.cpp (native)" });
       } else {
         const tr = new TranscriberController({
-          onDevice: (device) => patch({ device }),
+          // `info.label` names the rung that actually started ("WebGPU", "CPU");
+          // it changes if the preferred backend could not create a session.
+          onDevice: (device, info) => patch({ device: info?.label ?? device }),
           onProgress: (_f, p) => patch({ modelProgress: p }),
         });
         transcriber.current = tr;

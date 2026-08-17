@@ -5,7 +5,9 @@
   "description": "Ledgeur marketing + SEO site (Next.js on Vercel).",
   "license": "MIT",
   "scripts": {
+    "predev": "node ../../packages/asr/sync.mjs public",
     "dev": "next dev",
+    "prebuild": "node ../../packages/asr/sync.mjs public",
     "build": "next build",
     "start": "next start",
     "lint": "eslint",

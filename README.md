@@ -21,6 +21,7 @@ MCP-aware tool, plus the cross-user **hive mind**.
 | `apps/desktop` | The app — Tauri 2 + Vite + React (all platforms) |
 | `apps/marketing` | Next.js 16 marketing/SEO site (Vercel) |
 | `packages/core` | Shared domain model, notes/audio logic, Supabase client |
+| `packages/asr` | Browser speech-to-text worker + model load plan (synced into each app's `public/`) |
 | `packages/ui` | Design tokens + helpers |
 | `supabase/` | Database schema (migrations) — source of truth for data |
 

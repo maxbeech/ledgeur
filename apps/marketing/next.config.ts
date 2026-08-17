@@ -8,7 +8,8 @@ const nextConfig: NextConfig = {
   async headers() {
     return [
       {
-        source: "/transcribe.worker.js",
+        // The worker and the model load plan it imports are versioned together.
+        source: "/:file(transcribe.worker.js|asr-plan.js)",
         headers: [
           { key: "Cache-Control", value: "public, max-age=86400, must-revalidate" },
         ],

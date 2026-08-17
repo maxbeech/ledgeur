@@ -1,9 +1,16 @@
 // Main-thread controller around the Whisper Web Worker. Serialises requests so
 // only one transcription runs at a time (the worker shares one pipeline). Lives
 // outside React so the component stays small.
+//
+// It also walks the load plan in /asr-plan.js: if a model fails to start (some
+// browser/runtime combinations cannot create an onnxruntime session), the
+// worker is destroyed and the next rung is tried in a FRESH worker — a failed
+// session poisons the runtime, so retrying in place always fails the same way.
+
+type DeviceInfo = { device: string; label: string; model: string; runtime: string };
 
 type Handlers = {
-  onDevice?: (device: string) => void;
+  onDevice?: (device: string, info?: DeviceInfo) => void;
   onProgress?: (file: string, progress: number) => void;
   onReady?: () => void;
 };
@@ -14,25 +21,26 @@ export class TranscriberController {
   private worker: Worker | null = null;
   private pending = new Map<number, { resolve: (t: string) => void; reject: (e: Error) => void }>();
   private handlers: Handlers;
+  /** In-flight (or settled) load for the current language. */
+  private loading: { lang: string; promise: Promise<void> } | null = null;
+  /** Which rung of the load plan the live worker started on. */
+  private attempt = 0;
+  private disposed = false;
 
   constructor(handlers: Handlers = {}) {
     this.handlers = handlers;
   }
 
-  init() {
-    if (this.worker) return;
-    this.worker = new Worker("/transcribe.worker.js", { type: "module" });
-    this.worker.addEventListener("message", (e: MessageEvent) => {
+  private spawn(): Worker {
+    const worker = new Worker("/transcribe.worker.js", { type: "module" });
+    worker.addEventListener("message", (e: MessageEvent) => {
       const d = e.data || {};
       switch (d.status) {
         case "device":
-          this.handlers.onDevice?.(d.device);
+          this.handlers.onDevice?.(d.device, { device: d.device, label: d.label, model: d.model, runtime: d.runtime });
           break;
         case "progress":
           this.handlers.onProgress?.(d.file, d.progress);
-          break;
-        case "ready":
-          this.handlers.onReady?.();
           break;
         case "result": {
           const p = this.pending.get(d.id);
@@ -40,37 +48,94 @@ export class TranscriberController {
           break;
         }
         case "error": {
-          if (d.id != null && this.pending.has(d.id)) {
-            const p = this.pending.get(d.id)!;
-            this.pending.delete(d.id);
-            p.reject(new Error(d.message));
-          }
+          const p = d.id != null ? this.pending.get(d.id) : undefined;
+          if (p) { this.pending.delete(d.id); p.reject(new Error(d.message)); }
           break;
         }
       }
     });
+    return worker;
   }
 
-  /** Begin downloading + warming the model. lang: "en" | "multi". */
-  preload(lang: string = "en") {
-    this.init();
-    this.worker!.postMessage({ type: "load", lang });
+  /**
+   * Load the model, walking the plan until one rung starts. Resolves once a
+   * pipeline is live; rejects with a human-readable message when every rung
+   * failed. Repeated calls for the same language share one load.
+   */
+  private ensureLoaded(lang: string): Promise<void> {
+    if (this.loading && this.loading.lang === lang) return this.loading.promise;
+    // Switching language: start over from the best rung with a clean worker.
+    this.teardown();
+
+    const promise = new Promise<void>((resolve, reject) => {
+      const tryAttempt = (attempt: number) => {
+        if (this.disposed) return reject(new Error("Transcriber disposed."));
+        const worker = this.spawn();
+        this.worker = worker;
+        const onMessage = (e: MessageEvent) => {
+          const d = e.data || {};
+          if (d.status === "ready") {
+            worker.removeEventListener("message", onMessage);
+            this.attempt = attempt;
+            this.handlers.onReady?.();
+            resolve();
+          } else if (d.status === "load-error") {
+            worker.removeEventListener("message", onMessage);
+            worker.terminate();
+            if (this.worker === worker) this.worker = null;
+            if (d.hasNext) tryAttempt(attempt + 1);
+            else reject(new Error(d.friendly || d.message));
+          }
+        };
+        worker.addEventListener("message", onMessage);
+        worker.addEventListener("error", (ev) => {
+          // The worker script itself failed to load/parse — no rung can help.
+          worker.removeEventListener("message", onMessage);
+          reject(new Error(`Could not start the transcription worker. (${(ev as ErrorEvent).message || "unknown error"})`));
+        }, { once: true });
+        worker.postMessage({ type: "load", lang, attempt });
+      };
+      tryAttempt(0);
+    });
+
+    // A failed load must not be cached — the user can retry (e.g. after
+    // reconnecting) and we should walk the plan again from the top.
+    promise.catch(() => { if (this.loading?.promise === promise) this.loading = null; });
+    this.loading = { lang, promise };
+    return promise;
+  }
+
+  /** Begin downloading + warming the model. lang: "en" | "en-hq" | "multi". */
+  preload(lang: string = "en"): Promise<void> {
+    return this.ensureLoaded(lang);
   }
 
   /** Transcribe a 16 kHz mono Float32 buffer; resolves with the text. */
-  transcribe(audio: Float32Array, lang: string = "en"): Promise<string> {
-    this.init();
+  async transcribe(audio: Float32Array, lang: string = "en"): Promise<string> {
+    // Wait for a live pipeline before handing over the audio: posting into a
+    // worker that is about to be discarded would lose the buffer (it is
+    // transferred, not copied).
+    await this.ensureLoaded(lang);
+    const worker = this.worker;
+    if (!worker) throw new Error("Transcriber is not running.");
     const id = ++counter;
     return new Promise<string>((resolve, reject) => {
       this.pending.set(id, { resolve, reject });
       // Transfer the buffer to avoid a copy.
-      this.worker!.postMessage({ type: "transcribe", id, audio, lang }, [audio.buffer]);
+      worker.postMessage({ type: "transcribe", id, audio, lang, attempt: this.attempt }, [audio.buffer]);
     });
   }
 
-  dispose() {
+  private teardown() {
     this.worker?.terminate();
     this.worker = null;
+    this.loading = null;
+    this.pending.forEach((p) => p.reject(new Error("Transcription cancelled.")));
     this.pending.clear();
+  }
+
+  dispose() {
+    this.disposed = true;
+    this.teardown();
   }
 }
