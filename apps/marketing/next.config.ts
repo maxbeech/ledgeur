@@ -9,9 +9,16 @@ const nextConfig: NextConfig = {
     return [
       {
         // The worker and the model load plan it imports are versioned together.
+        //
+        // These two files decide whether transcription works at all, and they
+        // are a few KB each — the model weights they pull are cached separately
+        // by the Hugging Face CDN. They were previously cached for a day, which
+        // meant a broken worker stayed broken for users for up to 24 hours after
+        // a fix shipped. Revalidate every time instead: a 304 costs almost
+        // nothing, and a fix reaches everyone on their next page load.
         source: "/:file(transcribe.worker.js|asr-plan.js)",
         headers: [
-          { key: "Cache-Control", value: "public, max-age=86400, must-revalidate" },
+          { key: "Cache-Control", value: "public, max-age=0, must-revalidate" },
         ],
       },
       {

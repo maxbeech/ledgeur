@@ -1,5 +1,72 @@
 # Manual test checklist
 
+## Production readiness (2026-08-17)
+
+### Verified automatically — no need to re-test by hand
+
+- **Browser transcription (the reported outage)**. Fixed and confirmed on the
+  live site, `https://www.ledgeur.com/app`, in a real Chrome 152 driven end to
+  end: with WebGPU **disabled** (the environment that was broken) the sample
+  clip transcribes correctly in ~16 s on the CPU rung; with WebGPU enabled it
+  transcribes in ~28 s on the WebGPU rung. Zero console errors on both.
+- **Fallback ladder**. With a deliberately dead first rung injected (the exact
+  production failure), the app discards the poisoned worker, spawns a fresh
+  one, and still produces a transcript. With *every* rung dead, the user sees
+  "This browser couldn't start the speech model…" plus the raw error, rather
+  than a silent hang.
+- **Checkout**. `POST https://www.ledgeur.com/api/checkout` returns a real
+  Stripe Checkout session URL (HTTP 200) against live keys.
+- **Builds**. `pnpm test` (171 assertions), `pnpm typecheck`, `pnpm lint`, the
+  marketing production build, and `tauri build` (produces `Ledgeur.app` and
+  `Ledgeur_0.2.0_aarch64.dmg`, **unsigned**) all pass.
+- **Site smoke test**: `/`, `/app`, `/pricing`, `/blog`, `/transcribe`,
+  `/use-cases`, `/open-source`, `/sitemap.xml` (65 URLs), `/robots.txt`,
+  `/manifest.webmanifest` all return 200. `/download` 404s, which is correct —
+  no such page exists yet and nothing links to it.
+
+### TO STILL TEST / DO — needs credentials or accounts Claude Code cannot reach
+
+1. **Sign-in does not work in production yet. One of these is required.**
+   The live Supabase project (`ysmzzxkchfzbdxsrpgpw`) reports
+   `google: false, azure: false, email: true` at `/auth/v1/settings`, and
+   Supabase's built-in mailer only delivers to project team members (2/hour),
+   so it cannot serve real users. Either:
+   - **Fastest**: Supabase dashboard → Project Settings → Auth → SMTP Settings,
+     configure custom SMTP with the existing Resend key. Email + password
+     sign-in (already built into the app) then works for real users.
+   - **Or**: create Google Cloud and Azure OAuth apps with callback
+     `https://ysmzzxkchfzbdxsrpgpw.supabase.co/auth/v1/callback`, then enable
+     those providers in Supabase Auth. The app detects enabled providers at
+     runtime and will show the buttons automatically — no code change needed.
+
+   Then verify by hand in `pnpm --filter @ledgeur/desktop tauri:dev` →
+   Settings → Account: create an account, confirm the email, sign in, and check
+   the card switches to the signed-in state with your address.
+
+2. **Billing activation end-to-end.** The checkout *session* is verified, but
+   the payment → webhook → `orgs.plan = 'team'` leg needs a real test-mode
+   purchase (Stripe MCP is not connected to the Ledgeur account, and the
+   Supabase project is not accessible from this machine's CLI login). Use a
+   test-mode checkout with `?org=<a real org uuid>`, complete it with card
+   `4242 4242 4242 4242`, then confirm in the Supabase table editor that the
+   org's `plan` flipped to `team` and `stripe_customer_id` /
+   `stripe_subscription_id` were stored.
+
+3. **Notion integration.** `NOTION_CLIENT_ID` / `NOTION_CLIENT_SECRET` are
+   still unset in Supabase secrets, and `VITE_NOTION_CLIENT_ID` in
+   `apps/desktop/.env` is a placeholder. Create the Notion integration, then
+   `supabase secrets set NOTION_CLIENT_ID=… NOTION_CLIENT_SECRET=…`.
+
+4. **Desktop code signing / distribution.** `tauri build` succeeds but the
+   output is **unsigned**: macOS Gatekeeper will block it for anyone but you.
+   Needs an Apple Developer ID certificate + notarisation credentials
+   (`AC_PASSWORD`, `notarytool`), and a Windows signing certificate, ideally
+   driven from CI. There is also no `/download` page on the marketing site yet.
+
+5. **Desktop native shell.** The auth UI was browser-tested against the Vite
+   dev server; the native Tauri window (menu bar, deep links, OS keychain) was
+   not. Worth one pass with `tauri:dev`.
+
 ## Rebrand (2026-07-08): TO STILL TEST
 
 The ParleyNotes → Ledgeur rename was verified headless (cargo check, typecheck,
@@ -18,7 +85,16 @@ by hand:
 - Sidebar/Home/Ask screens render "Ledgeur" text correctly (plain string
   swap, low risk, but not yet screenshotted).
 
-## Domain: ledgeur.com — DNS pending (2026-07-08)
+## Domain: ledgeur.com — RESOLVED (verified live 2026-08-17)
+
+`ledgeur.com` now resolves to Vercel: the apex 308-redirects to
+`https://www.ledgeur.com`, which serves the site (HTTP 200). `site.ts` points
+at `https://ledgeur.com`. The historical instructions below are kept for
+reference only.
+
+<details><summary>Original (2026-07-08) DNS instructions</summary>
+
+### Domain: ledgeur.com — DNS pending (2026-07-08)
 
 `ledgeur.com` is registered by the user and has been added + attached to the
 `ledgeur` Vercel project (`vercel domains add`, confirmed `domainOwnership:
@@ -38,6 +114,8 @@ Until this is done, `ledgeur.com` will not serve the site — `site.ts`'s `url`
 field correctly still points at `https://ledgeur.vercel.app`, which is live
 now.
 
+</details>
+
 Automated coverage: unit tests (core 58, marketing 38, Rust 5), TypeScript
 typechecks, desktop + marketing builds, native-ai `cargo check`, and a browser
 E2E of all screens at desktop + mobile sizes — seeded meeting → Library →
@@ -51,7 +129,8 @@ so they can't be verified headless in CI — verify these by hand once configure
 1. Apply `supabase/migrations` (`supabase db push`) + deploy edge functions
    (`supabase functions deploy notion-oauth notion-save notion-context mcp-token`).
 2. Set `apps/desktop/.env` (see `.env.example`) with your Supabase URL + anon key.
-3. Sign in (Integrations → Account → Google / Microsoft). Sidebar shows "Synced".
+3. Sign in (Integrations → Account — email + password, or an OAuth provider if
+   one is enabled on the project). Sidebar shows "Synced".
 
 ## Calendar auto-prompt
 4. With calendar scopes granted, the Home "Today" list shows real events (a

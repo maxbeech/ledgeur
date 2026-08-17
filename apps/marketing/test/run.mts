@@ -1,4 +1,7 @@
 // Ledgeur test suite. Pure-logic + data-integrity checks. Run: npm test
+import { readFileSync } from "node:fs";
+// The canonical speech-model load plan, as served to the browser.
+import { LANGS as ASR_LANGS } from "../public/asr-plan.js";
 import { splitSentences, extractiveSummary, summarizeTranscript, notesToMarkdown } from "../lib/summarize.ts";
 import { resample, mergeToMono, rms, concatFloat32, WHISPER_SAMPLE_RATE } from "../lib/audio.ts";
 import { buildNotesRequest, providerById, AI_PROVIDERS } from "../lib/ai-notes.ts";
@@ -90,6 +93,19 @@ ok("platforms populated", PLATFORMS.length >= 6 && PLATFORMS.every((p) => p.tips
 ok("usecases populated", USE_CASES.length >= 8 && USE_CASES.every((u) => u.captures.length >= 3));
 ok("posts well-formed", POSTS.every((p) => /^\d{4}-\d{2}-\d{2}$/.test(p.date) && p.body.length >= 4 && p.title.length > 5));
 ok("slugs are url-safe", [...COMPETITORS, ...PLATFORMS].every((x) => /^[a-z0-9-]+$/.test(x.slug)) && POSTS.every((p) => /^[a-z0-9-]+$/.test(p.slug)));
+
+// --- transcription language options ---
+// The recorder's <select> and the speech-model load plan must agree: a value
+// the plan doesn't know silently falls back to English, so the user would pick
+// "Multilingual" and quietly get an English-only model.
+const controlsSource = readFileSync(new URL("../components/recorder/Controls.tsx", import.meta.url), "utf8");
+const offeredLangs = [...controlsSource.matchAll(/<option value="([^"]+)"/g)].map((m) => m[1]);
+ok("the recorder offers language options", offeredLangs.length >= 3, JSON.stringify(offeredLangs));
+ok("every offered language is one the load plan supports",
+  offeredLangs.every((l) => (ASR_LANGS as readonly string[]).includes(l)),
+  `offered ${JSON.stringify(offeredLangs)} vs plan ${JSON.stringify(ASR_LANGS)}`);
+ok("every planned language is offered in the UI",
+  (ASR_LANGS as readonly string[]).every((l) => offeredLangs.includes(l)));
 
 console.log(`\n${pass} passed, ${fail} failed`);
 if (fail > 0) process.exit(1);

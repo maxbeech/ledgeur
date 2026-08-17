@@ -1,6 +1,8 @@
 # Changelog
 
-## [0.6.3] — 2026-08-17 — Fix: browser transcription was dead for every user without WebGPU
+## [0.6.3] — 2026-08-17 — Production fixes: transcription outage, and a way to sign in
+
+### Fix: browser transcription was dead for every user without WebGPU
 
 A user reported that Ledgeur could not transcribe at all:
 
@@ -46,11 +48,43 @@ Verified in Chrome 152, each case in a clean browser profile with real audio:
   copy-paste in two apps. They now live once in `packages/asr/` and are synced
   into each app's `public/` by `predev`/`prebuild`; a test fails if a copy
   drifts.
+- **Faster recovery**: the worker and plan were served with a 24-hour
+  `max-age`, so a broken worker stayed broken for a day after a fix shipped.
+  They now revalidate on every load (they are a few KB; the model weights are
+  cached separately by the Hugging Face CDN), so a fix reaches users on their
+  next page load.
 - **Tests**: new `@ledgeur/asr` suite (58 assertions) covers the plan, the
   runtime/dtype invariant that caused the outage, lang handling and error
   mapping. End-to-end, a real browser with WebGPU disabled now transcribes the
   sample clip, and an injected dead first rung is proven to recover in a fresh
   worker.
+
+### Sign-in: email + password, and no dead-end buttons
+
+The app offered only Google and Microsoft sign-in, but the production Supabase
+project has both providers switched **off** (`/auth/v1/settings` reports
+`google: false, azure: false, email: true`) — so both buttons led to a failed
+redirect, and there was no way in at all.
+
+- **Email + password sign-in, sign-up and password reset** in the account card,
+  using the email provider that is already enabled server-side.
+- **Providers are discovered, not assumed**: the app asks the backend which
+  OAuth providers are configured and renders buttons only for those. Enabling
+  Google or Azure in Supabase makes the buttons appear with no code change; a
+  provider that is off can no longer be clicked into a broken redirect.
+- **Real failure states**: Supabase auth errors are mapped to something a person
+  can act on ("That email and password don't match an account", "Confirm your
+  email address first", "New accounts are disabled on this workspace"), instead
+  of raw API strings — with unrecognised errors passed through verbatim rather
+  than swallowed. A backend with no auth method at all says so explicitly.
+- Credentials are validated client-side before any network round-trip.
+- `AccountCard.tsx` extracted from `Integrations.tsx`; pure logic lives in
+  `lib/authMessages.ts` and is covered by 31 new assertions.
+
+**Still needed to make sign-in work in production** (neither is a code change —
+see `docs/MANUAL_TESTING.md`): configure custom SMTP in Supabase (its built-in
+mailer only delivers to project team members, 2/hour), or register Google/Azure
+OAuth apps and enable those providers.
 
 ## [0.6.2] — 2026-07-08 — Rebrand: ParleyNotes → Ledgeur
 

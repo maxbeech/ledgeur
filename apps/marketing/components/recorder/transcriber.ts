@@ -23,6 +23,8 @@ export class TranscriberController {
   private handlers: Handlers;
   /** In-flight (or settled) load for the current language. */
   private loading: { lang: string; promise: Promise<void> } | null = null;
+  /** Abandons the in-flight load, so tearing down never leaves an awaiter hanging. */
+  private abortLoad: ((e: Error) => void) | null = null;
   /** Which rung of the load plan the live worker started on. */
   private attempt = 0;
   private disposed = false;
@@ -68,6 +70,7 @@ export class TranscriberController {
     this.teardown();
 
     const promise = new Promise<void>((resolve, reject) => {
+      this.abortLoad = reject;
       const tryAttempt = (attempt: number) => {
         if (this.disposed) return reject(new Error("Transcriber disposed."));
         const worker = this.spawn();
@@ -77,6 +80,7 @@ export class TranscriberController {
           if (d.status === "ready") {
             worker.removeEventListener("message", onMessage);
             this.attempt = attempt;
+            this.abortLoad = null;
             this.handlers.onReady?.();
             resolve();
           } else if (d.status === "load-error") {
@@ -127,6 +131,10 @@ export class TranscriberController {
   }
 
   private teardown() {
+    // Settle the in-flight load first: its worker is about to be terminated, so
+    // its listeners would never fire and anything awaiting it would hang.
+    this.abortLoad?.(new Error("Transcription cancelled."));
+    this.abortLoad = null;
     this.worker?.terminate();
     this.worker = null;
     this.loading = null;
