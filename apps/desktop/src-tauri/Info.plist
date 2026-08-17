@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Extra Info.plist keys merged into the macOS bundle by the Tauri bundler.
+
+  NSMicrophoneUsageDescription is NOT optional: macOS terminates an app that
+  reaches for the microphone without it, and recording the microphone is the
+  whole product. The string below is what the user reads in the permission
+  prompt, so it says what we take and where it goes.
+
+  Screen/system audio capture (getDisplayMedia, used to record the other people
+  on a call) is governed by the Screen Recording privacy setting, which macOS
+  prompts for on first use and which has no Info.plist key — nothing to declare
+  here for it.
+-->
+<plist version="1.0">
+<dict>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Ledgeur records meeting audio so it can transcribe it on this device. Audio and transcripts stay on your machine unless you choose to sync them.</string>
+</dict>
+</plist>

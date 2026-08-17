@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Hardened-runtime entitlements for Developer ID distribution.
+
+  Signing for distribution enables the hardened runtime, which blocks microphone
+  access even when Info.plist declares a usage description — the entitlement
+  below is what actually re-opens it. Without this, a signed build launches fine
+  and then silently fails the moment someone hits record.
+
+  Deliberately minimal: no App Sandbox (that is for the Mac App Store and needs
+  its own provisioning profile), and no camera, location or file-access
+  entitlements, because the app asks for none of those.
+-->
+<plist version="1.0">
+<dict>
+	<key>com.apple.security.device.audio-input</key>
+	<true/>
+</dict>
+</plist>

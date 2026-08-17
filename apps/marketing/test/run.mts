@@ -10,6 +10,7 @@ import { COMPETITORS } from "../lib/competitors.ts";
 import { PLATFORMS } from "../lib/platforms.ts";
 import { USE_CASES } from "../lib/usecases.ts";
 import { POSTS } from "../lib/posts.ts";
+import { SUPABASE, MIN_PASSWORD_LENGTH } from "../lib/site.ts";
 
 let pass = 0, fail = 0;
 const ok = (name: string, cond: boolean, detail = "") => {
@@ -106,6 +107,39 @@ ok("every offered language is one the load plan supports",
   `offered ${JSON.stringify(offeredLangs)} vs plan ${JSON.stringify(ASR_LANGS)}`);
 ok("every planned language is offered in the UI",
   (ASR_LANGS as readonly string[]).every((l) => offeredLangs.includes(l)));
+
+// --- auth callback page ---
+// This page is where every Supabase auth email lands. If its config or copy
+// drifts, a confirmed account or a password reset dead-ends silently.
+const callbackSource = readFileSync(new URL("../app/auth/callback/page.tsx", import.meta.url), "utf8");
+ok("the auth callback page is a client component (it must read location.hash)",
+  callbackSource.trimStart().startsWith('"use client"'));
+ok("the callback reads the URL fragment, not just the query string", callbackSource.includes("window.location.hash"));
+ok("the callback handles the recovery flow", callbackSource.includes('"recovery"'));
+ok("the callback sets the new password against Supabase", callbackSource.includes("/auth/v1/user") && callbackSource.includes('method: "PUT"'));
+ok("the callback disables native validation so its own messages show", callbackSource.includes("noValidate"));
+ok("the callback explains an expired link", /expired/i.test(callbackSource));
+
+// The Supabase config the page depends on must be real, and publishable-only.
+ok("Supabase url is configured", /^https:\/\/[a-z0-9]+\.supabase\.co$/.test(SUPABASE.url), SUPABASE.url);
+ok("Supabase key is a JWT", SUPABASE.anonKey.split(".").length === 3);
+ok("Supabase key is the publishable anon role, never a service key", (() => {
+  const [, payload] = SUPABASE.anonKey.split(".");
+  const json = JSON.parse(Buffer.from(payload, "base64url").toString());
+  return json.role === "anon";
+})(), "a service_role key must never reach the browser");
+ok("Supabase key belongs to the configured project", (() => {
+  const [, payload] = SUPABASE.anonKey.split(".");
+  const json = JSON.parse(Buffer.from(payload, "base64url").toString());
+  return SUPABASE.url.includes(json.ref);
+})());
+
+// One rule, two apps: the desktop app rejects short passwords client-side and
+// this page must not accept what the app would refuse.
+const desktopAuth = readFileSync(new URL("../../desktop/src/lib/authMessages.ts", import.meta.url), "utf8");
+const desktopMin = Number(/MIN_PASSWORD_LENGTH = (\d+)/.exec(desktopAuth)?.[1]);
+ok("the marketing and desktop minimum password lengths agree",
+  desktopMin === MIN_PASSWORD_LENGTH, `desktop ${desktopMin} vs marketing ${MIN_PASSWORD_LENGTH}`);
 
 console.log(`\n${pass} passed, ${fail} failed`);
 if (fail > 0) process.exit(1);

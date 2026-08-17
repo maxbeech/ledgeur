@@ -86,6 +86,50 @@ see `docs/MANUAL_TESTING.md`): configure custom SMTP in Supabase (its built-in
 mailer only delivers to project team members, 2/hour), or register Google/Azure
 OAuth apps and enable those providers.
 
+### Production wiring: paid plans actually activate, auth emails actually send
+
+With access to the live Supabase project, three things turned out to be broken
+in production rather than merely unconfigured.
+
+- **The billing migration had never been applied.** `orgs` had no
+  `stripe_customer_id` / `stripe_subscription_id` columns, so every write the
+  `stripe-webhook` function made was against columns that did not exist: a
+  completed checkout took the money and never flipped the plan. Migration
+  `0004_billing_stripe` is now applied and recorded in `schema_migrations`.
+  Verified with 18 assertions against the deployed function using genuinely
+  signed events — activation, lapse, recovery, trial, cancellation, and the
+  `org_is_paid()` gate — plus forged signatures, replayed events and unsigned
+  requests, which are all rejected without side effects.
+- **No mail provider was configured**, so Supabase fell back to its built-in
+  mailer, which only delivers to project team members at 2 messages/hour. Custom
+  SMTP now goes through Resend from the verified `mail.ledgeur.com` domain, with
+  the send rate raised from 2/hour to 100. Verified live: sign-up, confirmation,
+  refusal-until-confirmed, sign-in, and password reset.
+- **Auth emails landed nowhere.** Confirmation and reset links pointed at the
+  marketing home page, which ignores the URL fragment — so a confirmed account
+  looked like nothing happened, an expired link looked identical to a working
+  one, and a password reset had no form to finish at. New `/auth/callback` page
+  handles all of it, including a real set-a-new-password form, and `site_url`
+  now points at it. It also re-reads on `hashchange`, so opening a second auth
+  link in an already-open tab (a same-document navigation) updates the page
+  instead of showing the previous outcome.
+
+### macOS: the app would have been killed on first use
+
+- **`NSMicrophoneUsageDescription` was missing.** macOS terminates an app that
+  reaches for the microphone without it — for a meeting recorder that is fatal,
+  and it would have happened to every user on first record. Added, along with a
+  `com.apple.security.device.audio-input` entitlement, which the hardened
+  runtime requires before a signed build may use the mic at all.
+- **Builds were ad-hoc signed** (`TeamIdentifier=not set`). New
+  `pnpm --filter @ledgeur/desktop release:mac` signs with the Developer ID in
+  the keychain, notarises and staples when Apple credentials are present, and
+  then asks Gatekeeper for a verdict rather than assuming success. Verified:
+  hardened runtime on, correct authority chain, entitlement present. Notarising
+  needs an app-specific password — see `docs/MANUAL_TESTING.md`.
+
+Also: the 404 page still showed a "P" logo from before the rename.
+
 ## [0.6.2] — 2026-07-08 — Rebrand: ParleyNotes → Ledgeur
 
 Full rebrand across the monorepo, docs and infrastructure — no functional

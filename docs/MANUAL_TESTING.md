@@ -24,48 +24,69 @@
   `/manifest.webmanifest` all return 200. `/download` 404s, which is correct —
   no such page exists yet and nothing links to it.
 
+### Also verified against production (second pass, with the Supabase PAT)
+
+- **Auth now works end to end.** Custom SMTP is configured (Resend, sending from
+  the verified `mail.ledgeur.com`), so Supabase's team-members-only 2/hour
+  default mailer is out of the picture. Proven live: sign-up → confirmation
+  email lands in the inbox → sign-in is refused until confirmed → confirmed →
+  token issued. A new user automatically gets a profile, an org and a
+  membership (the `on_auth_user_created` trigger). Password reset was driven
+  through the browser with a real recovery link: the form sets the password,
+  the new password signs in, and the old one stops working. Test user and org
+  were deleted afterwards; production is back to zero rows.
+- **Billing activates for real.** 18 assertions against the deployed
+  `stripe-webhook` function, signed with the registered test-mode secret:
+  a completed checkout flips `orgs.plan` to `team` and stores the customer and
+  subscription ids; `past_due` drops it to `free`; `active`/`trialing` restore
+  it; cancellation revokes it; `org_is_paid()` agrees throughout. Forged
+  signatures, replayed (stale-timestamp) events and unsigned requests are all
+  rejected with 400 and change nothing.
+- **macOS signing.** `pnpm --filter @ledgeur/desktop release:mac` builds and
+  signs with the *Developer ID Application: Maxed Labs Ltd (E353LGUVGH)*
+  certificate already in the keychain. Verified on the output: hardened runtime
+  on, `com.apple.security.device.audio-input` entitlement present,
+  `NSMicrophoneUsageDescription` present.
+
 ### TO STILL TEST / DO — needs credentials or accounts Claude Code cannot reach
 
-1. **Sign-in does not work in production yet. One of these is required.**
-   The live Supabase project (`ysmzzxkchfzbdxsrpgpw`) reports
-   `google: false, azure: false, email: true` at `/auth/v1/settings`, and
-   Supabase's built-in mailer only delivers to project team members (2/hour),
-   so it cannot serve real users. Either:
-   - **Fastest**: Supabase dashboard → Project Settings → Auth → SMTP Settings,
-     configure custom SMTP with the existing Resend key. Email + password
-     sign-in (already built into the app) then works for real users.
-   - **Or**: create Google Cloud and Azure OAuth apps with callback
-     `https://ysmzzxkchfzbdxsrpgpw.supabase.co/auth/v1/callback`, then enable
-     those providers in Supabase Auth. The app detects enabled providers at
-     runtime and will show the buttons automatically — no code change needed.
+1. **Notarise the desktop app** (the last step before you can distribute it).
+   Signing is done; Gatekeeper still says *"Unnotarized Developer ID"*, which
+   means other Macs will refuse to open it. Generate an app-specific password
+   at <https://account.apple.com> → App-Specific Passwords, then:
 
-   Then verify by hand in `pnpm --filter @ledgeur/desktop tauri:dev` →
-   Settings → Account: create an account, confirm the email, sign in, and check
-   the card switches to the signed-in state with your address.
+   ```sh
+   APPLE_ID=you@example.com APPLE_PASSWORD=abcd-efgh-ijkl-mnop \
+   APPLE_TEAM_ID=E353LGUVGH pnpm --filter @ledgeur/desktop release:mac
+   ```
 
-2. **Billing activation end-to-end.** The checkout *session* is verified, but
-   the payment → webhook → `orgs.plan = 'team'` leg needs a real test-mode
-   purchase (Stripe MCP is not connected to the Ledgeur account, and the
-   Supabase project is not accessible from this machine's CLI login). Use a
-   test-mode checkout with `?org=<a real org uuid>`, complete it with card
-   `4242 4242 4242 4242`, then confirm in the Supabase table editor that the
-   org's `plan` flipped to `team` and `stripe_customer_id` /
-   `stripe_subscription_id` were stored.
+   The script notarises, staples and re-checks with Gatekeeper; it should end
+   with "Accepted". Windows signing still needs its own certificate, and there
+   is no `/download` page on the marketing site yet.
 
-3. **Notion integration.** `NOTION_CLIENT_ID` / `NOTION_CLIENT_SECRET` are
-   still unset in Supabase secrets, and `VITE_NOTION_CLIENT_ID` in
-   `apps/desktop/.env` is a placeholder. Create the Notion integration, then
-   `supabase secrets set NOTION_CLIENT_ID=… NOTION_CLIENT_SECRET=…`.
+2. **Notion integration.** `NOTION_CLIENT_ID` in Supabase is set to an *empty
+   string* (confirmed: its stored hash is the SHA-256 of ""), and
+   `NOTION_CLIENT_SECRET` is not set at all. Create the integration at
+   <https://www.notion.so/my-integrations>, then
+   `supabase secrets set NOTION_CLIENT_ID=… NOTION_CLIENT_SECRET=…` and put the
+   client id in `VITE_NOTION_CLIENT_ID` in `apps/desktop/.env`.
 
-4. **Desktop code signing / distribution.** `tauri build` succeeds but the
-   output is **unsigned**: macOS Gatekeeper will block it for anyone but you.
-   Needs an Apple Developer ID certificate + notarisation credentials
-   (`AC_PASSWORD`, `notarytool`), and a Windows signing certificate, ideally
-   driven from CI. There is also no `/download` page on the marketing site yet.
+3. **A live-money Stripe check.** The webhook logic is proven with signed
+   events, but nobody has yet put a real card through the live checkout. Worth
+   one test-mode purchase end to end (`4242 4242 4242 4242`) from
+   `/pricing?org=<org uuid>` once you have a real org.
 
-5. **Desktop native shell.** The auth UI was browser-tested against the Vite
-   dev server; the native Tauri window (menu bar, deep links, OS keychain) was
-   not. Worth one pass with `tauri:dev`.
+4. **Desktop native shell.** The auth UI was browser-tested against the Vite
+   dev server; the native Tauri window (menu bar, microphone prompt, OS
+   keychain) was not. Worth one pass with `tauri:dev` — in particular, confirm
+   macOS shows the microphone permission prompt with the wording from
+   `src-tauri/Info.plist` the first time you hit record.
+
+5. **OAuth sign-in**, if you want Google/Microsoft buttons back. Create the
+   OAuth apps with callback
+   `https://ysmzzxkchfzbdxsrpgpw.supabase.co/auth/v1/callback` and enable the
+   providers in Supabase. The app reads `/auth/v1/settings` at runtime and will
+   show the buttons automatically — no code change needed.
 
 ## Rebrand (2026-07-08): TO STILL TEST
 

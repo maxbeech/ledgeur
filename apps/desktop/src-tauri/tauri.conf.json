@@ -38,7 +38,11 @@
     ],
     "category": "Productivity",
     "shortDescription": "The centre of your company's brain.",
-    "longDescription": "Ledgeur records and transcribes meetings on-device, generates notes and action items, and lets you ask questions across your whole company's knowledge."
+    "longDescription": "Ledgeur records and transcribes meetings on-device, generates notes and action items, and lets you ask questions across your whole company's knowledge.",
+    "macOS": {
+      "entitlements": "./Entitlements.plist",
+      "minimumSystemVersion": "10.15"
+    }
   },
   "plugins": {}
 }

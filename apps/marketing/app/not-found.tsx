@@ -3,7 +3,7 @@ import Link from "next/link";
 export default function NotFound() {
   return (
     <main className="mx-auto flex max-w-2xl flex-col items-center px-5 py-24 text-center">
-      <div className="grid h-12 w-12 place-items-center rounded-xl bg-emerald-700 text-lg font-bold text-white">P</div>
+      <div className="grid h-12 w-12 place-items-center rounded-xl bg-emerald-700 text-lg font-bold text-white">L</div>
       <h1 className="mt-6 text-3xl font-extrabold tracking-tight text-stone-900">Page not found</h1>
       <p className="mt-3 text-stone-600">
         That page doesn’t exist. But your next meeting’s notes are one click away — free, private and on-device.

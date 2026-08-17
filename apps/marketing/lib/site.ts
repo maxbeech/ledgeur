@@ -15,6 +15,23 @@ export const SITE = {
   sampleAudioUrl: "https://huggingface.co/datasets/Xenova/transformers.js-docs/resolve/main/jfk.wav",
 } as const;
 
+// The Supabase project this site talks to for auth landing pages — the page
+// people reach from a "confirm your email" or "reset your password" message.
+//
+// Both values are publishable by design: the anon key carries the `anon` role,
+// every table is behind row-level security, and the same key already ships
+// inside the desktop app. They live here as ordinary config, with an env
+// override, so the auth pages cannot silently break in an environment where
+// someone forgot to set a variable.
+export const SUPABASE = {
+  url: process.env.NEXT_PUBLIC_SUPABASE_URL ?? "https://ysmzzxkchfzbdxsrpgpw.supabase.co",
+  anonKey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlzbXp6eGtjaGZ6YmR4c3JwZ3B3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM2MDQ5MjcsImV4cCI6MjA5OTE4MDkyN30.MraFJwedu6MFTxaAVyUjC0KixjJU8BENQDlod9OTiQQ",
+} as const;
+
+/** Minimum password length. Must match MIN_PASSWORD_LENGTH in the desktop app
+ *  (apps/desktop/src/lib/authMessages.ts) — a test asserts the two agree. */
+export const MIN_PASSWORD_LENGTH = 8;
+
 export const PRICING = {
   free: { name: "Personal", price: "$0", note: "Free forever" },
   team: { name: "Team", price: "$6", note: "per user / month" },
