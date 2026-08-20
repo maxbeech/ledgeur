@@ -1,0 +1,28 @@
+{
+  "name": "@ledgeur/mcp",
+  "version": "0.2.0",
+  "private": true,
+  "description": "The Ledgeur MCP tool definitions and token authentication, shared by the stdio server and the hosted HTTP endpoint.",
+  "license": "MIT",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./tools": "./src/tools.ts",
+    "./auth": "./src/auth.ts",
+    "./jsonrpc": "./src/jsonrpc.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "tsx test/run.mts"
+  },
+  "dependencies": {
+    "@ledgeur/core": "workspace:*",
+    "@supabase/supabase-js": "^2.58.0",
+    "zod": "^3.24.1",
+    "zod-to-json-schema": "^3.24.1"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.2",
+    "tsx": "^4.22.4"
+  }
+}

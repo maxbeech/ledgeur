@@ -1,5 +1,57 @@
 # Changelog
 
+## Unreleased — A hosted MCP endpoint, so the paid tier is reachable without a process
+
+### The MCP server now has two front doors, and one set of tools
+
+`apps/mcp-server` speaks stdio, which is what Claude Desktop and Cursor want and
+what a person runs on their own machine. Nothing else could reach Ledgeur: a
+hosted agent, another product's connector or a script has no way to spawn a
+process, so the paid tier was unreachable for exactly the callers most likely to
+pay for it.
+
+`POST /api/mcp` on the marketing site is the same server over HTTP. It
+authenticates with the data-access token the app already issues under
+Integrations, Data access, resolves it to a Supabase session for the person who
+created it, and runs every query under their row level security. The route has
+no privileges of its own: the one service-role step reads a single row of
+`mcp_tokens` to check the hash and never touches meeting content.
+
+### The tools moved to `packages/mcp`, and that is the point
+
+They were defined inline in the stdio server. A second transport would have
+meant a second definition of the same four tools, which drifts and is only
+noticed when somebody switches transport and finds a tool missing or shaped
+differently. Both servers now read `TOOLS` from one array.
+
+The input schema is written once, in zod, because the SDK wants a zod shape and
+the JSON-RPC wire wants JSON Schema. `jsonSchemaFor` derives the second from the
+first rather than the two being written separately with a test hoping they
+agree.
+
+### Details worth knowing
+
+- An unknown TOOL comes back as a tool error the agent can read and retry;
+  an unknown METHOD comes back as a JSON-RPC error. They are different failures
+  and a client acts on them differently.
+- A notification (no `id` at all) is answered with 202 and no body. `id: null`
+  is a request and IS answered, which is the mistake every hand-rolled JSON-RPC
+  implementation makes once.
+- An unknown protocol version negotiates down to the newest we speak rather than
+  refusing, so a newer client still connects.
+- A revoked token and an unknown token get the same answer, so the endpoint does
+  not confirm that a token was once real.
+- `GET` declines with 405 and `Allow: POST` rather than holding open an SSE
+  stream a serverless function would drop.
+- 28 tests in `packages/mcp`, covering the tool set, the derived schemas, the
+  JSON-RPC surface and the auth header parsing.
+
+**Not yet exercised against a live deployment.** The endpoint needs
+`SUPABASE_SERVICE_ROLE_KEY` on the marketing project and a real token from a
+paid org. Until somebody runs that once, this is code that typechecks and passes
+its unit tests rather than a proven path.
+
+
 ## [0.6.3] — 2026-08-17 — Production fixes: transcription outage, and a way to sign in
 
 ### Fix: browser transcription was dead for every user without WebGPU

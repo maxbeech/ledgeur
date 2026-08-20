@@ -1,47 +1,53 @@
-// Builds the Ledgeur MCP server and registers its tools. Each tool reads the
-// user's knowledge base through @ledgeur/core's repository (RLS-enforced).
+// Builds the Ledgeur MCP server for the stdio transport.
+//
+// The TOOLS THEMSELVES LIVE IN @ledgeur/mcp, not here. They used to be defined
+// inline, which was fine while stdio was the only way in; it stopped being fine
+// the moment a hosted HTTP endpoint appeared, because two definitions of the
+// same four tools drift and nobody notices until a client switches transport
+// and a tool is missing or shaped differently.
+//
+// So this file is now only the stdio ADAPTER: it turns each definition into an
+// SDK registration and nothing else. Adding a tool means editing
+// packages/mcp/src/tools.ts, and both servers gain it.
 
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { z } from "zod";
 import type { SupabaseClient } from "@ledgeur/core";
-import { listMeetings, getMeeting, searchMeetings, listActionItems } from "@ledgeur/core";
-
-const text = (s: string) => ({ content: [{ type: "text" as const, text: s }] });
-const json = (v: unknown) => text(JSON.stringify(v, null, 2));
+import { TOOLS } from "@ledgeur/mcp";
 
 export function buildServer(db: SupabaseClient): McpServer {
   const server = new McpServer({ name: "ledgeur", version: "0.2.0" });
 
-  server.tool(
-    "list_meetings",
-    "List the user's most recent meetings (title, date, status). Use to browse before drilling into one.",
-    { limit: z.number().int().min(1).max(100).optional() },
-    async ({ limit }) => json(await listMeetings(db, limit ?? 25)),
-  );
+  // One cast, at the boundary, with the reason. `registerTool` is generic over
+  // the zod shape so that it can infer the handler's argument type. TOOLS is a
+  // heterogeneous array, so there is no single shape to infer from and the
+  // generic collapses to `never`. The runtime contract is exactly right; only
+  // the inference has nowhere to go.
+  const register = server.registerTool.bind(server) as (
+    name: string,
+    config: { description: string; inputSchema: unknown },
+    handler: (args: Record<string, unknown>) => Promise<{
+      content: Array<{ type: "text"; text: string }>;
+      isError?: boolean;
+    }>,
+  ) => void;
 
-  server.tool(
-    "search_meetings",
-    "Search the user's meetings by keyword in the title. Returns matching meetings.",
-    { query: z.string().min(1) },
-    async ({ query }) => json(await searchMeetings(db, query)),
-  );
-
-  server.tool(
-    "get_meeting",
-    "Get a single meeting with its notes, speakers and full transcript by meeting id.",
-    { id: z.string().min(1) },
-    async ({ id }) => {
-      const m = await getMeeting(db, id);
-      return m ? json(m) : text(`No meeting ${id} is visible to you.`);
-    },
-  );
-
-  server.tool(
-    "list_tasks",
-    "List action items (tasks) extracted from meetings, optionally filtered by status.",
-    { status: z.enum(["open", "in_progress", "done", "cancelled"]).optional() },
-    async ({ status }) => json(await listActionItems(db, { status })),
-  );
+  for (const tool of TOOLS) {
+    register(
+      tool.name,
+      { description: tool.description, inputSchema: tool.input },
+      async (args: Record<string, unknown>) => {
+        try {
+          const value = await tool.run(db, args ?? {});
+          return { content: [{ type: "text" as const, text: JSON.stringify(value, null, 2) }] };
+        } catch (e) {
+          // A caller-fixable problem (an id nobody can see, a bad status) comes
+          // back as a tool error rather than a transport fault, so the agent
+          // can read it and try something else.
+          return { content: [{ type: "text" as const, text: (e as Error).message }], isError: true };
+        }
+      },
+    );
+  }
 
   return server;
 }
