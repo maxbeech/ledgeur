@@ -1,13 +1,18 @@
-// Voice profiles — enrol colleagues' voices (10 s of speech) so the native
-// engine can put real names, with confidence, on the transcript. Honest states:
-// browser preview → explains it's native-only; native errors surface verbatim.
+// Voice profiles — enrol a colleague's voice with about ten seconds of speech,
+// and transcripts name that person instead of "Speaker 2".
+//
+// This used to be native-only, and said so. Since the webview gained speaker
+// separation it recognises voices too, so enrolment now goes to whichever store
+// the engine in *this* build will actually read (see lib/voiceProfiles.ts).
+// Errors surface verbatim rather than being smoothed over.
 import { useEffect, useRef, useState } from "react";
 import { AudioLines, Mic, Square, Trash2 } from "lucide-react";
 import { resample, WHISPER_SAMPLE_RATE, concatFloat32 } from "@ledgeur/core";
 import { Button, Card, Chip, ErrorNote, Spinner } from "../ui.tsx";
-import { isTauri } from "../../lib/runtime.ts";
-import { AudioCapture } from "../../lib/capture.ts";
-import { listVoiceProfiles, enrollVoice, deleteVoiceProfile, type VoiceProfileMeta } from "../../lib/nativeAI.ts";
+import { AudioCapture } from "@ledgeur/core/browser";
+import {
+  activeEngine, listProfiles, enrollProfile, deleteProfile, type VoiceProfileMeta,
+} from "../../lib/voiceProfiles.ts";
 
 const TARGET_SECONDS = 10;
 
@@ -22,7 +27,8 @@ export function VoicesCard() {
   const chunks = useRef<Float32Array[]>([]);
   const timer = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  useEffect(() => { void listVoiceProfiles().then(setProfiles); }, []);
+  const [engine, setEngine] = useState<"native" | "webview" | null>(null);
+  useEffect(() => { void listProfiles().then(setProfiles); void activeEngine().then(setEngine); }, []);
   useEffect(() => () => { // teardown on unmount
     if (timer.current) clearInterval(timer.current);
     void capture.current?.stop();
@@ -60,7 +66,7 @@ export function VoicesCard() {
     setBusy(true);
     try {
       const audio = resample(concatFloat32(chunks.current), rate, WHISPER_SAMPLE_RATE);
-      const profile = await enrollVoice(name, audio);
+      const profile = await enrollProfile(name, audio);
       setProfiles((p) => [...(p ?? []), profile]);
       setName("");
     } catch (e) {
@@ -74,7 +80,7 @@ export function VoicesCard() {
   async function remove(id: string) {
     setErr("");
     try {
-      await deleteVoiceProfile(id);
+      await deleteProfile(id);
       setProfiles((p) => (p ?? []).filter((x) => x.id !== id));
     } catch (e) {
       setErr(e instanceof Error ? e.message : String(e));
@@ -94,8 +100,8 @@ export function VoicesCard() {
             Enrol a voice with ~10 seconds of speech and transcripts name that person — with a confidence figure — instead of “Speaker 2”. Voice prints never leave this device.
           </p>
 
-          {!isTauri() ? (
-            <p className="mt-3 text-xs text-muted">Voice identification runs in the desktop/mobile app's native engine — not in the browser preview.</p>
+          {engine === null ? (
+            <p className="mt-3 text-xs text-muted">Checking which engine this build uses…</p>
           ) : (
             <>
               <div className="mt-3 flex flex-wrap items-center gap-2">
@@ -122,6 +128,16 @@ export function VoicesCard() {
                   <span className="ldg-pulse h-1.5 w-1.5 rounded-full bg-danger" /> Speak naturally — reading a sentence or two works well.
                 </div>
               )}
+
+              {/* Which engine is doing the recognising, because the two use
+                  different models and therefore different, incompatible voice
+                  prints. Somebody whose profiles "disappeared" after rebuilding
+                  with the native engine deserves to know why. */}
+              <p className="mt-2 text-[11px] text-faint">
+                {engine === "native"
+                  ? "Recognised by the native engine. These prints are stored on this machine and are separate from the ones the webview engine makes."
+                  : "Recognised by the speaker models in the webview. These prints are stored in this app's local storage; a build with the native engine uses its own, and will not see them."}
+              </p>
 
               {(profiles ?? []).length > 0 && (
                 <ul className="mt-4 divide-y divide-hairline border-t border-hairline">

@@ -53,7 +53,7 @@ export function NotionCard({ signedIn }: { signedIn: boolean }) {
                 className="flex-1 rounded-lg border border-hairline bg-surface px-3 py-1.5 text-xs outline-none focus:ring-2 focus:ring-accent/40" />
               <Button onClick={connect} disabled={!code.trim() || state.busy}>{state.busy ? <Spinner /> : "Finish"}</Button>
             </div>
-            {state.err && <div className="text-xs text-red-600">{state.err}</div>}
+            {state.err && <div className="text-xs text-danger">{state.err}</div>}
           </div>
         ) : (
           <div className="mt-3 text-xs text-muted">Set VITE_NOTION_CLIENT_ID to enable Notion OAuth.</div>

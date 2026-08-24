@@ -1,30 +1,99 @@
+/* The marketing site's stylesheet.
+ *
+ * Everything visual comes from the design system — @ledgeur/ui/theme.css is the
+ * single source for colour, type, motion and focus, shared with the app. This
+ * file adds only what is specific to a *web page* rather than an app window:
+ * document flow, selectable text, and scroll behaviour.
+ *
+ * Fonts are self-hosted (fontsource) rather than pulled from a font CDN: it is
+ * one fewer origin for a privacy-first product to explain, and it keeps the
+ * site and the app on byte-identical faces. */
+@import "@fontsource-variable/fraunces";
+@import "@fontsource-variable/schibsted-grotesk";
+@import "@fontsource-variable/spline-sans-mono";
 @import "tailwindcss";
+@import "@ledgeur/ui/theme.css";
 
-/* Ledgeur ships a single, intentional warm LIGHT theme. Every surface uses
-   explicit Tailwind colors (cream page, white cards, ink text, emerald accent).
-   We do NOT honour prefers-color-scheme: a dark body background would sit behind
-   the light-theme text and break contrast (an unlayered body{background} rule
-   would also override Tailwind utility classes under v4 cascade layers). */
-:root {
-  --paper: #faf7f2;
-  --ink: #1c1917;
+/* Tailwind v4 scans sources it can see. The shared component package lives
+   outside this app's tree, so its classes have to be pointed at explicitly or
+   they are compiled away. */
+@source "../../../packages/ui/src";
+
+html {
+  scroll-behavior: smooth;
+}
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
 }
 
 body {
-  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-  background: var(--paper);
-  color: var(--ink);
+  margin: 0;
+  min-height: 100dvh;
+  background: var(--color-paper);
+  color: var(--color-ink-text);
+  font-family: var(--font-sans);
 }
 
-/* Subtle paper grain via a soft radial wash behind the hero. */
-.paper-grad {
+/* The hero's warm wash — two soft lights on paper, in the brand's own colours
+   rather than the generic gradient every AI landing page wears. */
+.ldg-wash {
   background:
-    radial-gradient(900px 400px at 15% -5%, rgba(16, 185, 129, 0.10), transparent 60%),
-    radial-gradient(700px 350px at 95% 0%, rgba(245, 158, 11, 0.08), transparent 55%);
+    radial-gradient(1100px 480px at 12% -12%, color-mix(in srgb, var(--color-accent) 13%, transparent), transparent 62%),
+    radial-gradient(820px 420px at 92% -6%, color-mix(in srgb, var(--color-glow) 12%, transparent), transparent 58%);
 }
 
-@keyframes pulse-rec {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.35; }
+/* Long-form article typography for the blog and legal pages. Scoped to
+   .ldg-article so it can never leak into application chrome. */
+.ldg-article {
+  font-family: var(--font-sans);
+  line-height: 1.75;
+  color: var(--color-ink-text);
 }
-.rec-dot { animation: pulse-rec 1.2s ease-in-out infinite; }
+.ldg-article > * + * { margin-top: 1.15rem; }
+.ldg-article h2 {
+  font-family: var(--font-display);
+  font-variation-settings: "opsz" 40, "SOFT" 60, "WONK" 0;
+  font-weight: 560;
+  letter-spacing: -0.015em;
+  font-size: 1.5rem;
+  margin-top: 2.5rem;
+}
+.ldg-article h3 {
+  font-family: var(--font-display);
+  font-weight: 560;
+  font-size: 1.175rem;
+  margin-top: 2rem;
+}
+.ldg-article ul, .ldg-article ol { padding-left: 1.25rem; }
+.ldg-article ul { list-style: disc; }
+.ldg-article ol { list-style: decimal; }
+.ldg-article li + li { margin-top: 0.4rem; }
+.ldg-article a {
+  color: var(--color-accent-strong);
+  text-underline-offset: 3px;
+  text-decoration-line: underline;
+  text-decoration-thickness: 1px;
+}
+.ldg-article code {
+  font-family: var(--font-mono);
+  font-size: 0.875em;
+  background: var(--color-surface-muted);
+  border-radius: 0.35rem;
+  padding: 0.1em 0.35em;
+}
+.ldg-article pre {
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+  line-height: 1.6;
+  background: var(--color-ink);
+  color: var(--color-on-ink);
+  border-radius: 0.75rem;
+  padding: 1rem 1.1rem;
+  overflow-x: auto;
+}
+.ldg-article pre code { background: none; padding: 0; color: inherit; }
+.ldg-article blockquote {
+  border-left: 2px solid var(--color-hairline-strong);
+  padding-left: 1rem;
+  color: var(--color-muted);
+}

@@ -5,15 +5,26 @@
 //
 // Two transcription backends: the native engine (whisper.cpp + sherpa-onnx
 // diarization, when the app is built with `--features native-ai` and models are
-// downloaded) or the webview engine (transformers.js). Native adds real
-// per-speaker labels + confidence; the webview path labels a single speaker.
+// downloaded) or the webview engine (transformers.js).
+//
+// Both now separate speakers. The webview path used to label every line
+// "Speaker 1", which made an unbuilt native engine feel like a broken product;
+// it now runs pyannote + WeSpeaker in a worker alongside Whisper, analysing
+// each drained slice as it arrives and clustering once at the end. That keeps
+// memory flat — nothing retains the recording — and means a name the user has
+// saved is recognised on either backend.
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { resample, WHISPER_SAMPLE_RATE, rms, concatFloat32, notesToMarkdown } from "@ledgeur/core";
-import { AudioCapture } from "./capture.ts";
-import { TranscriberController } from "./transcriber.ts";
+import {
+  resample, WHISPER_SAMPLE_RATE, rms, concatFloat32, notesToMarkdown,
+  defaultSpeakerLabel, type AsrChunk,
+} from "@ledgeur/core";
+import {
+  AudioCapture, TranscriberController, DiarizerController, listVoiceProfiles,
+  type AnalysedSlice,
+} from "@ledgeur/core/browser";
 import { aiStatus, nativeTranscribeChunk, nativeTranscribeDiarize, type NativeSegment } from "./nativeAI.ts";
-import { saveMeeting, type LocalMeeting, type LocalSegment, type ChatMessage } from "./meetingsStore.ts";
+import { saveMeeting, type LocalMeeting, type LocalSegment, type LocalSpeaker, type ChatMessage } from "./meetingsStore.ts";
 import { generateMeetingNotes } from "./notes.ts";
 import { getSettings } from "./settings.ts";
 import { createLogger } from "./logger.ts";
@@ -44,6 +55,14 @@ export function useRecorder(getThreadMessages?: () => ChatMessage[]) {
   });
   const capture = useRef<AudioCapture | null>(null);
   const transcriber = useRef<TranscriberController | null>(null);
+  const diarizer = useRef<DiarizerController | null>(null);
+  /** Timed transcript pieces, accumulated across drains for the webview path. */
+  const asrChunks = useRef<AsrChunk[]>([]);
+  /** The voices found in this meeting, with the vectors that identify them, so
+   *  one can be named later from the library. */
+  const speakers = useRef<LocalSpeaker[]>([]);
+  /** One entry per analysed slice: turns and voice vectors, never audio. */
+  const slices = useRef<AnalysedSlice[]>([]);
   const timer = useRef<ReturnType<typeof setInterval> | null>(null);
   const lastOffsetMs = useRef(0);
   const segments = useRef<LocalSegment[]>([]);
@@ -69,6 +88,10 @@ export function useRecorder(getThreadMessages?: () => ChatMessage[]) {
     patch({ notes: text });
   }, []);
 
+  /** Speaker analyses still running, awaited on stop so a meeting's last turns
+   *  are clustered with the rest rather than landing after the decision. */
+  const analysing = useRef<Promise<unknown>[]>([]);
+
   const drain = useCallback(async () => {
     const cap = capture.current;
     if (!cap) return;
@@ -87,11 +110,33 @@ export function useRecorder(getThreadMessages?: () => ChatMessage[]) {
         if (fullLen.current < MAX_DIARIZE_SAMPLES) { fullAudio.current.push(audio); fullLen.current += audio.length; }
         else { capExceeded.current = true; }
       } else {
-        const text = (await transcriber.current!.transcribe(audio, lang.current)).trim();
-        if (text) {
-          segments.current = [...segments.current, { id: uid(), speakerLabel: "Speaker 1", startMs: lastOffsetMs.current, endMs, text, confidence: null, speakerConfidence: null }];
+        // The buffer is transferred to whichever worker gets it first, so the
+        // diarizer gets its own copy. Both run against the same slice, on the
+        // same clock.
+        const forSpeakers = audio.slice();
+        const offsetSeconds = lastOffsetMs.current / 1000;
+
+        const { text, chunks } = await transcriber.current!.transcribe(audio, lang.current, offsetSeconds);
+        if (chunks.length) asrChunks.current = [...asrChunks.current, ...chunks];
+        else if (text.trim()) {
+          // A model that returned no timings still returned words. Place them
+          // across the slice rather than losing them.
+          asrChunks.current = [...asrChunks.current, { text: text.trim(), start: offsetSeconds, end: endMs / 1000 }];
+        }
+        if (text.trim()) {
+          segments.current = [...segments.current, {
+            id: uid(), speakerLabel: defaultSpeakerLabel(0), startMs: lastOffsetMs.current, endMs,
+            text: text.trim(), confidence: null, speakerConfidence: null,
+          }];
           patch({ segments: segments.current });
         }
+
+        // Speakers are worked out in the background: a slow or failing speaker
+        // model must never hold up, or break, the transcript.
+        const analysis = diarizer.current?.analyse(forSpeakers, offsetSeconds)
+          .then((slice) => { slices.current = [...slices.current, slice]; })
+          .catch((e: unknown) => log.warn("speaker analysis skipped for a slice", e));
+        if (analysis) analysing.current = [...analysing.current, analysis];
       }
     } catch (e) {
       log.error("transcription chunk failed", e);
@@ -104,6 +149,7 @@ export function useRecorder(getThreadMessages?: () => ChatMessage[]) {
     log.info("start requested", opts);
     try {
       segments.current = []; lastOffsetMs.current = 0; fullAudio.current = []; fullLen.current = 0; capExceeded.current = false;
+      asrChunks.current = []; slices.current = []; analysing.current = []; speakers.current = [];
       lang.current = opts.lang ?? "en";
       notesRef.current = "";
       startedAt.current = new Date().toISOString();
@@ -122,6 +168,14 @@ export function useRecorder(getThreadMessages?: () => ChatMessage[]) {
         });
         transcriber.current = tr;
         await tr.preloadAndWait(lang.current);
+
+        // Started but deliberately not awaited: the speaker models are a few
+        // tens of megabytes, and waiting for them before the first word is
+        // recorded would make the app feel broken. They warm up during the
+        // meeting and are only needed at the end.
+        const dz = new DiarizerController();
+        diarizer.current = dz;
+        void dz.preload().catch((e: unknown) => log.warn("speaker models unavailable", e));
       }
 
       const cap = new AudioCapture();
@@ -141,7 +195,19 @@ export function useRecorder(getThreadMessages?: () => ChatMessage[]) {
     log.info("stop requested", { title, segments: segments.current.length });
     if (timer.current) { clearInterval(timer.current); timer.current = null; }
     patch({ status: "processing" });
-    await drain();
+    // Drain until the buffer is empty rather than once: a single pass leaves
+    // whatever arrived during the last transcription, and that audio is
+    // discarded with the capture — a silent "the end got cut off".
+    const deadline = Date.now() + 60_000;
+    while (Date.now() < deadline) {
+      await drain();
+      if ((capture.current?.pendingSamples() ?? 0) < WHISPER_SAMPLE_RATE / 10) break;
+    }
+    // The speaker analyses were deliberately not awaited during the meeting.
+    // Now they have to land, or the final turns are clustered without them.
+    const outstanding = analysing.current;
+    analysing.current = [];
+    await Promise.allSettled(outstanding);
     await capture.current?.stop();
     capture.current = null;
 
@@ -155,6 +221,42 @@ export function useRecorder(getThreadMessages?: () => ChatMessage[]) {
         if (finalSegs.length) { segments.current = finalSegs.map((s) => toLocal(s, 0)); patch({ segments: segments.current }); }
       } catch (e) {
         log.error("diarization pass failed, keeping live transcript", e);
+      }
+    }
+
+    // Webview: cluster everything the speaker models saw during the meeting,
+    // and put a name on anyone this device already recognises. Nothing here is
+    // allowed to fail the meeting — a transcript with "Speaker 1" on every line
+    // is still a transcript, and it is already saved below either way.
+    if (!native.current && slices.current.length > 0 && asrChunks.current.length > 0) {
+      try {
+        const profiles = await listVoiceProfiles();
+        const diarized = DiarizerController.assemble(asrChunks.current, slices.current, { profiles });
+        if (diarized.segments.length > 0 && diarized.speakers.length > 0) {
+          const names = new Map(diarized.speakers.map((sp) => [sp.speaker, sp]));
+          speakers.current = diarized.speakers.map((sp) => ({
+            label: sp.label,
+            confidence: sp.confidence,
+            embedding: sp.embedding,
+            speakingSeconds: sp.speakingSeconds,
+          }));
+          segments.current = diarized.segments.map((seg) => {
+            const speaker = seg.speaker == null ? null : names.get(seg.speaker);
+            return {
+              id: uid(),
+              speakerLabel: speaker?.label ?? defaultSpeakerLabel(seg.speaker ?? 0),
+              startMs: seg.startMs,
+              endMs: seg.endMs,
+              text: seg.text,
+              confidence: seg.confidence,
+              speakerConfidence: speaker?.confidence ?? null,
+            };
+          });
+          patch({ segments: segments.current });
+        }
+        if (diarized.warning) log.warn("speaker labels unavailable", diarized.warning);
+      } catch (e) {
+        log.error("speaker clustering failed, keeping the unlabelled transcript", e);
       }
     }
 
@@ -172,6 +274,7 @@ export function useRecorder(getThreadMessages?: () => ChatMessage[]) {
     const meeting: LocalMeeting = {
       id, title: title || "Untitled meeting", createdAt: now, startedAt: startedAt.current, endedAt: now,
       status: "complete", lang: lang.current, segments: segments.current,
+      speakers: speakers.current.length ? speakers.current : undefined,
       summary: notes.summary, decisions: notes.decisions, questions: notes.questions, actionItems: notes.actionItems,
       manualNotes,
       messages: messages.length ? messages : undefined,
@@ -180,7 +283,9 @@ export function useRecorder(getThreadMessages?: () => ChatMessage[]) {
     };
     await saveMeeting(meeting);
     transcriber.current?.dispose(); transcriber.current = null;
+    diarizer.current?.dispose(); diarizer.current = null;
     fullAudio.current = []; fullLen.current = 0;
+    asrChunks.current = []; slices.current = []; analysing.current = []; speakers.current = [];
     patch({ status: "complete", meetingId: id });
     log.info("recording saved", { meetingId: id, segments: meeting.segments.length, wordCount: notes.wordCount });
     return id;
@@ -188,9 +293,10 @@ export function useRecorder(getThreadMessages?: () => ChatMessage[]) {
 
   const reset = useCallback(() => {
     if (timer.current) { clearInterval(timer.current); timer.current = null; }
-    capture.current?.stop(); transcriber.current?.dispose();
-    capture.current = null; transcriber.current = null;
+    capture.current?.stop(); transcriber.current?.dispose(); diarizer.current?.dispose();
+    capture.current = null; transcriber.current = null; diarizer.current = null;
     segments.current = []; fullAudio.current = []; fullLen.current = 0; notesRef.current = "";
+    asrChunks.current = []; slices.current = [];
     statusRef.current = "idle";
     setState({ status: "idle", elapsed: 0, level: 0, modelProgress: 0, device: "", segments: [], error: "", meetingId: null, notes: "" });
   }, []);
@@ -205,6 +311,7 @@ export function useRecorder(getThreadMessages?: () => ChatMessage[]) {
     if (statusRef.current === "recording") log.warn("recorder unmounted mid-recording — capture stopped");
     void capture.current?.stop();
     transcriber.current?.dispose();
+    diarizer.current?.dispose();
   }, []);
 
   return { state, start, stop, reset, setNotes };

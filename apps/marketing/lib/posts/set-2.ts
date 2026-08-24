@@ -48,7 +48,7 @@ export const SET_2: Post[] = [
       { type: "h2", text: "The usual catches" },
       { type: "ul", items: ["Monthly minute limits that run out fast", "Watermarked or truncated exports", "Your recordings used to improve the vendor's models", "A bot that needs access to your whole calendar"] },
       { type: "h2", text: "Genuinely free" },
-      { type: "p", text: "Because Ledgeur runs on your device, there's no server cost to recoup — so it's free for individuals with no minute caps and no data harvesting. The paid tiers are strictly for teams and companies that want collaboration, SSO and support." },
+      { type: "p", text: "Because Ledgeur runs on your device, there is no server cost to recoup — so it is free for one person, with no minute caps and no data harvesting. The paid plan is for when the record has to leave your machine: synced across your devices, shared with a team, and readable by your AI agents. Those cost hosting, so they cost money." },
     ],
   },
   {
@@ -61,9 +61,9 @@ export const SET_2: Post[] = [
     body: [
       { type: "p", text: "For regulated industries and security-conscious teams, sending meeting audio to a third-party SaaS is a non-starter. Self-hosted, open-source meeting notes are the answer." },
       { type: "h2", text: "What 'self-hosted' should mean" },
-      { type: "ul", items: ["The app runs inside your network or on infrastructure you control", "Transcription happens on the user's device or your own hardware", "The source is open so security can audit it", "SSO/SAML and an audit log for compliance"] },
+      { type: "ul", items: ["The app runs inside your network, or on infrastructure you control", "Transcription happens on the user's device or your own hardware", "The source is open, so your security team can audit it rather than take a vendor's word", "Identity integrates with what you already run — SSO/SAML, and SCIM if you provision at scale", "There is an audit trail of who read what"] },
       { type: "h2", text: "The Ledgeur model" },
-      { type: "p", text: "The core app is MIT-licensed and self-hostable for free. A Company license adds a supported Docker/Helm bundle, SSO/SAML, SCIM provisioning, an admin console and an SLA — the pieces an enterprise needs but the open-source build doesn't require you to buy." },
+      { type: "p", text: "Ledgeur meets the first three outright: it is MIT-licensed, the schema is in the repository, and transcription and speaker separation run on the user's own device rather than anywhere you would have to secure. It does not meet the last two. There is no SSO, no SAML, no SCIM and no admin audit log today, and there is no packaged Docker or Helm deployment — self-hosting is currently a manual job for somebody comfortable with Postgres. We would rather you knew that before a procurement call than during one. If those are hard requirements, we are not the right answer yet." },
       { type: "h2", text: "Why open source wins the review" },
       { type: "p", text: "Auditability plus on-device processing means there's nothing for an attacker to exfiltrate from a vendor and nothing opaque for your security team to object to." },
     ],

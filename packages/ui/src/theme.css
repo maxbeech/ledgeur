@@ -1,0 +1,225 @@
+/* Ledgeur — "The Library of Record".
+ *
+ * The single source of truth for the look of every Ledgeur surface: the app,
+ * the marketing site, anything that comes next. Tokens here mirror
+ * packages/ui/src/tokens.ts, which is what TypeScript reads (canvas
+ * visualisers, native window chrome, speaker colours).
+ *
+ * Import this from an app's own stylesheet, then add only what is genuinely
+ * app-specific after it — the app window is `overflow: hidden` and
+ * unselectable; a web page is neither.
+ *
+ * The aesthetic, stated once so it can be argued with: warm paper rather than
+ * white, deep spruce ink rather than black, a serif for anything that is *said*
+ * and a grotesque for anything that is *operated*. Colour is semantic, never
+ * decorative — emerald is live/you, gold is the machine speaking, madder is
+ * recording or destructive. Motion settles; it never bounces.
+ */
+
+@theme {
+  /* Paper and its layered sheets. */
+  --color-paper: #f6f2ea;
+  --color-surface: #fdfbf7;
+  --color-surface-muted: #efe9de;
+  --color-surface-sunken: #e9e2d4;
+
+  /* Spruce ink — sidebars, footers, brand chrome. */
+  --color-ink: #0e1f19;
+  --color-ink-soft: #163026;
+  --color-ink-raised: #1d3a2e;
+
+  /* Emerald — live things, your actions, sync health. */
+  --color-accent: #0f8a63;
+  --color-accent-strong: #0a6b4d;
+  --color-accent-soft: #dcefe5;
+
+  /* Burnished gold — the brain's voice: AI answers, suggestions, MCP. */
+  --color-glow: #a87a24;
+  --color-glow-strong: #805912;
+  --color-glow-soft: #f3e8d2;
+
+  /* Madder — recording, destructive. */
+  --color-danger: #a33636;
+  --color-danger-soft: #f6e0dc;
+  /* Madder lifted for the dark chrome: --color-danger is 2.55:1 on ink. */
+  --color-danger-on-ink: #e08a8a;
+  --color-warn: #8f520d;
+  --color-warn-soft: #f5e7d2;
+  --color-warn-on-ink: #d9a441;
+
+  /* Text. Every one of these clears WCAG AA (4.5:1) on both paper and surface
+   * — measured, not eyeballed. `accent` and `glow` do NOT: they are fill and
+   * border colours. For coloured *text* use `accent-strong` (5.8:1) and
+   * `glow-strong` (4.9:1). */
+  --color-ink-text: #211d16;
+  --color-muted: #685f52;
+  --color-faint: #6b6354;
+  --color-on-ink: #f0ede4;
+  --color-on-ink-muted: #a9bdb1;
+
+  /* Rules & hairlines. */
+  --color-hairline: #e2dacb;
+  --color-hairline-strong: #cfc4ae;
+
+  --radius-xl: 1.25rem;
+
+  --font-display: "Fraunces Variable", "Iowan Old Style", Georgia, serif;
+  --font-sans: "Schibsted Grotesk Variable", "Avenir Next", "Segoe UI", sans-serif;
+  --font-mono: "Spline Sans Mono Variable", "SF Mono", ui-monospace, monospace;
+
+  --ease-settle: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-swift: cubic-bezier(0.4, 0, 0.2, 1);
+
+  --shadow-card: 0 1px 2px rgb(24 32 22 / 0.05), 0 10px 28px -14px rgb(24 32 22 / 0.14);
+  --shadow-float: 0 18px 50px -16px rgb(14 31 25 / 0.32);
+  --shadow-palette: 0 24px 80px -12px rgb(14 31 25 / 0.45);
+}
+
+* {
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* ---- Display type -------------------------------------------------------- */
+/* Fraunces is a variable serif with optical sizing and a "WONK" axis. Display
+ * type gets a large optical size and no wonk; it should read as a printed
+ * masthead, not as a novelty. */
+.ldg-display {
+  font-family: var(--font-display);
+  font-variation-settings: "opsz" 40, "SOFT" 60, "WONK" 0;
+  font-weight: 560;
+  letter-spacing: -0.015em;
+}
+
+/* The all-caps mono label above a section — the one place small caps earn
+ * their keep, because it separates a label from a heading without a rule. */
+.ldg-kicker {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--color-faint);
+}
+
+/* Long-form reading: transcripts, notes, blog posts. */
+.ldg-prose {
+  font-family: var(--font-sans);
+  line-height: 1.7;
+}
+
+/* ---- Paper grain — quiet, print-like texture over the canvas ------------- */
+.ldg-grain::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  pointer-events: none;
+  opacity: 0.30;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3CfeComponentTransfer%3E%3CfeFuncA type='linear' slope='0.05'/%3E%3C/feComponentTransfer%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+/* ---- Scrollbars ---------------------------------------------------------- */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--color-ink) 16%, transparent);
+  border-radius: 999px;
+  border: 3px solid transparent;
+  background-clip: content-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in srgb, var(--color-ink) 30%, transparent);
+  background-clip: content-box;
+}
+
+/* ---- Motion grammar ------------------------------------------------------ */
+@keyframes ldg-rise {
+  from { opacity: 0; transform: translateY(10px); filter: blur(2px); }
+  to { opacity: 1; transform: translateY(0); filter: blur(0); }
+}
+.ldg-rise { animation: ldg-rise 0.45s var(--ease-settle) both; }
+
+/* Staggered entrance: apply .ldg-stagger to a container. */
+.ldg-stagger > * { animation: ldg-rise 0.5s var(--ease-settle) both; }
+.ldg-stagger > *:nth-child(1) { animation-delay: 0ms; }
+.ldg-stagger > *:nth-child(2) { animation-delay: 60ms; }
+.ldg-stagger > *:nth-child(3) { animation-delay: 120ms; }
+.ldg-stagger > *:nth-child(4) { animation-delay: 180ms; }
+.ldg-stagger > *:nth-child(5) { animation-delay: 240ms; }
+.ldg-stagger > *:nth-child(6) { animation-delay: 300ms; }
+.ldg-stagger > *:nth-child(n + 7) { animation-delay: 360ms; }
+
+@keyframes ldg-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.35; transform: scale(0.8); }
+}
+.ldg-pulse { animation: ldg-pulse 1.6s ease-in-out infinite; }
+
+/* Recording halo — a slow breathing ring around the live dot. */
+@keyframes ldg-halo {
+  0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--color-danger) 36%, transparent); }
+  70% { box-shadow: 0 0 0 9px transparent; }
+  100% { box-shadow: 0 0 0 0 transparent; }
+}
+.ldg-halo { animation: ldg-halo 2.2s var(--ease-swift) infinite; }
+
+/* The brain thinking — a gold shimmer sweep across a hairline. */
+@keyframes ldg-shimmer {
+  from { background-position: -200% 0; }
+  to { background-position: 200% 0; }
+}
+.ldg-shimmer {
+  background: linear-gradient(90deg, transparent 20%, color-mix(in srgb, var(--color-glow) 55%, transparent) 50%, transparent 80%);
+  background-size: 200% 100%;
+  animation: ldg-shimmer 1.6s linear infinite;
+}
+
+@keyframes ldg-palette-in {
+  from { opacity: 0; transform: translateY(-8px) scale(0.985); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+.ldg-palette-in { animation: ldg-palette-in 0.18s var(--ease-settle) both; }
+@keyframes ldg-fade-in { from { opacity: 0; } to { opacity: 1; } }
+.ldg-fade-in { animation: ldg-fade-in 0.16s ease-out both; }
+
+/* Live waveform bars (heights driven inline; this eases them). */
+.ldg-eq-bar { transition: height 100ms var(--ease-swift), background-color 160ms; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* ---- Focus --------------------------------------------------------------- */
+/* One visible focus ring everywhere. Keyboard users are not a special case. */
+:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--color-accent) 65%, transparent);
+  outline-offset: 2px;
+}
+
+/* Skip link — present on every surface, visible only when tabbed to. */
+.ldg-skip {
+  position: absolute;
+  left: -9999px;
+  top: 0;
+  z-index: 100;
+}
+.ldg-skip:focus {
+  left: 1rem;
+  top: 1rem;
+  padding: 0.6rem 1rem;
+  border-radius: 0.75rem;
+  background: var(--color-ink);
+  color: var(--color-on-ink);
+}
+
+/* ---- Editorial rule ------------------------------------------------------ */
+/* A hairline that fades at both ends, the way a printed rule sits on a page. */
+.ldg-rule {
+  height: 1px;
+  border: 0;
+  background: linear-gradient(90deg, transparent, var(--color-hairline-strong), transparent);
+}

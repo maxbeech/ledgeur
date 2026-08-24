@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { McpAuthError, bearerFrom, clientForToken, handleBody } from "@ledgeur/mcp";
+import { SUPABASE } from "@/lib/site";
 
 // The hosted MCP endpoint: Ledgeur's paid tier, reachable by a remote client.
 //
@@ -21,11 +22,14 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 function env() {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? SUPABASE.url;
+  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? SUPABASE.anonKey;
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!supabaseUrl || !anonKey || !serviceRoleKey) return null;
-  return { supabaseUrl, anonKey, serviceRoleKey };
+  // The JWT secret is what lets a token be exchanged for a real user session,
+  // so RLS — not this route — decides what an agent can read.
+  const jwtSecret = process.env.SUPABASE_JWT_SECRET;
+  if (!supabaseUrl || !anonKey || !serviceRoleKey || !jwtSecret) return null;
+  return { supabaseUrl, anonKey, serviceRoleKey, jwtSecret };
 }
 
 export async function POST(req: Request) {
@@ -34,7 +38,7 @@ export async function POST(req: Request) {
     // Says which half is missing rather than 500ing, because this is the first
     // thing anybody hits on a fresh deployment.
     return NextResponse.json(
-      { error: "This deployment has no Supabase configuration, so the MCP endpoint cannot authenticate anybody." },
+      { error: "This deployment is missing SUPABASE_SERVICE_ROLE_KEY or SUPABASE_JWT_SECRET, so the MCP endpoint cannot authenticate anybody." },
       { status: 503 },
     );
   }
@@ -42,7 +46,7 @@ export async function POST(req: Request) {
   const token = bearerFrom(req.headers.get("authorization"));
   if (!token) {
     return NextResponse.json(
-      { error: "Send your Ledgeur data-access token as an Authorization: Bearer header." },
+      { error: "Send your Ledgeur access token as an Authorization: Bearer header. Generate one under Account, Agent access." },
       { status: 401, headers: { "WWW-Authenticate": 'Bearer realm="ledgeur"' } },
     );
   }

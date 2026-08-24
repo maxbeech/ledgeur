@@ -53,7 +53,7 @@ export const SET_1: Post[] = [
       { type: "h2", text: "The alternatives" },
       { type: "ul", items: ["Ledgeur — open source, transcribes in your browser, free for individuals, no minute caps", "Fireflies — bot-based, strong CRM integrations, cloud", "Fathom — generous free tier, bot-based, cloud", "tl;dv — great for clipping highlights, bot-based, cloud", "Notta — multi-language, freemium with limits, cloud"] },
       { type: "h2", text: "The private option" },
-      { type: "p", text: "If your reason for leaving Otter is privacy or cost, the on-device approach wins outright: Ledgeur never uploads your audio, has no minute caps, and is free for individuals. You only pay if you want a shared team workspace or a self-host bundle." },
+      { type: "p", text: "If your reason for leaving Otter is privacy or cost, the on-device approach wins outright: Ledgeur never uploads your audio, has no minute caps, and is free for one person. You only pay when you want the record synced across devices, shared with a team, or open to your AI agents." },
     ],
   },
   {
@@ -136,7 +136,7 @@ export const SET_1: Post[] = [
       { type: "h2", text: "Where your audio goes" },
       { type: "p", text: "Fireflies and Otter process and store recordings in their cloud. Ledgeur processes audio on your device and stores notes locally unless you export them." },
       { type: "h2", text: "Pricing" },
-      { type: "ul", items: ["Fireflies — per-seat SaaS with a limited free tier", "Otter — freemium with monthly minute caps", "Ledgeur — free for individuals with no minute caps; pay only for team/company features"] },
+      { type: "ul", items: ["Fireflies — per-seat SaaS with a limited free tier", "Otter — freemium with monthly minute caps", "Ledgeur — free for one person with no minute caps; you pay only to sync, share or connect an agent"] },
       { type: "h2", text: "Open source" },
       { type: "p", text: "Fireflies and Otter are closed source. Ledgeur is MIT-licensed and self-hostable — the right pick if you need to audit the code or run it inside your own network." },
     ],

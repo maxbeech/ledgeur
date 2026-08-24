@@ -1,17 +1,24 @@
 // Turning a presented token into an RLS-scoped Supabase client.
 //
-// The token IS a Supabase refresh token. `supabase/functions/mcp-token` mints
-// one on the paid plan and records only its SHA-256 in `mcp_tokens`, so the
-// plaintext exists in the holder's config and nowhere on our side. That is what
-// lets every query run as the user rather than as a service role: the MCP
-// server has no privileges of its own, so a bug in it cannot show somebody
-// another org's meetings.
+// The token is an opaque Ledgeur secret (see token.ts). `mcp_tokens` holds only
+// its SHA-256, so the plaintext exists in the holder's config and nowhere on
+// our side, and revocation is a single boolean.
 //
-// The hash lookup needs the service role, because `mcp_tokens` is RLS-protected
-// against the very session we are trying to establish. That is the one
-// privileged step, it reads one row, and it never touches meeting content.
+// Two privileged steps happen here and nothing else does:
+//
+//   1. Look up the hash. `mcp_tokens` is RLS-protected against the very session
+//      we are trying to establish, so this read needs the service role. It
+//      reads one row and never touches meeting content.
+//   2. Mint a five-minute user JWT signed with the project's own secret.
+//
+// After that the client is an ordinary authenticated user. Every query runs
+// under the RLS policies already written, `auth.uid()` is the token's owner,
+// and this server holds no standing authority — a bug in a tool handler cannot
+// show somebody another organisation's meetings, because the database would
+// refuse.
 
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { looksLikeToken, sha256Hex, signUserJwt } from "./token.ts";
 
 export class McpAuthError extends Error {
   constructor(
@@ -21,11 +28,6 @@ export class McpAuthError extends Error {
     super(message);
     this.name = "McpAuthError";
   }
-}
-
-async function sha256Hex(value: string): Promise<string> {
-  const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value));
-  return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
 /** Pull the bearer token out of an Authorization header. */
@@ -39,24 +41,37 @@ export interface McpEnv {
   supabaseUrl: string;
   anonKey: string;
   serviceRoleKey: string;
+  /** The project's JWT secret, used to mint the per-request user session. */
+  jwtSecret: string;
 }
 
 /**
  * Resolve a token to a client that speaks as its owner.
  *
  * Throws McpAuthError with a status, never a bare Error: the caller is an HTTP
- * route and a token problem is a 401, not a 500.
+ * route, and a token problem is a 401 rather than a 500.
  */
 export async function clientForToken(token: string, env: McpEnv): Promise<SupabaseClient> {
-  const hash = await sha256Hex(token);
+  if (!looksLikeToken(token)) {
+    // Rejected on shape, before a database round-trip. The message names the
+    // place a real token comes from, because the commonest cause of this is
+    // somebody pasting their anon key.
+    throw new McpAuthError(
+      "That is not a Ledgeur access token. Generate one in Ledgeur under Account, Agent access.",
+      401,
+    );
+  }
+  if (!env.jwtSecret) {
+    throw new McpAuthError("This deployment cannot mint sessions: no JWT secret is configured.", 503);
+  }
 
   const admin = createClient(env.supabaseUrl, env.serviceRoleKey, {
     auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
   });
   const { data: row, error } = await admin
     .from("mcp_tokens")
-    .select("id, revoked")
-    .eq("token_hash", hash)
+    .select("id, user_id, revoked")
+    .eq("token_hash", await sha256Hex(token))
     .maybeSingle();
 
   if (error) throw new McpAuthError("Could not check the access token.", 500);
@@ -65,16 +80,11 @@ export async function clientForToken(token: string, env: McpEnv): Promise<Supaba
   // free one to avoid.
   if (!row || row.revoked) throw new McpAuthError("That access token is not valid.", 401);
 
+  const jwt = await signUserJwt(row.user_id as string, env.jwtSecret);
   const client = createClient(env.supabaseUrl, env.anonKey, {
     auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
+    global: { headers: { Authorization: `Bearer ${jwt}` } },
   });
-  const { error: refreshError } = await client.auth.refreshSession({ refresh_token: token });
-  if (refreshError) {
-    throw new McpAuthError(
-      "That access token has expired. Generate a new one in Ledgeur under Integrations, Data access.",
-      401,
-    );
-  }
 
   // Best effort, and deliberately not awaited into the failure path: a usage
   // timestamp is worth having and never worth failing a request for.

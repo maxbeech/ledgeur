@@ -15,12 +15,12 @@
 //
 // Messages in:
 //   { type: "load",       lang, attempt }
-//   { type: "transcribe", id, audio, lang, attempt }
+//   { type: "transcribe", id, audio, lang, attempt, offsetSeconds }
 // Messages out:
 //   { status: "device", device, label, model, runtime, attempt }
 //   { status: "progress", file, progress }
 //   { status: "ready", attempt }
-//   { status: "result", id, text }
+//   { status: "result", id, text, chunks }   chunks: [{ text, start, end }]
 //   { status: "load-error", attempt, hasNext, message, friendly }
 //   { status: "error", id, message }
 
@@ -107,6 +107,10 @@ function postLoadError(err, attempt) {
 self.addEventListener("message", async (event) => {
   const { type, id, audio, lang } = event.data || {};
   const attempt = Number(event.data?.attempt) || 0;
+  // Live capture transcribes 20-second slices; without this every slice would
+  // report timings starting at 0 and the whole transcript would sit on top of
+  // itself. A whole-file transcription passes 0.
+  const offsetSeconds = Number(event.data?.offsetSeconds) || 0;
 
   if (type === "load") {
     try {
@@ -130,9 +134,29 @@ self.addEventListener("message", async (event) => {
       return;
     }
     try {
-      const output = await transcriber(audio, { chunk_length_s: 30, stride_length_s: 5 });
-      const text = (Array.isArray(output) ? output[0]?.text : output?.text) || "";
-      self.postMessage({ status: "result", id, text: text.trim() });
+      // `return_timestamps` is what makes speaker labels possible: without
+      // timings the transcript is one undifferentiated string and there is
+      // nothing to line up against the diarization turns. It costs nothing
+      // extra — Whisper already predicts timestamp tokens.
+      const output = await transcriber(audio, {
+        chunk_length_s: 30,
+        stride_length_s: 5,
+        return_timestamps: true,
+      });
+      const first = Array.isArray(output) ? output[0] : output;
+      const text = (first?.text || "").trim();
+      // Shape: [{ text, timestamp: [startSeconds, endSeconds|null] }]. The end
+      // of the final chunk can be null when the audio stops mid-utterance.
+      const chunks = Array.isArray(first?.chunks)
+        ? first.chunks
+            .map((c) => ({
+              text: String(c?.text ?? "").trim(),
+              start: Number(c?.timestamp?.[0] ?? 0) + offsetSeconds,
+              end: c?.timestamp?.[1] == null ? null : Number(c.timestamp[1]) + offsetSeconds,
+            }))
+            .filter((c) => c.text.length > 0)
+        : [];
+      self.postMessage({ status: "result", id, text, chunks });
     } catch (err) {
       self.postMessage({ status: "error", id, message: err && err.message ? err.message : String(err) });
     }

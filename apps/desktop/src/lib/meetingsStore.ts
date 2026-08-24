@@ -32,6 +32,26 @@ export interface ChatMessage {
   quote?: ChatQuote;
 }
 
+/** A distinct voice in a meeting, with the vector that identifies it.
+ *
+ *  The embedding is kept so a speaker can be named *later* — a week after the
+ *  recording, from the library — and still teach the app that voice. Without it,
+ *  "who is this?" would only be answerable while the audio was still in memory,
+ *  which is the one moment nobody is thinking about it.
+ *
+ *  It is never synced. `toSyncPayload` in @ledgeur/core drops it, and a test
+ *  asserts no payload can carry one. */
+export interface LocalSpeaker {
+  /** Matches `LocalSegment.speakerLabel` at the time the meeting was saved. */
+  label: string;
+  /** 0..1 similarity when the label came from a match; null once a person has
+   *  typed it, because it is then not a guess. */
+  confidence: number | null;
+  /** Mean voice vector for this speaker across the meeting. */
+  embedding?: number[];
+  speakingSeconds: number;
+}
+
 export interface LocalMeeting {
   id: string;
   title: string;
@@ -41,6 +61,9 @@ export interface LocalMeeting {
   status: "recording" | "processing" | "complete" | "failed";
   lang: string;
   segments: LocalSegment[];
+  /** One entry per distinct voice. Absent on meetings recorded before speaker
+   *  separation existed — the UI treats that as "no speakers to name". */
+  speakers?: LocalSpeaker[];
   summary: string[];
   decisions: string[];
   questions: string[];

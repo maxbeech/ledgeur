@@ -43,7 +43,7 @@ export function GoogleCalendarCard() {
         ) : !session ? (
           <div className="mt-3 space-y-2">
             <Button variant="outline" onClick={() => void connect()} disabled={busy}>{busy ? <Spinner /> : "Connect Google Calendar"}</Button>
-            {err && <div className="text-xs text-red-600">{err}</div>}
+            {err && <div className="text-xs text-danger">{err}</div>}
           </div>
         ) : !connected ? (
           <div className="mt-3 text-xs text-muted">Signed in with {provider ?? "another provider"}. Sign out to connect Google Calendar instead.</div>

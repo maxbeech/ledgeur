@@ -109,12 +109,12 @@ export function AiEngineCard() {
               )}
             </div>
           ) : (
-            <div className="mt-3 flex items-start gap-2 rounded-xl bg-amber-50 px-3 py-2 text-xs text-amber-800">
+            <div className="mt-3 flex items-start gap-2 rounded-xl bg-warn-soft px-3 py-2 text-xs text-warn">
               <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
               This build was compiled without the native engine. Rebuild with <code className="mx-1">--features native-ai</code> (see docs/NATIVE_AI.md); the webview model is used meanwhile.
             </div>
           )}
-          {err && <div className="mt-2 text-xs text-red-600">{err}</div>}
+          {err && <div className="mt-2 text-xs text-danger">{err}</div>}
         </div>
       </div>
     </Card>

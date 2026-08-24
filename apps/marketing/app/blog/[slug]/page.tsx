@@ -3,65 +3,76 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { POSTS, postBySlug } from "@/lib/posts";
 import { SITE } from "@/lib/site";
+import { PageHeader, Section } from "@/components/site/Chrome";
+import { CtaBlock } from "@/components/site/CtaBlock";
 
 export function generateStaticParams() {
   return POSTS.map((p) => ({ slug: p.slug }));
 }
 
+export const revalidate = 604800;
+
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const { slug } = await params;
-  const p = postBySlug(slug);
-  if (!p) return {};
+  const post = postBySlug(slug);
+  if (!post) return {};
   return {
-    title: p.title,
-    description: p.description,
-    alternates: { canonical: `${SITE.url}/blog/${p.slug}` },
-    openGraph: { title: p.title, description: p.description, type: "article", images: ["/opengraph-image"] },
+    title: post.title,
+    description: post.description,
+    alternates: { canonical: `${SITE.url}/blog/${post.slug}` },
+    openGraph: {
+      title: post.title,
+      description: post.description,
+      type: "article",
+      publishedTime: post.date,
+      images: ["/opengraph-image"],
+    },
   };
 }
 
 export default async function PostPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
-  const p = postBySlug(slug);
-  if (!p) notFound();
+  const post = postBySlug(slug);
+  if (!post) notFound();
 
   const jsonLd = {
     "@context": "https://schema.org",
     "@type": "Article",
-    headline: p.title,
-    description: p.description,
-    datePublished: p.date,
+    headline: post.title,
+    description: post.description,
+    datePublished: post.date,
     author: { "@type": "Organization", name: SITE.name },
-    mainEntityOfPage: `${SITE.url}/blog/${p.slug}`,
+    publisher: { "@type": "Organization", name: SITE.name },
+    mainEntityOfPage: `${SITE.url}/blog/${post.slug}`,
   };
 
   return (
-    <article className="mx-auto max-w-2xl px-5 py-12">
+    <main>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
-      <nav aria-label="Breadcrumb" className="mb-4 text-sm text-stone-600"><Link href="/blog" className="hover:text-stone-700">Guides</Link> › {p.title}</nav>
-      <h1 className="text-3xl font-bold tracking-tight text-stone-900">{p.title}</h1>
-      <div className="mt-2 text-xs text-stone-600">{p.date} · {p.readMins} min read</div>
+      <PageHeader
+        kicker={`${new Date(post.date).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })} · ${post.readMins} min read`}
+        title={post.title}
+        lede={post.description}
+      />
+      <Section width="prose">
+        <nav aria-label="Breadcrumb" className="mb-8 text-[13px] text-muted">
+          <Link href="/blog" className="hover:text-ink-text">Guides</Link>
+          <span aria-hidden> › </span>
+          <span className="text-faint">{post.title}</span>
+        </nav>
 
-      <div className="mt-6 space-y-4">
-        {p.body.map((b, i) => {
-          if (b.type === "h2") return <h2 key={i} className="mt-6 text-xl font-bold text-stone-900">{b.text}</h2>;
-          if (b.type === "ul")
-            return (
-              <ul key={i} className="space-y-1.5 text-stone-600">
-                {b.items.map((it, j) => (
-                  <li key={j} className="flex gap-2"><span className="text-emerald-700">•</span><span>{it}</span></li>
-                ))}
-              </ul>
-            );
-          return <p key={i} className="leading-relaxed text-stone-600">{b.text}</p>;
-        })}
-      </div>
+        <article className="ldg-article">
+          {post.body.map((block, i) => {
+            if (block.type === "h2") return <h2 key={i}>{block.text}</h2>;
+            if (block.type === "ul") {
+              return <ul key={i}>{block.items.map((item, j) => <li key={j}>{item}</li>)}</ul>;
+            }
+            return <p key={i}>{block.text}</p>;
+          })}
+        </article>
 
-      <div className="mt-10 rounded-2xl border border-emerald-200 bg-emerald-50 p-6 text-center">
-        <h2 className="text-lg font-bold text-stone-900">Try private AI meeting notes free</h2>
-        <p className="mt-1 text-sm text-stone-600">Record or upload a meeting and get an on-device transcript and notes. No account, no bot, no cloud.</p>
-        <Link href="/app" className="mt-3 inline-block rounded-lg bg-emerald-700 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-600">Open Ledgeur →</Link>
-      </div>
-    </article>
+        <CtaBlock />
+      </Section>
+    </main>
   );
 }

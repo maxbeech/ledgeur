@@ -1,25 +1,30 @@
 import type { Metadata } from "next";
-import Recorder from "@/components/Recorder";
 import { SITE } from "@/lib/site";
+import AppShell from "@/components/app/AppShell";
+import { Badge } from "@ledgeur/ui/components";
 
 export const metadata: Metadata = {
-  title: "Ledgeur app — record, transcribe & summarise meetings privately",
+  title: "Record, transcribe and separate speakers, privately",
   description:
-    "The Ledgeur web app. Record a meeting or upload audio, get an on-device transcript and AI notes. Nothing is uploaded — everything runs in your browser.",
+    "Record a meeting or drag one in, and get a transcript with the speakers separated — on your own device. Nothing is uploaded.",
   alternates: { canonical: `${SITE.url}/app` },
 };
 
 export default function AppPage() {
   return (
-    <main className="mx-auto max-w-6xl px-5 py-8">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold tracking-tight">Meeting notes</h1>
-        <p className="mt-1 text-sm text-stone-600">
-          Everything below runs locally in your browser. The first recording downloads the Whisper model once
-          (then it’s cached); your audio is never uploaded.
-        </p>
+    <main>
+      <div className="border-b border-hairline ldg-wash">
+        <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3 px-4 py-5 lg:px-5">
+          <div>
+            <h1 className="ldg-display text-[24px] leading-tight text-ink-text">Your meetings</h1>
+            <p className="mt-1 text-[13.5px] text-muted">
+              Everything on this page runs on your device. Your audio is never uploaded.
+            </p>
+          </div>
+          <Badge tone="accent">On-device</Badge>
+        </div>
       </div>
-      <Recorder />
+      <AppShell />
     </main>
   );
 }

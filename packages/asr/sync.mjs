@@ -1,4 +1,5 @@
-// Copies the canonical ASR worker + load plan into an app's public/ directory,
+// Copies the canonical ASR + diarization workers and their load plans into an
+// app's public/ directory,
 // so both apps serve byte-identical files from one source.
 //
 //   node packages/asr/sync.mjs <targetDir> [...more]   # write copies
@@ -11,7 +12,12 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-export const ASSETS = ["asr-plan.js", "transcribe.worker.js"];
+export const ASSETS = [
+  "asr-plan.js",
+  "transcribe.worker.js",
+  "diarize-plan.js",
+  "diarize.worker.js",
+];
 
 /** Absolute path to a canonical asset. */
 export const sourcePath = (name) => join(HERE, name);

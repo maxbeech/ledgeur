@@ -1,46 +1,48 @@
-// Generate the MCP client config (the paid data tier). Plan-gated: free orgs get
-// an explicit upgrade signal; paid orgs get a ready-to-paste config that points
-// an MCP client at the Ledgeur server, authenticated as this user.
+// Agent access from the app — the paid data tier.
+//
+// The token itself is minted by the shared helper in @ledgeur/mcp, so the app
+// and the website issue the same kind of credential through the same endpoint.
+// This file only decides what to *show*: a paste-ready config for whichever
+// transport the user's MCP client speaks.
 
-import type { Session } from "@supabase/supabase-js";
+import {
+  issueAccessToken, hostedClientConfig, stdioClientConfig,
+} from "@ledgeur/mcp";
 import { getSupabase } from "./supabase.ts";
 import { CONFIG } from "./config.ts";
 
 export interface McpConfigResult {
   paid: boolean;
-  /** Ready-to-paste MCP client config JSON (present only when paid). */
-  config?: string;
+  /** The plaintext token — returned once, never recoverable. */
+  token?: string;
+  /** Paste-ready config for a client that speaks HTTP (preferred: no process). */
+  hosted?: string;
+  /** Paste-ready config for a client that spawns a process. */
+  stdio?: string;
 }
 
-export async function generateMcpConfig(session: Session): Promise<McpConfigResult> {
+/** Where the hosted endpoint lives. Overridable so a self-hoster can point the
+ *  app at their own deployment rather than ours. */
+const siteUrl = () => (import.meta.env.VITE_SITE_URL as string | undefined) ?? "https://ledgeur.com";
+
+export async function generateMcpConfig(): Promise<McpConfigResult> {
   const sb = getSupabase();
   if (!sb) throw new Error("Sign in first.");
 
-  const { data: org, error } = await sb.from("orgs").select("id, plan").limit(1).maybeSingle();
-  if (error) throw new Error(error.message);
-  if (!org) throw new Error("No organisation found for your account.");
-  if (org.plan === "free") return { paid: false };
+  const result = await issueAccessToken(sb, "App-issued token");
+  if (!result.ok) {
+    if (result.reason === "upgrade_required") return { paid: false };
+    throw new Error(result.message);
+  }
 
-  // Server-side re-check + issuance audit (enforces the gate authoritatively).
-  const { error: mintErr } = await sb.functions.invoke("mcp-token", { body: { name: "Desktop-issued token" } });
-  if (mintErr) throw new Error(mintErr.message);
-
-  const config = JSON.stringify(
-    {
-      mcpServers: {
-        ledgeur: {
-          command: "pnpm",
-          args: ["--filter", "@ledgeur/mcp-server", "start"],
-          env: {
-            LEDGEUR_SUPABASE_URL: CONFIG.supabaseUrl,
-            LEDGEUR_SUPABASE_ANON_KEY: CONFIG.supabaseAnonKey,
-            LEDGEUR_REFRESH_TOKEN: session.refresh_token,
-          },
-        },
-      },
-    },
-    null,
-    2,
-  );
-  return { paid: true, config };
+  return {
+    paid: true,
+    token: result.token,
+    hosted: hostedClientConfig(siteUrl(), result.token),
+    stdio: stdioClientConfig({
+      supabaseUrl: CONFIG.supabaseUrl,
+      anonKey: CONFIG.supabaseAnonKey,
+      token: result.token,
+    }),
+  };
 }

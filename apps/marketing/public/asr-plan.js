@@ -43,6 +43,21 @@ export const RUNTIMES = Object.freeze({
 /** Supported transcription languages/qualities. */
 export const LANGS = Object.freeze(["en", "en-hq", "multi"]);
 
+/**
+ * How each option is described to a person, kept beside the plan it must match.
+ *
+ * A picker offering a value the plan does not know silently falls back to
+ * English — somebody selects "Other languages", gets an English-only model, and
+ * the transcript comes out as nonsense with no error anywhere. Defining the
+ * labels here, in the same file as LANGS, means the two cannot drift, and a
+ * test asserts every option maps to a real rung.
+ */
+export const LANG_OPTIONS = Object.freeze([
+  { value: "en", label: "English", hint: "Fastest. Best for English-only meetings." },
+  { value: "en-hq", label: "English, more accurate", hint: "A larger model. Slower to download and to run." },
+  { value: "multi", label: "Other languages", hint: "Multilingual. Slower, and less accurate than the English models." },
+]);
+
 // WebGPU uses the onnx-community builds (WebGPU-optimised); WASM uses the
 // Xenova builds, which ship the small int8 exports.
 const MODELS = Object.freeze({

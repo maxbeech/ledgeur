@@ -3,42 +3,62 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { USE_CASES, findUseCase } from "@/lib/usecases";
 import { SITE } from "@/lib/site";
+import { Card } from "@ledgeur/ui/components";
+import { PageHeader, Section, SectionHead } from "@/components/site/Chrome";
+import { CtaBlock } from "@/components/site/CtaBlock";
 
 export function generateStaticParams() {
   return USE_CASES.map((u) => ({ slug: u.slug }));
 }
 
+export const revalidate = 604800;
+
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const { slug } = await params;
-  const u = findUseCase(slug);
-  if (!u) return {};
-  const description = `${u.headline}. Private, on-device AI transcription and notes with Ledgeur — free for individuals.`;
-  return { title: u.headline, description, alternates: { canonical: `${SITE.url}/use-cases/${u.slug}` }, openGraph: { title: u.headline, description, type: "article", images: ["/opengraph-image"] } };
+  const useCase = findUseCase(slug);
+  if (!useCase) return {};
+  const description = `${useCase.headline}. Private, on-device transcription with the speakers separated — free for individuals.`;
+  return {
+    title: useCase.headline,
+    description,
+    alternates: { canonical: `${SITE.url}/use-cases/${useCase.slug}` },
+    openGraph: { title: useCase.headline, description, type: "article", images: ["/opengraph-image"] },
+  };
 }
 
 export default async function UseCasePage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
-  const u = findUseCase(slug);
-  if (!u) notFound();
+  const useCase = findUseCase(slug);
+  if (!useCase) notFound();
 
   return (
-    <main className="mx-auto max-w-3xl px-5 py-12">
-      <nav aria-label="Breadcrumb" className="mb-4 text-sm text-stone-600"><Link href="/use-cases" className="hover:text-stone-700">Use cases</Link> › {u.name}</nav>
-      <h1 className="text-3xl font-extrabold tracking-tight">{u.headline}</h1>
-      <p className="mt-4 text-stone-600">{u.why}</p>
+    <main>
+      <PageHeader kicker="Use case" title={useCase.headline} lede={useCase.why} />
 
-      <h2 className="mt-10 text-2xl font-bold">What your notes capture</h2>
-      <ul className="mt-4 grid gap-2 sm:grid-cols-2">
-        {u.captures.map((c) => (
-          <li key={c} className="flex gap-2 rounded-lg border border-stone-200 bg-white p-3 text-sm text-stone-600"><span className="text-emerald-700">✓</span>{c}</li>
-        ))}
-      </ul>
+      <Section width="narrow">
+        <nav aria-label="Breadcrumb" className="mb-8 text-[13px] text-muted">
+          <Link href="/use-cases" className="hover:text-ink-text">Use cases</Link>
+          <span aria-hidden> › </span>
+          <span className="text-faint">{useCase.name}</span>
+        </nav>
 
-      <div className="mt-10 rounded-2xl border border-emerald-200 bg-emerald-50 p-6 text-center">
-        <h2 className="text-lg font-bold">Use Ledgeur for {u.name.toLowerCase()}</h2>
-        <p className="mt-1 text-sm text-stone-600">Free, private, on-device. Record or upload — your notes are ready in seconds.</p>
-        <Link href="/app" className="mt-3 inline-block rounded-lg bg-emerald-700 px-5 py-2.5 text-sm font-semibold text-white hover:bg-emerald-600">Open the app →</Link>
-      </div>
+        <SectionHead kicker="What you get" title="What the notes capture" />
+        <ul className="mt-6 grid gap-2.5 sm:grid-cols-2">
+          {useCase.captures.map((capture) => (
+            <li key={capture}>
+              <Card className="flex h-full gap-2.5 p-4 text-[13.5px] leading-relaxed text-ink-text">
+                <span aria-hidden className="mt-[3px] shrink-0 text-accent-strong">✓</span>
+                <span>{capture}</span>
+              </Card>
+            </li>
+          ))}
+        </ul>
+
+        <CtaBlock
+          title={`Use Ledgeur for ${useCase.name.toLowerCase()}`}
+          body="Free, private, on-device, with the speakers separated. Record it or drag in a recording you already have."
+        />
+      </Section>
     </main>
   );
 }

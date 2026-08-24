@@ -8,7 +8,8 @@ import { formatElapsed } from "@ledgeur/ui";
 import { Page } from "../components/PageHeader.tsx";
 import { Button, Card, ErrorNote, Kicker, Spinner } from "../components/ui.tsx";
 import { SpeakerTag } from "../components/SpeakerTag.tsx";
-import { getMeeting, deleteMeeting, type LocalMeeting } from "../lib/meetingsStore.ts";
+import { getMeeting, saveMeeting, deleteMeeting, type LocalMeeting } from "../lib/meetingsStore.ts";
+import { renameSpeakerInMeeting } from "../lib/renameSpeaker.ts";
 import { getCloudMeeting, deleteCloudMeeting } from "../lib/cloudMeeting.ts";
 import { hasBackend } from "../lib/config.ts";
 import { saveMeetingToNotion } from "../lib/notion.ts";
@@ -22,6 +23,10 @@ export function MeetingDetail() {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [notion, setNotion] = useState<{ busy: boolean; msg: string; error: boolean }>({ busy: false, msg: "", error: false });
   const [fromCloud, setFromCloud] = useState(false);
+  /** Which speaker is being renamed, and to what. */
+  const [renaming, setRenaming] = useState<string | null>(null);
+  const [draftName, setDraftName] = useState("");
+  const [renameNote, setRenameNote] = useState("");
 
   useEffect(() => {
     if (!id) return;
@@ -41,6 +46,26 @@ export function MeetingDetail() {
     for (const s of meeting?.segments ?? []) seen.set(s.speakerLabel, (seen.get(s.speakerLabel) ?? 0) + 1);
     return [...seen.entries()];
   }, [meeting]);
+
+  /**
+   * Name a voice.
+   *
+   * Two things happen, and the second is the point: the label changes
+   * throughout this meeting, and the voice print is saved under that name so
+   * every later meeting recognises the person without being asked again. A
+   * cloud copy is read-only here — it belongs to whichever device recorded it.
+   */
+  async function commitRename(previous: string) {
+    const name = draftName.trim();
+    setRenaming(null);
+    if (!meeting || !name || name === previous) return;
+    const { meeting: updated, rememberError } = await renameSpeakerInMeeting(meeting, previous, name);
+    setMeeting(updated);
+    setRenameNote(rememberError);
+    if (!fromCloud) await saveMeeting(updated).catch((e: unknown) => {
+      setRenameNote(e instanceof Error ? e.message : String(e));
+    });
+  }
 
   if (meeting === undefined) return <div className="flex items-center justify-center gap-2 py-20 text-sm text-muted"><Spinner /> Loading…</div>;
   if (meeting === null) return <Page><p className="py-10 text-center text-sm text-muted">This meeting isn't in your record (it may have been deleted).</p></Page>;
@@ -138,15 +163,47 @@ export function MeetingDetail() {
         </div>
       ) : (
         <Card className="ldg-prose p-6">
-          {speakers.length > 1 && (
-            <div className="mb-6 flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-hairline pb-4">
-              <Kicker>Speakers</Kicker>
-              {speakers.map(([label, count]) => (
-                <span key={label} className="flex items-baseline gap-1.5">
-                  <SpeakerTag label={label} />
-                  <span className="font-mono text-[10px] text-faint">×{count}</span>
-                </span>
-              ))}
+          {speakers.length > 0 && (
+            <div className="mb-6 border-b border-hairline pb-4">
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+                <Kicker>Speakers</Kicker>
+                {speakers.map(([label, count]) => (
+                  <span key={label} className="flex items-baseline gap-1.5">
+                    {renaming === label ? (
+                      <form
+                        onSubmit={(e) => { e.preventDefault(); void commitRename(label); }}
+                        className="flex items-center gap-1.5"
+                      >
+                        <input
+                          autoFocus
+                          value={draftName}
+                          onChange={(e) => setDraftName(e.target.value)}
+                          onKeyDown={(e) => { if (e.key === "Escape") setRenaming(null); }}
+                          aria-label={`Name for ${label}`}
+                          placeholder="Who is this?"
+                          className="w-40 rounded-lg border border-hairline bg-surface px-2 py-1 text-xs outline-none focus:ring-2 focus:ring-accent/40"
+                        />
+                        <Button size="sm" type="submit">Save</Button>
+                      </form>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => { setRenaming(label); setDraftName(label); setRenameNote(""); }}
+                        title="Click to say who this is — Ledgeur will recognise them next time"
+                        className="cursor-pointer"
+                      >
+                        <SpeakerTag label={label} />
+                      </button>
+                    )}
+                    <span className="font-mono text-[10px] text-faint">×{count}</span>
+                  </span>
+                ))}
+              </div>
+              <p className="mt-2 text-[11px] text-faint">
+                Click a name to say who it is. The voice print is saved on this device, and every
+                later meeting recognises them without being asked again.
+              </p>
+              {renameNote && <ErrorNote className="mt-3">{renameNote}</ErrorNote>}
             </div>
           )}
           {meeting.segments.length === 0 ? (

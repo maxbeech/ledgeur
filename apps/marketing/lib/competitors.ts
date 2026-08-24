@@ -27,7 +27,7 @@ export const COMPETITORS: Competitor[] = [
       "Ledgeur is open source (MIT) — Granola is closed source.",
       "Transcription runs locally in your browser; Granola sends audio to its servers for processing.",
       "Works on any OS with a Chromium browser, not just macOS.",
-      "Free forever for individuals — no trial clock, no per-seat fee until you want team features.",
+      "Free forever for one person — no trial clock, and no per-seat fee until you want the record synced or shared.",
     ],
   },
   {

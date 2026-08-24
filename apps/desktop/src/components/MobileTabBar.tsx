@@ -47,11 +47,11 @@ export function MobileTabBar() {
           >
             {recording ? (
               <>
-                <span className="ldg-pulse h-2.5 w-2.5 rounded-full bg-red-400" />
+                <span className="ldg-pulse h-2.5 w-2.5 rounded-full bg-danger-on-ink" />
                 <span className="mt-0.5 font-mono text-[9px] text-on-ink-muted">{formatElapsed(state.elapsed)}</span>
               </>
             ) : (
-              <CircleDot className="h-6 w-6 text-red-300" strokeWidth={2} />
+              <CircleDot className="h-6 w-6 text-danger-on-ink" strokeWidth={2} />
             )}
           </NavLink>
         ),

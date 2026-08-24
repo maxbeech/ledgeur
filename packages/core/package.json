@@ -9,10 +9,14 @@
     ".": "./src/index.ts",
     "./notes": "./src/notes/index.ts",
     "./audio": "./src/audio/pcm.ts",
+    "./diarize": "./src/diarize/index.ts",
     "./domain": "./src/domain/index.ts",
     "./supabase": "./src/supabase/client.ts",
     "./data": "./src/data/repository.ts",
-    "./integrations/notion": "./src/integrations/notion.ts"
+    "./integrations/notion": "./src/integrations/notion.ts",
+    "./browser": "./src/browser/index.ts",
+    "./library": "./src/library/index.ts",
+    "./auth": "./src/auth/index.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",

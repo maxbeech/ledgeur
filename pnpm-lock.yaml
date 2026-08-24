@@ -26,9 +26,15 @@ importers:
       '@fontsource-variable/spline-sans-mono':
         specifier: ^5.2.8
         version: 5.2.8
+      '@ledgeur/asr':
+        specifier: workspace:*
+        version: link:../../packages/asr
       '@ledgeur/core':
         specifier: workspace:*
         version: link:../../packages/core
+      '@ledgeur/mcp':
+        specifier: workspace:*
+        version: link:../../packages/mcp
       '@ledgeur/ui':
         specifier: workspace:*
         version: link:../../packages/ui
@@ -87,9 +93,30 @@ importers:
 
   apps/marketing:
     dependencies:
+      '@fontsource-variable/fraunces':
+        specifier: ^5.2.9
+        version: 5.2.9
+      '@fontsource-variable/schibsted-grotesk':
+        specifier: ^5.2.8
+        version: 5.2.8
+      '@fontsource-variable/spline-sans-mono':
+        specifier: ^5.2.8
+        version: 5.2.8
+      '@ledgeur/asr':
+        specifier: workspace:*
+        version: link:../../packages/asr
+      '@ledgeur/core':
+        specifier: workspace:*
+        version: link:../../packages/core
       '@ledgeur/mcp':
         specifier: workspace:*
         version: link:../../packages/mcp
+      '@ledgeur/ui':
+        specifier: workspace:*
+        version: link:../../packages/ui
+      '@supabase/supabase-js':
+        specifier: ^2.58.0
+        version: 2.110.0
       next:
         specifier: 16.2.9
         version: 16.2.9(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
@@ -202,6 +229,15 @@ importers:
 
   packages/ui:
     devDependencies:
+      '@types/react':
+        specifier: ^19.0.0
+        version: 19.2.17
+      react:
+        specifier: ^19.0.0
+        version: 19.2.4
+      tsx:
+        specifier: ^4.22.4
+        version: 4.22.4
       typescript:
         specifier: ^5.9.2
         version: 5.9.3
@@ -1965,6 +2001,7 @@ packages:
   eslint@9.39.4:
     resolution: {integrity: sha512-XoMjdBOwe/esVgEvLmNsD3IRHkm7fbKIUGvrleloJXUZgDHig2IPWNniv+GwjyJXzuNqVjlr5+4yVUZjycJwfQ==}
     engines: {node: ^18.18.0 || ^20.9.0 || >=21.1.0}
+    deprecated: This version is no longer supported. Please see https://eslint.org/version-support for other options.
     hasBin: true
     peerDependencies:
       jiti: '*'

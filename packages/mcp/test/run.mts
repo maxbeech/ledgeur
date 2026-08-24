@@ -8,6 +8,7 @@
 import { TOOLS, jsonSchemaFor, toolByName } from "../src/tools.ts";
 import { bearerFrom } from "../src/auth.ts";
 import { handleBody, handleRpc, SUPPORTED_PROTOCOLS } from "../src/jsonrpc.ts";
+import { runTokenTests } from "./token.mts";
 
 let pass = 0, fail = 0;
 const ok = (name: string, cond: boolean, detail = "") => {
@@ -117,6 +118,9 @@ ok("reads a bearer token", bearerFrom("Bearer abc123") === "abc123");
 ok("is case-insensitive about the scheme, because clients differ", bearerFrom("bearer abc") === "abc");
 ok("ignores a missing header", bearerFrom(null) === null);
 ok("ignores a non-bearer scheme rather than mistaking it for a token", bearerFrom("Basic abc") === null);
+
+// --- access tokens ---
+await runTokenTests(ok);
 
 console.log(`\n  ${pass} passed, ${fail} failed\n`);
 process.exit(fail ? 1 : 0);

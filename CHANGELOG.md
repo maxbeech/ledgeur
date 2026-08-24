@@ -1,5 +1,246 @@
 # Changelog
 
+## Unreleased — Speakers, a real web app, and a price list that is true
+
+This is the overhaul pass. The engine room was in good shape; everything a
+customer touched was not.
+
+### The paid tier was selling things that do not exist
+
+`/pricing` advertised a Team plan with a "shared team workspace" and a Company
+license with "self-host bundle (Docker + Helm), SSO / SAML & SCIM, admin console
+& audit log, on-prem / air-gapped option". None of that is in this repository.
+Checkout was live. Somebody could pay and receive nothing that was described.
+
+The plans are now defined once, in `apps/marketing/lib/plans.ts`, and that file
+carries the rule it is held to: nothing goes in a feature list unless it ships
+today, and each line names the code that implements it. A test fails the build
+if a paid plan mentions SSO, SAML, SCIM, an audit log, Helm, Docker, SOC 2 or
+ISO 27001. `/pricing` now has a "what we do not have" section, and `/security`
+publishes the missing certifications rather than a badge.
+
+### Checkout took money and activated nothing
+
+`POST /api/checkout` accepted an optional `orgId` from the browser and, when it
+was absent, opened a Stripe session anyway. Every purchase started from
+`/pricing` therefore had no `client_reference_id`, so `stripe-webhook` had no org
+to flip. The button worked, the payment worked, and the product never turned on.
+The `?org=` deep link from the app was the only path that ever activated
+anything — and it was a query parameter, so it could be edited to activate
+somebody else's workspace.
+
+The org is now resolved server-side from the caller's own Supabase session, and
+a session that cannot be attributed to a workspace is **refused rather than
+sold**. There is also a billing portal, because a subscription that takes two
+clicks to start and an email to cancel is a dark pattern.
+
+### Every agent access token was dead on arrival
+
+`mcp_tokens.token_hash` is documented as "sha-256 of the issued token; the
+plaintext is shown once and never stored". The mint function recorded
+`sha256(random uuid)`. The hosted endpoint looked up `sha256(refresh_token)`.
+Those are different values, so no token ever matched — and had they matched,
+GoTrue rotates refresh tokens on use, so a long-lived token would have worked
+exactly once.
+
+A token is now an opaque `ldg_` secret with 256 bits of entropy, generated in the
+edge function, stored only as a hash, and returned exactly once. Redeeming it
+mints a five-minute Supabase JWT signed with the project secret, so the request
+arrives as an ordinary authenticated user and every row-level security policy
+already written applies unchanged. The endpoint holds no standing authority: a
+bug in a tool handler cannot show another organisation's meetings, because the
+database would refuse.
+
+### Ledgeur now knows who is speaking
+
+The schema has modelled `speakers` and `transcript_segments` since the first
+migration. Nothing produced them: the worker called Whisper without
+`return_timestamps`, so the output was one undifferentiated string and there was
+nothing to attribute. Speaker identity existed only in a native build behind an
+opt-in cargo feature, and only as "match this against a voice you enrolled by
+hand" — there was no separation of unknown voices at all.
+
+`packages/asr/diarize.worker.js` runs two models in the browser:
+`onnx-community/pyannote-segmentation-3.0` for where the voice changes
+(a powerset head over 7 classes, so people talking over each other is handled
+rather than mangled), and `onnx-community/wespeaker-voxceleb-resnet34-LM` for a
+voice vector per turn. Both are un-gated MIT/CC mirrors, both are around
+10–30 MB, both run on the pinned transformers.js the ASR ladder already trusts.
+
+The deciding is pure and in `packages/core/src/diarize` — average-linkage
+agglomerative clustering over cosine similarity, rather than single linkage,
+because single linkage chains two people together through one ambiguous turn.
+The merge threshold sits deliberately above pyannote's tuned value: splitting
+one person in two is a mistake the user fixes with one click, whereas welding
+two people into one silently corrupts the transcript.
+
+### And it remembers them
+
+Name "Speaker 2" as Priya once and every later meeting recognises her. The voice
+print is the mean of her turns, updated as a running average weighted by how
+many recordings have contributed, so a bad headset on the eleventh meeting does
+not redefine a voice heard clearly in ten. Identification demands a higher
+similarity than clustering does, and refuses when the top two candidates are too
+close to separate: saying "Speaker 2" is better than putting a colleague's name
+on a stranger's words.
+
+Voice prints live in IndexedDB and are **never synced**, not even on the paid
+plan. A voice print identifies a person after the transcript is deleted, so it
+stays on the device that heard the voice.
+
+### Memory, which is why the live path looks the way it does
+
+An hour at 16 kHz mono is about 230 MB of Float32. Holding a meeting in a tab
+just to diarize it at the end is not reasonable, so live capture analyses each
+drained slice as it arrives and keeps only the turns and their vectors — a few
+hundred bytes each. Clustering still runs once, over everything, at the end,
+because "which of these voices is the same person" cannot be answered twenty
+seconds at a time.
+
+### Drag in a recording you already have
+
+Anywhere on the app, not into a bordered box in one corner. A dropped file goes
+through the same pipeline as a live meeting — same transcription, same speaker
+separation, same names, same notes, same library entry — and is filed under the
+file's own date rather than pretending it happened now.
+
+### `/app` is a product now
+
+It was an anonymous recorder with a textarea. It is now a library with search
+across everything ever said, meeting detail with speakers and timestamps,
+per-speaker talking time, rename-a-voice, Markdown export and your own notes
+kept verbatim. All of it works signed out, on-device, with the network off.
+
+Accounts arrived on the web, so sync and agent access can be bought and used
+without installing anything. Signing in adds sync; it is never a gate.
+
+### The website and the app were two different products
+
+`packages/ui/src/tokens.ts` describes a genuinely distinctive design language.
+The app used it. The website used default Tailwind `stone`/`emerald`,
+`font-extrabold`, rounded cards and ✓-bullet pricing columns — it read as
+generated rather than designed, and a visitor who signed up met a second product
+wearing different clothes.
+
+`packages/ui/src/theme.css` is now the single stylesheet both apps import, and
+`packages/ui/src/components` holds the primitives both render. A test asserts
+`tokens.ts` and `theme.css` describe the same palette, and that every colour
+meant for text clears WCAG AA. **It found five real failures**, including the
+small mono label above every section at 2.86:1 — unreadable, and never noticed
+because nobody re-measured after choosing it.
+
+### Four files existed twice
+
+`authMessages.ts`, `capture.ts`, `transcriber.ts` and the notes/audio helpers
+were each forked between the two apps, and every one of them had already
+drifted: one capture called the shared-audio option `tab` and the other `system`;
+one stopped the video track and the other did not; core's `toMarkdown` took the
+user's own notes and the fork did not. They exist once now, and a test asserts
+they are not forked back out.
+
+### Pages a product taking payments must have
+
+There was no privacy notice, no terms, no refund policy and no security page.
+There are now, along with a changelog and an agent-access page whose tool list is
+generated from the real tool definitions so it cannot document something that
+does not exist. The privacy notice names Hugging Face's CDN, which is the one
+third party involved on the free plan and was previously unmentioned.
+
+### Two thresholds were guessed, then measured
+
+The clustering threshold started at 0.42, on the reasoning that over-splitting a
+speaker is recoverable in one click while welding two people together silently
+corrupts a transcript. The reasoning was right and the number was wrong. Running
+the real models over real speech and sweeping it:
+
+    60 s, two speakers      0.15–0.35 → 2 speakers   0.40–0.45 → 4   0.50 → 6
+
+0.42 sat on a cliff edge. 0.30 sits in the middle of that plateau and is
+independently what pyannote's own pipeline tunes to over these same embeddings.
+
+The identification threshold was corrected the same way. Splitting each real
+speaker's turns in half and treating one half as "last week's profile" gives
+0.647–0.872 for the same person and 0.027–0.121 for different people. The
+original 0.62 was safe but sat barely under the worst same-speaker case, so
+somebody on a poor microphone would silently stop being recognised. It is 0.50.
+
+`packages/asr/verify/diarize.mjs` is the script, so this is repeatable rather
+than a story about a spreadsheet somebody once had.
+
+### The end of a meeting could be silently cut off
+
+Stopping a recording drained the capture buffer once. But a drain refuses to run
+while a transcription is already in flight — correct during a meeting, where the
+audio simply waits for the next tick, and wrong at the end, where there is no
+next tick. Whatever arrived during that last transcription was discarded along
+with the capture.
+
+The result was a transcript missing its final seconds, with nothing in the
+console, on a recording nobody could reproduce because it depended on where the
+six-second tick happened to fall. Stopping now waits its turn and drains until
+the buffer is genuinely empty, and the speaker analyses — which were fired
+without being awaited so they could never delay the transcript — are now waited
+for, so a meeting's last turns are clustered with the rest rather than landing
+after the decision has been made.
+
+### Two bugs that only a browser could find
+
+Recording **failed silently** when the browser refused the microphone. The
+rejection is a `DOMException` whose name is `NotAllowedError`, and nothing in the
+UI had wording for it, so the button appeared to do nothing at all. Permissions
+are now requested *before* the 40 MB model download rather than after — failing
+in the second it takes to click Block, with a message that says which padlock to
+click — and every capture failure has a sentence written for a person.
+
+The guard that decides whether a failure needs translating was also the wrong
+way round. It read "translate it unless it is an `Error` that is not a
+`DOMException`" — true for real browser rejections and nothing else, so a plain
+`Error` from a polyfill or another realm passed through untouched. Translation is
+now the default, and only messages this codebase wrote itself opt out.
+
+The library could hang on "Opening your library…" **forever**. When another
+connection holds an older version of the database, `indexedDB.open` fires
+`blocked` and then fires neither `success` nor `error`; a promise wired to those
+two events never settles, and nothing appears in the console. Every open is now
+bounded, handles `blocked`, and says "close your other tab".
+
+### Also
+
+- Syncing a meeting rolls back if it fails half-way. There is no client-side
+  transaction across Supabase tables, so a segment insert that failed used to
+  leave a meeting in the workspace with a title, no transcript and no notes —
+  which reads to a colleague as a recording that captured nothing.
+- The sitemap covers everything indexable, omits the authenticated pages, and
+  uses real `lastModified` dates. It previously stamped every URL with the build
+  time, which teaches crawlers to ignore the field entirely.
+- The transcription language picker and the model load plan now come from one
+  list. A picker offering a value the plan does not know silently falls back to
+  English — somebody chooses "Other languages" and gets a nonsense transcript
+  with no error anywhere.
+- `AudioCapture` closes a half-opened capture before rethrowing, instead of
+  leaving a live microphone light and a screen-share banner over a recording
+  that will never start. It also reports when the user stops the share from the
+  browser's own bar, which was previously a silent recording of nothing.
+- The app warns before closing during a recording.
+- The social-share image rendered a **"P"** as the logo mark, on a palette the
+  site no longer used. It now reads its colours from the design tokens.
+- The desktop app's sidebar used raw Tailwind reds because the `danger` token is
+  2.55:1 on the ink chrome and genuinely unreadable there. The fix was a
+  `dangerOnInk` token, not a hand-picked hex in a component — and a test now
+  fails the build if any component reaches for a raw palette colour again.
+- Drag-and-drop import works in the app as well as on the web.
+- You can now name a speaker from a saved transcript in the app, not only by
+  sitting down to enrol them in advance. Meetings keep each speaker's voice
+  print, so "who is this?" is still answerable a week later — which is when
+  anybody actually asks it. The web app already worked this way; the two now
+  match.
+- Voice enrolment in the app was native-only, and said so. Since the webview
+  gained speaker separation it recognises voices too, so enrolling now goes to
+  whichever store the engine in that build will actually read. The card says
+  which one, because the two use different models and therefore incompatible
+  voice prints — somebody whose profiles "disappeared" after rebuilding with the
+  native engine deserves to know why rather than to guess.
+
 ## Unreleased — A hosted MCP endpoint, and a Mac build Intel users can run
 
 ### The MCP server now has two front doors, and one set of tools

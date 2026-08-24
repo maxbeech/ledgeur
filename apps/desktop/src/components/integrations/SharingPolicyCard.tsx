@@ -53,7 +53,7 @@ export function SharingPolicyCard({ session }: { session: Session | null }) {
               {hasBackend && session && !isAdmin && " Only an org admin can change this."}
               {hasBackend && !session && " Sign in as an admin to change this."}
             </p>
-            {error && <p className="mt-1 text-xs text-red-600">{error}</p>}
+            {error && <p className="mt-1 text-xs text-danger">{error}</p>}
           </div>
         </div>
         <Toggle on={visibility === "org"} onChange={toggle} disabled={!hasBackend || !session || !isAdmin || saving} />

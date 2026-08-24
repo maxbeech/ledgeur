@@ -21,19 +21,26 @@ export const COLORS = {
   accentSoft: "#dcefe5",
   // The brain's voice — burnished gold. AI answers, suggestions, MCP.
   glow: "#a87a24",
-  glowStrong: "#8a621a",
+  glowStrong: "#805912",
   glowSoft: "#f3e8d2",
   // Recording / destructive — madder red.
   danger: "#a33636",
   dangerSoft: "#f6e0dc",
-  warn: "#a05f16",
+  /** Madder lifted for the dark chrome. `danger` is 2.55:1 on ink — unreadable —
+   *  so the sidebar's recording dot and its label use this instead. */
+  dangerOnInk: "#e08a8a",
+  warn: "#8f520d",
   warnSoft: "#f5e7d2",
-  // Text.
+  /** Warn lifted for the dark chrome, for the same reason as dangerOnInk. */
+  warnOnInk: "#d9a441",
+  // Text. Each clears WCAG AA (4.5:1) on paper and on surface — measured.
+  // `accent` and `glow` below do not: they are fills and borders. Coloured
+  // *text* uses accentStrong / glowStrong.
   text: "#211d16",
-  textMuted: "#6d6558",
-  textFaint: "#988f7f",
+  textMuted: "#685f52",
+  textFaint: "#6b6354",
   textOnInk: "#f0ede4",
-  textOnInkMuted: "#93a89b",
+  textOnInkMuted: "#a9bdb1",
   // Rules & hairlines.
   border: "#e2dacb",
   borderStrong: "#cfc4ae",
@@ -45,7 +52,7 @@ export const SPEAKER_COLORS = [
   { name: "moss", fg: "#3f6212", bg: "#eef2df" },
   { name: "madder", fg: "#9f3b3b", bg: "#f6e3e0" },
   { name: "indigo", fg: "#3b4a8f", bg: "#e4e7f4" },
-  { name: "ochre", fg: "#92610f", bg: "#f4ead3" },
+  { name: "ochre", fg: "#855708", bg: "#f4ead3" },
   { name: "plum", fg: "#7c3a6d", bg: "#f2e2ee" },
   { name: "teal", fg: "#0f6b74", bg: "#dcedee" },
 ] as const;

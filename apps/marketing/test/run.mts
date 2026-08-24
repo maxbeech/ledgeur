@@ -1,16 +1,22 @@
 // Ledgeur test suite. Pure-logic + data-integrity checks. Run: npm test
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 // The canonical speech-model load plan, as served to the browser.
-import { LANGS as ASR_LANGS } from "../public/asr-plan.js";
-import { splitSentences, extractiveSummary, summarizeTranscript, notesToMarkdown } from "../lib/summarize.ts";
-import { resample, mergeToMono, rms, concatFloat32, WHISPER_SAMPLE_RATE } from "../lib/audio.ts";
-import { buildNotesRequest, providerById, AI_PROVIDERS } from "../lib/ai-notes.ts";
+import { LANGS as ASR_LANGS, LANG_OPTIONS as ASR_LANG_OPTIONS } from "../public/asr-plan.js";
+// Notes, audio and the AI-key plumbing all live in the shared package now —
+// this app used to carry forked copies that had already drifted from it.
+import {
+  splitSentences, extractiveSummary, summarizeTranscript, notesToMarkdown,
+  resample, mergeToMono, rms, concatFloat32, WHISPER_SAMPLE_RATE,
+  buildNotesRequest, providerById, AI_PROVIDERS,
+  authErrorMessage,
+} from "@ledgeur/core";
 import { evaluateSupport } from "../lib/support.ts";
 import { COMPETITORS } from "../lib/competitors.ts";
 import { PLATFORMS } from "../lib/platforms.ts";
 import { USE_CASES } from "../lib/usecases.ts";
 import { POSTS } from "../lib/posts.ts";
 import { SUPABASE, MIN_PASSWORD_LENGTH } from "../lib/site.ts";
+import { runSiteTests } from "./site.mts";
 
 let pass = 0, fail = 0;
 const ok = (name: string, cond: boolean, detail = "") => {
@@ -72,7 +78,14 @@ ok("request truncates long transcript", (() => {
   return buildNotesRequest("m", big).messages[1].content.includes("(truncated)");
 })());
 ok("providerById falls back", providerById("nope").id === AI_PROVIDERS[0].id);
-ok("every provider has baseUrl + model", AI_PROVIDERS.every((p) => p.baseUrl.startsWith("https://") && !!p.defaultModel));
+ok("every provider names a default model", AI_PROVIDERS.every((p) => !!p.defaultModel));
+// The rule that matters is that an API key is never sent in the clear to
+// somewhere else. Loopback is exempt — that is the on-device llama.cpp server,
+// which browsers treat as a trustworthy origin precisely because it never
+// leaves the machine.
+ok("every remote provider is reached over https", AI_PROVIDERS.every((p) =>
+  p.baseUrl.startsWith("https://") || /^http:\/\/(127\.0\.0\.1|\[::1\]|localhost)(:|\/)/.test(p.baseUrl)),
+  JSON.stringify(AI_PROVIDERS.map((p) => p.baseUrl)));
 
 // --- browser support detection ---
 const full = evaluateSupport({ getDisplayMedia: true, getUserMedia: true, audioContext: true, worker: true });
@@ -96,17 +109,22 @@ ok("posts well-formed", POSTS.every((p) => /^\d{4}-\d{2}-\d{2}$/.test(p.date) &&
 ok("slugs are url-safe", [...COMPETITORS, ...PLATFORMS].every((x) => /^[a-z0-9-]+$/.test(x.slug)) && POSTS.every((p) => /^[a-z0-9-]+$/.test(p.slug)));
 
 // --- transcription language options ---
-// The recorder's <select> and the speech-model load plan must agree: a value
-// the plan doesn't know silently falls back to English, so the user would pick
-// "Multilingual" and quietly get an English-only model.
-const controlsSource = readFileSync(new URL("../components/recorder/Controls.tsx", import.meta.url), "utf8");
-const offeredLangs = [...controlsSource.matchAll(/<option value="([^"]+)"/g)].map((m) => m[1]);
+// The picker and the speech-model load plan must agree: a value the plan does
+// not know silently falls back to English, so somebody would choose "Other
+// languages" and quietly get an English-only model and a nonsense transcript.
+// They now come from the same file, so this asserts that stays true.
+const offeredLangs = ASR_LANG_OPTIONS.map((o) => o.value);
 ok("the recorder offers language options", offeredLangs.length >= 3, JSON.stringify(offeredLangs));
 ok("every offered language is one the load plan supports",
   offeredLangs.every((l) => (ASR_LANGS as readonly string[]).includes(l)),
   `offered ${JSON.stringify(offeredLangs)} vs plan ${JSON.stringify(ASR_LANGS)}`);
 ok("every planned language is offered in the UI",
   (ASR_LANGS as readonly string[]).every((l) => offeredLangs.includes(l)));
+ok("every option has a label and a hint a person can act on",
+  ASR_LANG_OPTIONS.every((o) => o.label.length > 0 && o.hint.length > 0));
+const recordPanel = readFileSync(new URL("../components/app/RecordPanel.tsx", import.meta.url), "utf8");
+ok("the picker reads the shared list rather than restating it",
+  recordPanel.includes("LANG_OPTIONS") && !/const LANGUAGES/.test(recordPanel));
 
 // --- auth callback page ---
 // This page is where every Supabase auth email lands. If its config or copy
@@ -134,12 +152,26 @@ ok("Supabase key belongs to the configured project", (() => {
   return SUPABASE.url.includes(json.ref);
 })());
 
-// One rule, two apps: the desktop app rejects short passwords client-side and
-// this page must not accept what the app would refuse.
-const desktopAuth = readFileSync(new URL("../../desktop/src/lib/authMessages.ts", import.meta.url), "utf8");
-const desktopMin = Number(/MIN_PASSWORD_LENGTH = (\d+)/.exec(desktopAuth)?.[1]);
-ok("the marketing and desktop minimum password lengths agree",
-  desktopMin === MIN_PASSWORD_LENGTH, `desktop ${desktopMin} vs marketing ${MIN_PASSWORD_LENGTH}`);
+// One rule, one definition. The password minimum, the auth-capability parsing
+// and the error wording used to exist twice — once here and once in the desktop
+// app — with a test that compared the two copies. They now live in
+// @ledgeur/core, so the check is that nobody has forked them back out.
+ok("the password minimum is a real number", Number.isInteger(MIN_PASSWORD_LENGTH) && MIN_PASSWORD_LENGTH >= 8,
+  `${MIN_PASSWORD_LENGTH}`);
+const siteSrc = readFileSync(new URL("../lib/site.ts", import.meta.url), "utf8");
+ok("the site re-exports the shared password rule rather than restating it",
+  /export \{[^}]*MIN_PASSWORD_LENGTH[^}]*\} from "@ledgeur\/core"/.test(siteSrc), "site.ts should not declare its own");
+ok("auth error wording comes from the shared package",
+  authErrorMessage(new Error("Invalid login credentials")).includes("don’t match an account"),
+  authErrorMessage(new Error("Invalid login credentials")));
+
+// The forked copies of the notes/audio logic are gone for good.
+for (const gone of ["summarize.ts", "ai-notes.ts", "audio.ts"]) {
+  ok(`lib/${gone} is not forked back out of @ledgeur/core`, !existsSync(new URL(`../lib/${gone}`, import.meta.url)));
+}
+
+// --- the website itself ---
+runSiteTests(ok);
 
 console.log(`\n${pass} passed, ${fail} failed`);
 if (fail > 0) process.exit(1);

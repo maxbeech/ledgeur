@@ -2,6 +2,9 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { POSTS } from "@/lib/posts";
 import { SITE } from "@/lib/site";
+import { Card } from "@ledgeur/ui/components";
+import { PageHeader, Section } from "@/components/site/Chrome";
+import { CtaBlock } from "@/components/site/CtaBlock";
 
 export const metadata: Metadata = {
   title: "Guides — AI meeting notes, transcription & privacy",
@@ -10,20 +13,38 @@ export const metadata: Metadata = {
   alternates: { canonical: `${SITE.url}/blog` },
 };
 
+// Written content changes rarely. Prerendered at build, revalidated weekly so an
+// edit reaches the cache without a deploy — and served from the edge in between,
+// which is the cheapest thing this page can be.
+export const revalidate = 604800;
+
 export default function BlogIndex() {
   return (
-    <main className="mx-auto max-w-3xl px-5 py-14">
-      <h1 className="text-3xl font-extrabold tracking-tight">Guides</h1>
-      <p className="mt-2 text-stone-600">Practical guides on meeting notes, transcription and keeping your meetings private.</p>
-      <div className="mt-8 space-y-3">
-        {POSTS.map((p) => (
-          <Link key={p.slug} href={`/blog/${p.slug}`} className="block rounded-xl border border-stone-200 bg-white p-5 hover:border-emerald-300">
-            <h2 className="font-semibold text-stone-900">{p.title}</h2>
-            <p className="mt-1 text-sm text-stone-600">{p.description}</p>
-            <div className="mt-2 text-xs text-stone-600">{p.date} · {p.readMins} min read</div>
-          </Link>
-        ))}
-      </div>
+    <main>
+      <PageHeader
+        kicker="Guides"
+        title="Meetings, transcription, and keeping both private."
+        lede="Practical writing about getting a usable record out of a conversation — and about why so much of the software for it sends your audio somewhere else."
+      />
+      <Section width="narrow">
+        <div className="grid gap-3.5">
+          {POSTS.map((post) => (
+            <Link key={post.slug} href={`/blog/${post.slug}`} className="group block">
+              <Card className="p-5 transition-colors group-hover:border-accent">
+                <h2 className="ldg-display text-[18px] leading-snug text-ink-text">{post.title}</h2>
+                <p className="mt-1.5 text-[14px] leading-relaxed text-muted">{post.description}</p>
+                <div className="mt-2.5 font-mono text-[11px] text-faint">
+                  <time dateTime={post.date}>
+                    {new Date(post.date).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
+                  </time>
+                  {" · "}{post.readMins} min read
+                </div>
+              </Card>
+            </Link>
+          ))}
+        </div>
+        <CtaBlock />
+      </Section>
     </main>
   );
 }

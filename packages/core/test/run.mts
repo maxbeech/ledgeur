@@ -7,6 +7,12 @@ import { resample, mergeToMono, rms, concatFloat32, WHISPER_SAMPLE_RATE } from "
 import { markdownToNotionBlocks, chunkBlocks, buildNotionPage } from "../src/integrations/notion.ts";
 import { chunkText, meetingChunks } from "../src/rag/chunk.ts";
 import { eventsToday, nextUpcoming, eventsNeedingPrompt, formatEventsForContext } from "../src/calendar/schedule.ts";
+import { runDiarizeTests } from "./diarize.mts";
+import { runBrowserTests } from "./browser.mts";
+import { runLibraryTests } from "./library.mts";
+import { runAssembleTests } from "./assemble.mts";
+import { runSyncTests } from "./sync.mts";
+import { runFailureTests } from "./failures.mts";
 import type { CalendarEvent } from "../src/domain/entities.ts";
 
 let pass = 0, fail = 0;
@@ -147,6 +153,24 @@ ok("eventsNeedingPrompt skips far-future", !eventsNeedingPrompt(evs, now, 10 * 6
 ok("formatEventsForContext lists every event's title", formatEventsForContext(evs).split("\n").length === evs.length);
 ok("formatEventsForContext marks online events", formatEventsForContext([ev("a", 5)]).includes("(online)"));
 ok("formatEventsForContext is empty for no events", formatEventsForContext([]) === "");
+
+// --- diarization ---
+runDiarizeTests(ok);
+
+// --- diarization assembly ---
+runAssembleTests(ok);
+
+// --- meeting library ---
+runLibraryTests(ok);
+
+// --- cloud sync mapping ---
+runSyncTests(ok);
+
+// --- browser controllers (fake Worker) ---
+await runBrowserTests(ok);
+
+// --- failure paths found by driving the product in a browser ---
+await runFailureTests(ok);
 
 console.log(`\n${pass} passed, ${fail} failed`);
 if (fail > 0) process.exit(1);

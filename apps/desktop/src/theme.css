@@ -22,16 +22,18 @@
   --color-accent-soft: #dcefe5;
 
   --color-glow: #a87a24;
-  --color-glow-strong: #8a621a;
+  --color-glow-strong: #805912;
   --color-glow-soft: #f3e8d2;
 
   --color-danger: #a33636;
   --color-danger-soft: #f6e0dc;
-  --color-warn: #a05f16;
+  --color-danger-on-ink: #e08a8a;
+  --color-warn: #8f520d;
   --color-warn-soft: #f5e7d2;
+  --color-warn-on-ink: #d9a441;
 
   --color-ink-text: #211d16;
-  --color-muted: #6d6558;
+  --color-muted: #685f52;
   --color-faint: #988f7f;
   --color-on-ink: #f0ede4;
   --color-on-ink-muted: #93a89b;

@@ -12,7 +12,7 @@ import {
 } from "../../lib/session.ts";
 import {
   hasNoAuthMethod, PROVIDER_LABELS, signUpNextStep, validateCredentials, type OAuthProvider,
-} from "../../lib/authMessages.ts";
+} from "@ledgeur/core";
 
 type Mode = "signin" | "signup";
 

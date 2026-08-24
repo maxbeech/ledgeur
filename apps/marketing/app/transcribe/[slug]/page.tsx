@@ -3,56 +3,78 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { PLATFORMS, platformBySlug } from "@/lib/platforms";
 import { SITE } from "@/lib/site";
+import { PageHeader, Section, SectionHead } from "@/components/site/Chrome";
+import { CtaBlock } from "@/components/site/CtaBlock";
 
 export function generateStaticParams() {
   return PLATFORMS.map((p) => ({ slug: p.slug }));
 }
 
+export const revalidate = 604800;
+
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const { slug } = await params;
-  const p = platformBySlug(slug);
-  if (!p) return {};
-  const title = `${p.name} transcription — free, private & on-device`;
-  const description = `How to transcribe ${p.name} meetings for free with Ledgeur. On-device AI transcription and notes — no bot joins the call, no cloud upload.`;
-  return { title, description, alternates: { canonical: `${SITE.url}/transcribe/${p.slug}` }, openGraph: { title, description, type: "article", images: ["/opengraph-image"] } };
+  const platform = platformBySlug(slug);
+  if (!platform) return {};
+  const title = `${platform.name} transcription — free, private and on-device`;
+  const description = `How to transcribe ${platform.name} meetings for free with Ledgeur. On-device transcription with the speakers separated — no bot joins the call, nothing is uploaded.`;
+  return {
+    title,
+    description,
+    alternates: { canonical: `${SITE.url}/transcribe/${platform.slug}` },
+    openGraph: { title, description, type: "article", images: ["/opengraph-image"] },
+  };
 }
 
 export default async function PlatformPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
-  const p = platformBySlug(slug);
-  if (!p) notFound();
+  const platform = platformBySlug(slug);
+  if (!platform) notFound();
 
   const jsonLd = {
     "@context": "https://schema.org",
     "@type": "HowTo",
-    name: `How to transcribe a ${p.name} meeting with Ledgeur`,
-    step: p.tips.map((t, i) => ({ "@type": "HowToStep", position: i + 1, text: t })),
+    name: `How to transcribe a ${platform.name} meeting with Ledgeur`,
+    step: platform.tips.map((tip, i) => ({ "@type": "HowToStep", position: i + 1, text: tip })),
   };
 
   return (
-    <main className="mx-auto max-w-3xl px-5 py-12">
+    <main>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
-      <nav aria-label="Breadcrumb" className="mb-4 text-sm text-stone-600"><Link href="/transcribe" className="hover:text-stone-700">Transcribe</Link> › {p.name}</nav>
-      <h1 className="text-3xl font-extrabold tracking-tight capitalize">{p.name} transcription, free & private</h1>
-      <p className="mt-4 text-stone-600">{p.how}</p>
+      <PageHeader
+        kicker="Transcribe"
+        title={`${platform.name} transcription, free and private`}
+        lede={platform.how}
+      />
 
-      <h2 className="mt-10 text-2xl font-bold">Step by step</h2>
-      <ol className="mt-4 space-y-3">
-        {p.tips.map((t, i) => (
-          <li key={t} className="flex gap-3">
-            <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-emerald-100 text-sm font-bold text-emerald-700">{i + 1}</span>
-            <span className="text-stone-600">{t}</span>
-          </li>
-        ))}
-      </ol>
+      <Section width="narrow">
+        <nav aria-label="Breadcrumb" className="mb-8 text-[13px] text-muted">
+          <Link href="/transcribe" className="hover:text-ink-text">Transcribe</Link>
+          <span aria-hidden> › </span>
+          <span className="text-faint">{platform.name}</span>
+        </nav>
 
-      <div className="mt-10 rounded-2xl border border-emerald-200 bg-emerald-50 p-6 text-center">
-        <h2 className="text-lg font-bold capitalize">Transcribe your next {p.name} call</h2>
-        <p className="mt-1 text-sm text-stone-600">Free, private, and no bot in the participant list.</p>
-        <Link href="/app" className="mt-3 inline-block rounded-lg bg-emerald-700 px-5 py-2.5 text-sm font-semibold text-white hover:bg-emerald-600">Open Ledgeur →</Link>
-      </div>
+        <SectionHead kicker="Step by step" title={`Recording a ${platform.name} meeting`} />
+        <ol className="mt-6 space-y-4">
+          {platform.tips.map((tip, i) => (
+            <li key={tip} className="flex gap-4">
+              <span className="ldg-display grid h-7 w-7 shrink-0 place-items-center rounded-full bg-accent-soft text-[13px] text-accent-strong">
+                {i + 1}
+              </span>
+              <span className="mt-0.5 text-[14.5px] leading-relaxed text-ink-text">{tip}</span>
+            </li>
+          ))}
+        </ol>
 
-      <p className="mt-6 text-xs text-stone-600">Search demand (live Google Ads, US): {p.demand}.</p>
+        <CtaBlock
+          title={`Transcribe your next ${platform.name} call`}
+          body="Free, private, with the speakers separated, and no bot in the participant list."
+        />
+
+        <p className="mt-8 text-[12px] text-faint">
+          Search demand (live Google Ads, US): {platform.demand}.
+        </p>
+      </Section>
     </main>
   );
 }

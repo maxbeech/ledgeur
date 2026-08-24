@@ -6,7 +6,10 @@
   "license": "MIT",
   "type": "module",
   "exports": {
-    ".": "./asr-plan.js",
+    ".": {
+      "types": "./asr-plan.d.ts",
+      "default": "./asr-plan.js"
+    },
     "./sync": "./sync.mjs"
   },
   "scripts": {

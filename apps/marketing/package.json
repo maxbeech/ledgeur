@@ -18,7 +18,14 @@
     "next": "16.2.9",
     "react": "19.2.4",
     "react-dom": "19.2.4",
-    "@ledgeur/mcp": "workspace:*"
+    "@ledgeur/mcp": "workspace:*",
+    "@ledgeur/core": "workspace:*",
+    "@ledgeur/ui": "workspace:*",
+    "@fontsource-variable/fraunces": "^5.2.9",
+    "@fontsource-variable/schibsted-grotesk": "^5.2.8",
+    "@fontsource-variable/spline-sans-mono": "^5.2.8",
+    "@supabase/supabase-js": "^2.58.0",
+    "@ledgeur/asr": "workspace:*"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",

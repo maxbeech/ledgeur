@@ -56,8 +56,8 @@ export function Sidebar({ onOpenPalette }: { onOpenPalette: () => void }) {
                 <Icon className="h-[17px] w-[17px]" strokeWidth={2} />
                 {label}
                 {to === "/record" && recording && (
-                  <span className="ml-auto flex items-center gap-1.5 font-mono text-[10.5px] text-red-300">
-                    <span className="ldg-pulse h-1.5 w-1.5 rounded-full bg-red-400" />
+                  <span className="ml-auto flex items-center gap-1.5 font-mono text-[10.5px] text-danger-on-ink">
+                    <span className="ldg-pulse h-1.5 w-1.5 rounded-full bg-danger-on-ink" />
                     {formatElapsed(state.elapsed)}
                   </span>
                 )}
@@ -70,9 +70,9 @@ export function Sidebar({ onOpenPalette }: { onOpenPalette: () => void }) {
       {recording && (
         <button
           onClick={() => nav("/record")}
-          className="mx-3 mb-2 flex items-center gap-2.5 rounded-xl border border-red-400/25 bg-red-400/10 px-3 py-2.5 text-left transition-colors hover:bg-red-400/15"
+          className="mx-3 mb-2 flex items-center gap-2.5 rounded-xl border border-danger-on-ink/25 bg-danger-on-ink/10 px-3 py-2.5 text-left transition-colors hover:bg-danger-on-ink/15"
         >
-          <span className="ldg-halo flex h-2.5 w-2.5 shrink-0 rounded-full bg-red-400" />
+          <span className="ldg-halo flex h-2.5 w-2.5 shrink-0 rounded-full bg-danger-on-ink" />
           <span className="min-w-0 leading-tight">
             <span className="block truncate text-[12.5px] font-medium text-on-ink">Recording</span>
             <span className="block font-mono text-[10.5px] text-on-ink-muted">{formatElapsed(state.elapsed)} · tap to return</span>
@@ -96,7 +96,7 @@ export function Sidebar({ onOpenPalette }: { onOpenPalette: () => void }) {
           <div className="min-w-0 flex-1 leading-tight">
             <div className="truncate text-[12.5px] font-medium text-on-ink">{email ?? "Personal workspace"}</div>
             <div className="flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-wider text-on-ink-muted">
-              <span className={cn("h-1.5 w-1.5 rounded-full", connected ? "bg-accent" : "bg-amber-400/80")} />
+              <span className={cn("h-1.5 w-1.5 rounded-full", connected ? "bg-accent" : "bg-warn-on-ink/80")} />
               {connected ? "Synced" : hasBackend ? "Signed out" : "Local only"}
             </div>
           </div>

@@ -18,7 +18,7 @@ import { CONFIG, hasBackend } from "./config.ts";
 import {
   authErrorMessage, NO_AUTH, parseAuthSettings, providerUnavailableMessage,
   type AuthCapabilities, type OAuthProvider,
-} from "./authMessages.ts";
+} from "@ledgeur/core";
 
 export function useSession() {
   const [session, setSession] = useState<Session | null>(null);

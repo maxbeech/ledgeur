@@ -1,51 +1,88 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { SITE } from "@/lib/site";
+import { SITE, TEAM_PRICE_USD } from "@/lib/site";
+import { Display, buttonClass } from "@ledgeur/ui/components";
+import { PageHeader, Section, SectionHead } from "@/components/site/Chrome";
 
 export const metadata: Metadata = {
-  title: "Open source — the self-hostable AI meeting assistant",
+  title: "Open source — read it, run it, keep it",
   description:
-    "Ledgeur is MIT-licensed and self-hostable. Run the open-source AI meeting notetaker inside your own network. The open alternative to Granola, Otter and Fireflies.",
+    "Ledgeur is MIT-licensed and self-hostable. Transcription and speaker separation run in your browser, the source is public, and the free plan is the whole product.",
   alternates: { canonical: `${SITE.url}/open-source` },
 };
 
-const faqs = [
-  ["Is Ledgeur really open source?", "Yes — the app is released under the permissive MIT licence. You can read it, fork it, audit it and run it yourself, forever, at no cost."],
-  ["Where does transcription happen?", "Entirely in your browser. The Whisper speech-to-text model is downloaded once from the Hugging Face CDN and then runs on your device via WebGPU or WebAssembly. Your audio is never sent to a server."],
-  ["What's the catch with 'free'?", "There isn't one for individuals. Because the heavy lifting runs on your machine, hosting costs us almost nothing. We charge teams that want a shared workspace, and companies that want SSO, admin controls and a supported self-host bundle."],
-  ["Can I self-host it for my company?", "Yes. The code is yours under MIT. A Company license adds a supported Docker/Helm bundle, SSO/SAML, an admin console and an SLA — but you can always self-host the open-source build for free."],
-  ["Does a bot join my meeting?", "No. Unlike most notetakers, Ledgeur captures the meeting tab's audio directly through your browser, so nothing shows up in the participant list."],
+export const revalidate = 604800;
+
+// Written as questions people actually ask, and answered without dodging. The
+// self-hosting answer in particular used to advertise a "supported Docker/Helm
+// bundle, SSO/SAML, an admin console and an SLA" — none of which exists.
+const FAQS: readonly [string, string][] = [
+  [
+    "Is Ledgeur really open source?",
+    "Yes, under the MIT licence — the permissive one. You can read it, fork it, audit it, run it inside your company and build a product on it, without asking us and without paying us.",
+  ],
+  [
+    "Where does the transcription actually happen?",
+    "In your browser. Whisper is downloaded once from the Hugging Face CDN and then runs on your own device through WebGPU, or WebAssembly if there is no WebGPU. The speaker models work the same way. There is no upload endpoint for audio in this product — open your browser's network tab during a recording and check.",
+  ],
+  [
+    "What is the catch with “free”?",
+    `There is not one for a single person. The expensive part runs on your machine, so one person using Ledgeur costs us essentially nothing. We charge $${TEAM_PRICE_USD} per person per month when you want the record to leave your device — synced across your devices, shared with a team, and readable by your AI agents. Those cost us hosting, so they cost you money.`,
+  ],
+  [
+    "Can I self-host it instead of paying?",
+    "Yes, and you do not need our permission — that is what MIT means. The database schema is in the repository and the app is a Vite build. To be straight with you: there is no Docker image and no Helm chart, so this is currently a manual job for somebody comfortable with Supabase. The Enterprise tier is us helping you do it and supporting it afterwards, not us granting a right you already have.",
+  ],
+  [
+    "Does a bot join my meeting?",
+    "No. Ledgeur captures the meeting tab's audio through your browser, the same way you hear it. Nothing appears in the participant list — which also means the people in the call will not know they are being recorded unless you tell them. Please tell them.",
+  ],
+  [
+    "What happens if you go out of business?",
+    "The free app keeps working: once the models are cached it needs nothing from us, and your meetings are already on your machine. The source is public, so a paid deployment can be taken over and self-hosted. We would give at least 60 days' notice before shutting down hosted sync.",
+  ],
 ];
 
 export default function OpenSource() {
   const jsonLd = {
     "@context": "https://schema.org",
     "@type": "FAQPage",
-    mainEntity: faqs.map(([q, a]) => ({ "@type": "Question", name: q, acceptedAnswer: { "@type": "Answer", text: a } })),
+    mainEntity: FAQS.map(([question, answer]) => ({
+      "@type": "Question",
+      name: question,
+      acceptedAnswer: { "@type": "Answer", text: answer },
+    })),
   };
-  return (
-    <main className="mx-auto max-w-3xl px-5 py-14">
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
-      <h1 className="text-3xl font-extrabold tracking-tight">Open source by design</h1>
-      <p className="mt-4 text-stone-600">
-        Meeting notes are some of the most sensitive data a company produces — strategy, hiring, deals, 1:1s.
-        Closed AI notetakers ask you to upload all of it to their cloud. Ledgeur takes the opposite stance:
-        the code is open, and your audio never leaves your device.
-      </p>
-      <div className="mt-6 flex gap-3">
-        <a href={SITE.repo} target="_blank" rel="noreferrer" className="rounded-xl bg-stone-900 px-5 py-2.5 text-sm font-semibold text-white hover:bg-stone-700">View the source on GitHub</a>
-        <Link href="/app" className="rounded-xl border border-stone-300 px-5 py-2.5 text-sm font-medium hover:bg-stone-50">Open the app</Link>
-      </div>
 
-      <h2 className="mt-12 text-2xl font-bold">FAQ</h2>
-      <div className="mt-4 space-y-5">
-        {faqs.map(([q, a]) => (
-          <div key={q}>
-            <h3 className="font-semibold text-stone-900">{q}</h3>
-            <p className="mt-1 text-sm text-stone-600">{a}</p>
+  return (
+    <main>
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
+      <PageHeader
+        kicker="Open source"
+        title="Open by design, not as a marketing position."
+        lede="Meeting notes are among the most sensitive things a company produces — strategy, hiring, deals, one-to-ones. Closed notetakers ask you to upload all of it. Ledgeur takes the opposite position: the code is public, and the audio never leaves your machine."
+      />
+
+      <Section width="narrow">
+        <div className="flex flex-wrap gap-3">
+          <a href={SITE.repo} target="_blank" rel="noreferrer" className={buttonClass("primary", "md")}>
+            Read the source on GitHub
+          </a>
+          <Link href="/app" className={buttonClass("secondary", "md")}>Open Ledgeur</Link>
+        </div>
+
+        <div className="mt-16">
+          <SectionHead kicker="Questions" title="Asked and answered." />
+          <div className="mt-8 space-y-8">
+            {FAQS.map(([question, answer]) => (
+              <div key={question}>
+                <Display level={3} className="text-[17px]">{question}</Display>
+                <p className="mt-2 text-[14.5px] leading-relaxed text-muted">{answer}</p>
+              </div>
+            ))}
           </div>
-        ))}
-      </div>
+        </div>
+      </Section>
     </main>
   );
 }

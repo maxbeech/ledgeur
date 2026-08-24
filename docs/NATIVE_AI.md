@@ -1,9 +1,44 @@
-# On-device AI (native engine)
+# On-device AI
 
-Ledgeur transcribes, diarizes and reasons entirely on the user's device. The
-heavy native engine is behind a Cargo feature so the base app stays fast to build.
+Ledgeur transcribes, diarizes and reasons entirely on the user's device.
 
-## What runs where
+There are two engines. The **native** one (this document's main subject) is
+behind a Cargo feature so the base app stays fast to build. The **browser** one
+runs everywhere else — the web app, and any desktop build without the native
+feature — and since the 2026-08 overhaul it does speaker separation too, so an
+unbuilt native engine no longer means a transcript with one speaker on every
+line.
+
+## The browser engine
+
+| Capability | Model | Where |
+|---|---|---|
+| Transcription | **Whisper** (`Xenova/whisper-*`, `onnx-community/whisper-*`) | `packages/asr/transcribe.worker.js` |
+| Speaker segmentation | **pyannote 3.0** (`onnx-community/pyannote-segmentation-3.0`) | `packages/asr/diarize.worker.js` |
+| Speaker embeddings | **WeSpeaker ResNet34** (`onnx-community/wespeaker-voxceleb-resnet34-LM`) | same worker |
+| Clustering + identification | pure TypeScript | `packages/core/src/diarize/` |
+
+All of it runs through transformers.js, pinned to one version so a page never
+loads two onnxruntime majors at once. The models stream from the Hugging Face
+CDN on first use and are then cached by the browser; after that it works offline.
+
+A live meeting analyses each drained slice as it arrives and keeps only turns and
+vectors, never the audio — an hour at 16 kHz is ~230 MB of Float32. Clustering
+runs once at the end, over everything, because "which of these voices is the same
+person" is not answerable twenty seconds at a time.
+
+### Verifying it
+
+The unit tests cover the logic, but they cannot tell you that the models return
+the shapes this code reads. `packages/asr/verify/diarize.mjs` runs the real
+models over a real recording and prints what comes out. It is how the clustering
+threshold was set — see the comments in
+`packages/core/src/diarize/cluster.ts`, which record the measurements rather than
+the reasoning that produced the first, wrong guess.
+
+## The native engine
+
+### What runs where
 
 | Capability | Engine | Where |
 |---|---|---|

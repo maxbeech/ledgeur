@@ -1,5 +1,82 @@
 # Manual test checklist
 
+## The overhaul pass (2026-08-24)
+
+### Verified automatically — no need to re-test by hand
+
+- **940 assertions** across six packages, every package typechecks, both apps
+  build (`pnpm test && pnpm typecheck && pnpm build`).
+- **Speaker separation, on real audio.** `packages/asr/verify/diarize.mjs` runs
+  the actual models over a real recording. A 60-second interview clip: 8 windows
+  → 38 raw turns → 24 embedded (256-d vectors) → **2 speakers**, 48.6 s and
+  11.6 s, alternating in the pattern an interview actually has — long answer,
+  short question, long answer. About three seconds of compute after a
+  fourteen-second model load. The alternation is the check that matters: a
+  plausible speaker *count* with the turns attributed to the wrong people would
+  look identical in a summary. This is also how the clustering threshold was
+  set; the sweep is recorded in `packages/core/src/diarize/cluster.ts`.
+- **Speaker identification margins.** Splitting one speaker's turns in half and
+  treating one half as a stored profile: same person 0.647–0.872, different
+  people 0.027–0.121. The threshold sits at 0.50, between them.
+- **Site routes.** Every path named in the header, footer, plan CTAs and the
+  homepage — 37 unique URLs — returns 200, and an unknown path returns the
+  custom 404.
+- **The checkout auth gate.** "Start the free trial" while signed out redirects
+  to `/signin?next=%2Fpricing` and does **not** reach Stripe.
+- **Contrast.** Every text token is asserted ≥ 4.5:1 against every surface it is
+  used on, in `packages/ui/test`.
+- **Brand drift.** Every `.tsx` in both apps is asserted to use design tokens
+  rather than raw Tailwind palette colours.
+
+### Verified in a real browser
+
+Driven end to end against a running build:
+
+- Denying the screen share shows: *"You dismissed the sharing window, so nothing
+  was captured. Start again and pick the tab or window your meeting is in — and
+  tick 'Also share tab audio', or the other people will not be recorded."*
+- Denying the microphone shows: *"Ledgeur needs permission to use your
+  microphone. Allow it when your browser asks — or, if you blocked it earlier,
+  click the padlock in the address bar and re-enable the microphone for this
+  site."* Neither leaks a `DOMException` name.
+- "Try again" clears the error and returns the panel to its start state.
+- The library sidebar reaches its empty state on five consecutive reloads; it
+  never sticks on "Opening your library…".
+- Between roughly 20 ms and 200 ms after clicking Record, the panel shows
+  *"Waiting for permission…"* and **no** download progress bar — confirming the
+  40 MB model no longer downloads before the browser has asked.
+- The sample clip progresses through real steps: fetching → reading → loading
+  the speech model.
+
+### Needs a human, and why
+
+These cannot be driven headlessly, so they are the manual list:
+
+1. **Record a real meeting, in a real browser, and grant permission.** A
+   headless browser cannot grant microphone or screen-share access, so the happy
+   path of `/app` is untested end to end. Check: the timer runs, the transcript
+   appears within about ten seconds, and stopping it produces separated speakers.
+   The failure paths (permission denied, no device, device busy) *are* covered by
+   stubs and by unit tests.
+2. **Name a speaker, then record a second meeting with the same person.** The
+   headline feature — that a named voice is recognised next time — needs two
+   recordings of the same real person. The logic is unit-tested and the
+   thresholds are measured, but the round trip through IndexedDB has only been
+   tested with synthetic vectors.
+3. **Drag a real Zoom/Teams export in.** Decoding depends on the browser's own
+   codec support, which varies. Try an `.mp4`, an `.m4a` and a `.webm`.
+4. **A real purchase, end to end.** Buy on a test card, then confirm `/account`
+   flips to the Team plan within a few seconds, generate an access token, and
+   call `/api/mcp` with it. Then cancel from the billing portal and confirm the
+   plan reverts. This needs live Stripe keys and the webhook wired — see
+   `docs/DEPLOYMENT.md`.
+5. **`SUPABASE_JWT_SECRET` in production.** The hosted agent endpoint is new in
+   its current form and returns 503 without it. Nothing else needs it.
+6. **A long meeting.** The live path is designed to keep memory flat by
+   discarding audio behind the models; an hour-long recording would confirm it.
+7. **Safari and Firefox.** The load ladder has rungs for them, and the fallback
+   logic is tested, but the models have only been driven in Chromium here.
+
 ## Production readiness (2026-08-17)
 
 ### Verified automatically — no need to re-test by hand
