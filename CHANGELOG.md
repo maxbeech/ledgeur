@@ -2,6 +2,32 @@
 
 ## Unreleased — Speakers, a real web app, and a price list that is true
 
+### A download page, and the first published desktop build
+
+The desktop app existed but there was nowhere to get it: `/download` 404ed and
+nothing linked to it, so the only Mac build was one you compiled yourself.
+
+- **v0.2.0 is published** on GitHub Releases — a universal DMG (13 MB), signed
+  with a Developer ID and notarised by Apple, with the ticket stapled. Verified
+  by downloading the published file and checking it: the SHA-256 matches the
+  artefact that was notarised, Gatekeeper reports `accepted / Notarized
+  Developer ID`, and `lipo` finds both architectures.
+- **The page asks GitHub what exists** rather than hardcoding a link. Assets are
+  classified by filename, and Tauri's updater artifacts (`.app.tar.gz`, `.sig`,
+  `latest.json`) are filtered out — offering one of those as a download hands
+  someone a file they cannot open.
+- **It never invents a download.** No published release, a draft, a prerelease,
+  an unreachable GitHub, or a release with no installable asset all render the
+  same honest state: no build yet, here is the browser version, here is how to
+  build from source. Windows and Linux say "not built yet" rather than
+  "coming soon", which is a promise with no date behind it.
+- **The binary is not in this repo**, and should not be: 13 MB per release would
+  bloat every clone and every deployment for a file GitHub's CDN already serves.
+- ISR at one hour, so a new release appears without a redeploy while still
+  costing one request per region per hour. Linked from the header and the
+  footer, and added to the sitemap — a page nothing links to is a page nobody
+  reads.
+
 This is the overhaul pass. The engine room was in good shape; everything a
 customer touched was not.
 
