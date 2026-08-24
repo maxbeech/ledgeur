@@ -70,8 +70,8 @@ These cannot be driven headlessly, so they are the manual list:
    call `/api/mcp` with it. Then cancel from the billing portal and confirm the
    plan reverts. This needs live Stripe keys and the webhook wired — see
    `docs/DEPLOYMENT.md`.
-5. **`SUPABASE_JWT_SECRET` in production.** The hosted agent endpoint is new in
-   its current form and returns 503 without it. Nothing else needs it.
+5. **`SUPABASE_SERVICE_ROLE_KEY` in production.** The hosted agent endpoint
+   returns 503 without it. Nothing else needs it.
 6. **A long meeting.** The live path is designed to keep memory flat by
    discarding audio behind the models; an hour-long recording would confirm it.
 7. **Safari and Firefox.** The load ladder has rungs for them, and the fallback

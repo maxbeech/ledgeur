@@ -38,6 +38,7 @@ export function Wordmark({ className, inverted = false }: { className?: string; 
 /* ----------------------------------------------------------------- header */
 
 const PRIMARY: readonly (readonly [string, string])[] = [
+  ["Download", "/download"],
   ["Pricing", "/pricing"],
   ["For agents", "/agents"],
   ["Blog", "/blog"],

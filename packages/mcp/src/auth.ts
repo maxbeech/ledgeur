@@ -9,7 +9,8 @@
 //   1. Look up the hash. `mcp_tokens` is RLS-protected against the very session
 //      we are trying to establish, so this read needs the service role. It
 //      reads one row and never touches meeting content.
-//   2. Mint a five-minute user JWT signed with the project's own secret.
+//   2. Ask GoTrue for a session belonging to that row's owner — see session.ts,
+//      which explains why this asks rather than forging one.
 //
 // After that the client is an ordinary authenticated user. Every query runs
 // under the RLS policies already written, `auth.uid()` is the token's owner,
@@ -18,7 +19,8 @@
 // refuse.
 
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
-import { looksLikeToken, sha256Hex, signUserJwt } from "./token.ts";
+import { looksLikeToken, sha256Hex } from "./token.ts";
+import { SessionError, sessionForUser } from "./session.ts";
 
 export class McpAuthError extends Error {
   constructor(
@@ -41,8 +43,6 @@ export interface McpEnv {
   supabaseUrl: string;
   anonKey: string;
   serviceRoleKey: string;
-  /** The project's JWT secret, used to mint the per-request user session. */
-  jwtSecret: string;
 }
 
 /**
@@ -61,16 +61,14 @@ export async function clientForToken(token: string, env: McpEnv): Promise<Supaba
       401,
     );
   }
-  if (!env.jwtSecret) {
-    throw new McpAuthError("This deployment cannot mint sessions: no JWT secret is configured.", 503);
-  }
-
   const admin = createClient(env.supabaseUrl, env.serviceRoleKey, {
     auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
   });
+  // `profiles` carries the email, and is joined here so establishing the
+  // session costs no extra round-trip.
   const { data: row, error } = await admin
     .from("mcp_tokens")
-    .select("id, user_id, revoked")
+    .select("id, user_id, revoked, profiles!inner(email)")
     .eq("token_hash", await sha256Hex(token))
     .maybeSingle();
 
@@ -80,10 +78,21 @@ export async function clientForToken(token: string, env: McpEnv): Promise<Supaba
   // free one to avoid.
   if (!row || row.revoked) throw new McpAuthError("That access token is not valid.", 401);
 
-  const jwt = await signUserJwt(row.user_id as string, env.jwtSecret);
+  const profile = (row as { profiles?: { email?: string } | { email?: string }[] }).profiles;
+  const email = Array.isArray(profile) ? profile[0]?.email : profile?.email;
+  if (!email) throw new McpAuthError("That access token's owner no longer exists.", 401);
+
+  let accessToken: string;
+  try {
+    accessToken = await sessionForUser(row.user_id as string, email, env);
+  } catch (e) {
+    if (e instanceof SessionError) throw new McpAuthError(e.message, e.status);
+    throw e;
+  }
+
   const client = createClient(env.supabaseUrl, env.anonKey, {
     auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
-    global: { headers: { Authorization: `Bearer ${jwt}` } },
+    global: { headers: { Authorization: `Bearer ${accessToken}` } },
   });
 
   // Best effort, and deliberately not awaited into the failure path: a usage

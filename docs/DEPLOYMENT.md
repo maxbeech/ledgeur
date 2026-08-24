@@ -19,13 +19,19 @@ push once the project is linked.
 | `STRIPE_SECRET_KEY` | Checkout, billing portal | Both routes return a 503 saying card payment is not configured, and the pricing page offers a contact link instead. Nothing crashes and nobody is charged. |
 | `STRIPE_PRICE_ID` | Checkout | as above |
 | `SUPABASE_SERVICE_ROLE_KEY` | The hosted agent endpoint | `POST /api/mcp` returns 503. **Server-side only — never expose this.** |
-| `SUPABASE_JWT_SECRET` | The hosted agent endpoint | `POST /api/mcp` returns 503. **Server-side only.** |
 
-`SUPABASE_JWT_SECRET` is new, and the endpoint cannot work without it. It is in
-the Supabase dashboard under **Project Settings → API → JWT Settings → JWT
-Secret**. It is what lets an access token be exchanged for a short-lived session
-belonging to its owner, so row-level security — rather than application code —
-decides what an agent can read. See `packages/mcp/src/token.ts`.
+The service role key is used for exactly two things: reading one row of
+`mcp_tokens` to check a presented hash, and asking GoTrue for a session
+belonging to that row's owner. Everything after that runs as an ordinary
+authenticated user, so row-level security — rather than application code —
+decides what an agent can read.
+
+There is deliberately **no JWT secret** in that list. An earlier design signed
+its own HS256 tokens, which cannot work here: this project has migrated to
+asymmetric signing (its in-use key is ES256, the HS256 one is `previously_used`)
+and the management API no longer exposes a secret to sign with. Asking GoTrue for
+a session instead means one fewer secret in production and nothing that breaks
+when keys rotate. See `packages/mcp/src/session.ts`.
 
 ### What is static, and what is not
 
@@ -96,7 +102,7 @@ Signing and notarisation for macOS are in `apps/desktop/scripts/release-macos.mj
      -H "Content-Type: application/json" \
      -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'
    ```
-   Four tools come back. A 503 means `SUPABASE_SERVICE_ROLE_KEY` or
-   `SUPABASE_JWT_SECRET` is missing; a 401 means the token is wrong or revoked.
+   Four tools come back. A 503 means `SUPABASE_SERVICE_ROLE_KEY` is missing; a
+   401 means the token is wrong or revoked.
 6. `/app` → record something short. The transcript appears, and when you stop it,
    the speakers are separated. The first run downloads the models.

@@ -29,6 +29,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
   const urls: MetadataRoute.Sitemap = [
     { url: SITE.url, lastModified: contentUpdated, priority: 1, changeFrequency: "weekly" },
     { url: `${SITE.url}/app`, lastModified: contentUpdated, priority: 0.9, changeFrequency: "weekly" },
+    { url: `${SITE.url}/download`, lastModified: contentUpdated, priority: 0.9, changeFrequency: "weekly" },
     { url: `${SITE.url}/pricing`, lastModified: contentUpdated, priority: 0.9, changeFrequency: "monthly" },
     { url: `${SITE.url}/agents`, lastModified: contentUpdated, priority: 0.8, changeFrequency: "monthly" },
     { url: `${SITE.url}/open-source`, lastModified: contentUpdated, priority: 0.6, changeFrequency: "monthly" },

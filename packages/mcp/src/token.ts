@@ -14,10 +14,10 @@
 // was never in the table. Worse, had they matched, GoTrue rotates refresh
 // tokens on use, so a long-lived token would have worked exactly once.
 //
-// So a token is now an opaque random string, and it is exchanged for a
-// short-lived Supabase JWT signed with the project's own secret. Row-level
-// security sees an ordinary authenticated user, `auth.uid()` is the token's
-// owner, and the endpoint holds no standing authority of its own.
+// So a token is now an opaque random string, exchanged for a genuine Supabase
+// session belonging to its owner (see session.ts). Row-level security sees an
+// ordinary authenticated user, `auth.uid()` is the token's owner, and the
+// endpoint holds no standing authority of its own.
 
 const TOKEN_BYTES = 32;
 const TOKEN_PREFIX = "ldg_";
@@ -46,65 +46,11 @@ export function looksLikeToken(value: string): boolean {
   return new RegExp(`^${TOKEN_PREFIX}[0-9a-f]{${TOKEN_BYTES * 2}}$`).test(value.trim());
 }
 
-/* ----------------------------------------------------------- JWT minting */
-
-function base64url(bytes: Uint8Array): string {
-  let binary = "";
-  for (const b of bytes) binary += String.fromCharCode(b);
-  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
-}
-
-const encodeJson = (value: unknown) => base64url(new TextEncoder().encode(JSON.stringify(value)));
-
-/** How long a minted session lives. Short: it is created per request, and a
- *  leaked one should stop being useful almost immediately. */
-export const JWT_TTL_SECONDS = 300;
-
-/**
- * Sign a Supabase-compatible user JWT (HS256) with the project's JWT secret.
- *
- * These are exactly the claims GoTrue issues, so PostgREST accepts it and
- * `auth.uid()` resolves to `sub` — meaning every RLS policy already written
- * applies unchanged. The alternative, querying with the service role and
- * filtering by hand, would put the security model in application code where a
- * single missed `.eq()` leaks another organisation's meetings.
- *
- * @param nowSeconds injectable for tests; defaults to the real clock.
- */
-export async function signUserJwt(
-  userId: string,
-  jwtSecret: string,
-  options: { ttlSeconds?: number; nowSeconds?: number } = {},
-): Promise<string> {
-  const now = options.nowSeconds ?? Math.floor(Date.now() / 1000);
-  const ttl = options.ttlSeconds ?? JWT_TTL_SECONDS;
-
-  const header = encodeJson({ alg: "HS256", typ: "JWT" });
-  const payload = encodeJson({
-    sub: userId,
-    role: "authenticated",
-    aud: "authenticated",
-    iat: now,
-    exp: now + ttl,
-    // Marks where this session came from, so a token-issued request is
-    // distinguishable in logs from a person signing in.
-    app_metadata: { provider: "ledgeur_token" },
-  });
-
-  const key = await crypto.subtle.importKey(
-    "raw",
-    new TextEncoder().encode(jwtSecret),
-    { name: "HMAC", hash: "SHA-256" },
-    false,
-    ["sign"],
-  );
-  const signature = await crypto.subtle.sign(
-    "HMAC",
-    key,
-    new TextEncoder().encode(`${header}.${payload}`),
-  );
-  return `${header}.${payload}.${base64url(new Uint8Array(signature))}`;
-}
+/* ---------------------------------------------------------------- sessions */
+// Turning a token into a session lives in session.ts. It deliberately does NOT
+// sign a JWT: this project uses asymmetric (ES256) signing now, its HS256 key is
+// `previously_used`, and the management API no longer exposes a JWT secret to
+// sign with. GoTrue is asked for a session instead.
 
 /* ------------------------------------------------------ client-side config */
 

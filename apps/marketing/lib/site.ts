@@ -69,6 +69,7 @@ export const VALUE_PROPS = [
 export const NAV = {
   product: [
     ["Open the app", "/app"],
+    ["Download for Mac", "/download"],
     ["Pricing", "/pricing"],
     ["For agents (MCP)", "/agents"],
     ["Open source", "/open-source"],

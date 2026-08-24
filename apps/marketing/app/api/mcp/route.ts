@@ -24,12 +24,12 @@ export const dynamic = "force-dynamic";
 function env() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? SUPABASE.url;
   const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? SUPABASE.anonKey;
+  // The service role is used for exactly two things: reading one row of
+  // `mcp_tokens` to check the presented hash, and asking GoTrue for a session
+  // belonging to that row's owner. Everything after that runs as the user.
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  // The JWT secret is what lets a token be exchanged for a real user session,
-  // so RLS — not this route — decides what an agent can read.
-  const jwtSecret = process.env.SUPABASE_JWT_SECRET;
-  if (!supabaseUrl || !anonKey || !serviceRoleKey || !jwtSecret) return null;
-  return { supabaseUrl, anonKey, serviceRoleKey, jwtSecret };
+  if (!supabaseUrl || !anonKey || !serviceRoleKey) return null;
+  return { supabaseUrl, anonKey, serviceRoleKey };
 }
 
 export async function POST(req: Request) {
@@ -38,7 +38,7 @@ export async function POST(req: Request) {
     // Says which half is missing rather than 500ing, because this is the first
     // thing anybody hits on a fresh deployment.
     return NextResponse.json(
-      { error: "This deployment is missing SUPABASE_SERVICE_ROLE_KEY or SUPABASE_JWT_SECRET, so the MCP endpoint cannot authenticate anybody." },
+      { error: "This deployment is missing SUPABASE_SERVICE_ROLE_KEY, so the MCP endpoint cannot authenticate anybody." },
       { status: 503 },
     );
   }

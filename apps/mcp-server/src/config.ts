@@ -37,18 +37,18 @@ export async function getClientFromEnv(): Promise<SupabaseClient> {
       );
     }
     const serviceRoleKey = process.env.LEDGEUR_SUPABASE_SERVICE_ROLE_KEY;
-    const jwtSecret = process.env.LEDGEUR_SUPABASE_JWT_SECRET;
-    if (!serviceRoleKey || !jwtSecret) {
-      // Exchanging a token for a session is a privileged operation. On a
-      // self-hosted deployment the operator has these; on ours they live on the
-      // server, which is exactly why the hosted endpoint exists.
+    if (!serviceRoleKey) {
+      // Redeeming a token is a privileged operation: it reads `mcp_tokens` and
+      // asks GoTrue for a session. A self-hoster has the service role key; on
+      // our deployment it lives on the server, which is exactly why the hosted
+      // endpoint exists.
       throw new Error(
-        "Redeeming a LEDGEUR_TOKEN locally needs LEDGEUR_SUPABASE_SERVICE_ROLE_KEY and " +
-          "LEDGEUR_SUPABASE_JWT_SECRET. If you are not self-hosting, point your MCP client at " +
-          "the hosted endpoint instead — it needs no process and no keys.",
+        "Redeeming a LEDGEUR_TOKEN locally needs LEDGEUR_SUPABASE_SERVICE_ROLE_KEY. If you are " +
+          "not self-hosting, point your MCP client at the hosted endpoint instead — it needs no " +
+          "process and no keys.",
       );
     }
-    return clientForToken(token, { supabaseUrl: url, anonKey: key, serviceRoleKey, jwtSecret });
+    return clientForToken(token, { supabaseUrl: url, anonKey: key, serviceRoleKey });
   }
 
   if (accessToken && !refreshToken) {

@@ -5,9 +5,10 @@
 // returns a string".
 
 import {
-  generateToken, looksLikeToken, sha256Hex, signUserJwt, JWT_TTL_SECONDS,
+  generateToken, looksLikeToken, sha256Hex,
   hostedEndpoint, hostedClientConfig, stdioClientConfig,
 } from "../src/token.ts";
+import { sessionForUser, clearSessions, SessionError } from "../src/session.ts";
 import { bearerFrom } from "../src/auth.ts";
 
 function decodeSegment(segment: string): Record<string, unknown> {
@@ -42,37 +43,69 @@ export async function runTokenTests(ok: (name: string, cond: boolean, detail?: s
     (await sha256Hex("abc")) === "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
     await sha256Hex("abc"));
 
-  // ---------- JWT ----------
-  const jwt = await signUserJwt("11111111-2222-3333-4444-555555555555", "super-secret", { nowSeconds: 1_800_000_000 });
-  const [headerSeg, payloadSeg, signatureSeg] = jwt.split(".");
-  ok("the JWT has three segments", jwt.split(".").length === 3);
-  const header = decodeSegment(headerSeg);
-  ok("the JWT is HS256, which is what GoTrue signs with", header.alg === "HS256", JSON.stringify(header));
-  ok("the JWT declares its type", header.typ === "JWT");
+  // ---------- establishing a session ----------
+  // This does not sign a JWT. The project uses ES256 now, its HS256 key is
+  // `previously_used`, and the management API no longer exposes a secret to
+  // sign with — so GoTrue is asked for a session instead. Verified against the
+  // live project: the result is ES256, `sub` is the user, and RLS scopes it.
+  {
+    clearSessions();
+    const calls: { url: string; body: unknown }[] = [];
+    const fakeFetch = (async (url: string, init?: RequestInit) => {
+      calls.push({ url: String(url), body: init?.body ? JSON.parse(String(init.body)) : null });
+      if (String(url).includes("generate_link")) {
+        return { ok: true, json: async () => ({ hashed_token: "hashed-abc" }) } as unknown as Response;
+      }
+      return { ok: true, json: async () => ({ access_token: "session-jwt", expires_at: 5_000 }) } as unknown as Response;
+    }) as unknown as typeof fetch;
 
-  const claims = decodeSegment(payloadSeg);
-  // `sub` is the whole point: RLS reads auth.uid() from it.
-  ok("sub is the token's owner", claims.sub === "11111111-2222-3333-4444-555555555555", JSON.stringify(claims));
-  ok("the role is authenticated, not service_role", claims.role === "authenticated", String(claims.role));
-  ok("the audience is authenticated", claims.aud === "authenticated");
-  ok("the session is short-lived", (claims.exp as number) - (claims.iat as number) === JWT_TTL_SECONDS,
-    `${(claims.exp as number) - (claims.iat as number)}`);
-  ok("the clock is the one we passed", claims.iat === 1_800_000_000);
-  ok("the session is marked as token-issued", JSON.stringify(claims.app_metadata).includes("ledgeur_token"));
-  ok("the JWT never claims service_role", !jwt.includes("service_role"));
+    const env = { supabaseUrl: "https://x.supabase.co", anonKey: "anon", serviceRoleKey: "sr" };
+    const token = await sessionForUser("user-1", "a@example.com", env, { fetch: fakeFetch, now: () => 1000 });
 
-  ok("the signature is base64url, with no padding",
-    /^[A-Za-z0-9_-]+$/.test(signatureSeg), signatureSeg);
-  ok("a different secret produces a different signature",
-    (await signUserJwt("u", "secret-a", { nowSeconds: 1 })) !== (await signUserJwt("u", "secret-b", { nowSeconds: 1 })));
-  ok("the same input produces the same JWT",
-    (await signUserJwt("u", "s", { nowSeconds: 1 })) === (await signUserJwt("u", "s", { nowSeconds: 1 })));
-  ok("a different user produces a different JWT",
-    (await signUserJwt("u1", "s", { nowSeconds: 1 })) !== (await signUserJwt("u2", "s", { nowSeconds: 1 })));
-  ok("a custom ttl is honoured", (() => true)());
-  const shortJwt = await signUserJwt("u", "s", { nowSeconds: 100, ttlSeconds: 30 });
-  const shortClaims = decodeSegment(shortJwt.split(".")[1]);
-  ok("an explicit ttl is used", (shortClaims.exp as number) === 130, String(shortClaims.exp));
+    ok("a session is returned", token === "session-jwt", token);
+    ok("it asks GoTrue for a link rather than signing anything",
+      calls[0].url.includes("/auth/v1/admin/generate_link"), calls[0].url);
+    ok("the link is for the token's owner",
+      (calls[0].body as { email: string }).email === "a@example.com");
+    ok("the link type is a magic link, which is not emailed by generate_link",
+      (calls[0].body as { type: string }).type === "magiclink");
+    ok("it redeems the token against the verify endpoint",
+      calls[1].url.includes("/auth/v1/verify"), calls[1].url);
+    // GoTrue rejects a hashed token sent as `token` with "Only an email address
+    // or phone number should be provided" — a real failure, found live.
+    ok("the hashed token is sent as token_hash, not token",
+      (calls[1].body as { token_hash?: string; token?: string }).token_hash === "hashed-abc"
+      && (calls[1].body as { token?: string }).token === undefined,
+      JSON.stringify(calls[1].body));
+
+    // Two round-trips per tool call would be a poor trade for a server that
+    // answers several questions in a row.
+    const again = await sessionForUser("user-1", "a@example.com", env, { fetch: fakeFetch, now: () => 1000 });
+    ok("a live session is reused rather than re-minted", again === "session-jwt" && calls.length === 2, `${calls.length} calls`);
+
+    // ...but never past its life. Expiry 5000, margin 60: at 4950 it must re-mint.
+    await sessionForUser("user-1", "a@example.com", env, { fetch: fakeFetch, now: () => 4_950 });
+    ok("a session near expiry is re-minted", calls.length === 4, `${calls.length} calls`);
+
+    clearSessions();
+    await sessionForUser("user-1", "a@example.com", env, { fetch: fakeFetch, now: () => 1000 });
+    ok("forgetting a session forces a fresh one", calls.length === 6, `${calls.length} calls`);
+  }
+
+  {
+    clearSessions();
+    const failing = (async (url: string) => (String(url).includes("generate_link")
+      ? { ok: false, json: async () => ({ msg: "no such user" }) }
+      : { ok: true, json: async () => ({}) })) as unknown as typeof fetch;
+    let error: unknown;
+    await sessionForUser("u", "gone@example.com", { supabaseUrl: "https://x", anonKey: "a", serviceRoleKey: "s" }, { fetch: failing })
+      .catch((e) => { error = e; });
+    ok("a failure to establish a session is a SessionError", error instanceof SessionError);
+    ok("it carries a status the route can use", (error as SessionError).status === 500);
+    // The upstream message may name an account; the caller's does not.
+    ok("it does not leak the upstream message",
+      !/no such user/.test((error as SessionError).message), (error as SessionError).message);
+  }
 
   // ---------- bearer parsing ----------
   ok("a bearer header is read", bearerFrom(`Bearer ${a}`) === a);

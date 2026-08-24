@@ -15,6 +15,10 @@ import { COMPETITORS } from "../lib/competitors.ts";
 import { PLATFORMS } from "../lib/platforms.ts";
 import { USE_CASES } from "../lib/usecases.ts";
 import { POSTS } from "../lib/posts.ts";
+import {
+  classifyAsset, toRelease, assetsFor, formatBytes, repoPath, latestReleaseApiUrl,
+  DOWNLOAD_REVALIDATE_SECONDS,
+} from "../lib/downloads.ts";
 import { SUPABASE, MIN_PASSWORD_LENGTH } from "../lib/site.ts";
 import { runSiteTests } from "./site.mts";
 
@@ -172,6 +176,97 @@ for (const gone of ["summarize.ts", "ai-notes.ts", "audio.ts"]) {
 
 // --- the website itself ---
 runSiteTests(ok);
+
+// --- the download page ---
+// It offers a real file from a real release or it says there is none. The one
+// thing it must never do is render a button pointing at a file that is not there.
+
+ok("the release API url is derived from the repo, not hardcoded twice",
+  repoPath("https://github.com/maxbeech/ledgeur") === "maxbeech/ledgeur" &&
+  latestReleaseApiUrl() === "https://api.github.com/repos/maxbeech/ledgeur/releases/latest",
+  latestReleaseApiUrl());
+ok("a trailing slash on the repo url does not break the path", repoPath("https://github.com/maxbeech/ledgeur/") === "maxbeech/ledgeur");
+
+// Asset classification — these are the real filenames Tauri produces.
+ok("a universal dmg is macOS for both architectures",
+  classifyAsset("Ledgeur_0.2.0_universal.dmg")?.label === "macOS — Intel and Apple Silicon");
+ok("an aarch64 dmg says Apple Silicon only",
+  classifyAsset("Ledgeur_0.2.0_aarch64.dmg")?.label === "macOS — Apple Silicon only");
+ok("an x64 dmg says Intel only", classifyAsset("Ledgeur_0.2.0_x64.dmg")?.label === "macOS — Intel only");
+ok("an msi is Windows", classifyAsset("Ledgeur_0.2.0_x64_en-US.msi")?.platform === "windows");
+ok("an AppImage is Linux", classifyAsset("ledgeur_0.2.0_amd64.AppImage")?.platform === "linux");
+ok("a .deb is Linux", classifyAsset("ledgeur_0.2.0_amd64.deb")?.platform === "linux");
+
+// Tauri publishes updater artifacts and signatures alongside the installers.
+// Offering those as downloads would hand someone a file they cannot open.
+ok("updater archives are not offered as downloads", classifyAsset("Ledgeur.app.tar.gz") === null);
+ok("detached signatures are not offered", classifyAsset("Ledgeur.app.tar.gz.sig") === null);
+ok("update manifests are not offered", classifyAsset("latest.json") === null);
+ok("unknown files are not offered", classifyAsset("README.md") === null);
+
+// Release parsing.
+const releasePayload = {
+  tag_name: "v0.2.0",
+  published_at: "2026-08-17T20:00:00Z",
+  html_url: "https://github.com/maxbeech/ledgeur/releases/tag/v0.2.0",
+  assets: [
+    { name: "Ledgeur_0.2.0_universal.dmg", browser_download_url: "https://example.test/u.dmg", size: 13_000_000 },
+    { name: "latest.json", browser_download_url: "https://example.test/latest.json", size: 500 },
+  ],
+};
+const parsed = toRelease(releasePayload)!;
+ok("the version drops the leading v", parsed.version === "0.2.0", parsed.version);
+ok("only installable assets survive parsing", parsed.assets.length === 1 && parsed.assets[0].filename.endsWith(".dmg"));
+ok("the download url is the one GitHub gave us", parsed.assets[0].url === "https://example.test/u.dmg");
+
+ok("a draft release is not offered", toRelease({ ...releasePayload, draft: true }) === null);
+ok("a prerelease is not offered", toRelease({ ...releasePayload, prerelease: true }) === null);
+ok("a release with no installable asset is treated as no release",
+  toRelease({ ...releasePayload, assets: [{ name: "latest.json", browser_download_url: "u", size: 1 }] }) === null);
+ok("a release with no tag is rejected", toRelease({ ...releasePayload, tag_name: undefined }) === null);
+ok("garbage from the API does not throw", toRelease(null) === null && toRelease("nope") === null && toRelease({}) === null);
+ok("an asset missing its url is skipped", (() => {
+  const r = toRelease({ ...releasePayload, assets: [{ name: "Ledgeur_0.2.0_universal.dmg", size: 1 }] });
+  return r === null;
+})());
+
+// Platform grouping.
+ok("macOS assets are found", assetsFor(parsed, "macos").length === 1);
+ok("platforms with no build return nothing, rather than someone else's file",
+  assetsFor(parsed, "windows").length === 0 && assetsFor(parsed, "linux").length === 0);
+ok("no release means no assets for any platform", assetsFor(null, "macos").length === 0);
+ok("a universal build is offered before a single-architecture one", (() => {
+  const both = toRelease({ ...releasePayload, assets: [
+    { name: "Ledgeur_0.2.0_aarch64.dmg", browser_download_url: "https://example.test/a.dmg", size: 1 },
+    { name: "Ledgeur_0.2.0_universal.dmg", browser_download_url: "https://example.test/u.dmg", size: 2 },
+  ] })!;
+  return assetsFor(both, "macos")[0].filename.includes("universal");
+})());
+
+// Sizes.
+ok("small downloads keep a decimal, where it tells you something", formatBytes(7_400_000) === "7.4 MB", formatBytes(7_400_000));
+ok("anything 10 MB or over is rounded — .2 of a megabyte helps nobody decide",
+  formatBytes(13_200_000) === "13 MB" && formatBytes(210_000_000) === "210 MB",
+  `${formatBytes(13_200_000)} / ${formatBytes(210_000_000)}`);
+ok("small files fall back to KB", formatBytes(400_000) === "400 KB", formatBytes(400_000));
+ok("an unknown size renders nothing rather than 0", formatBytes(0) === "" && formatBytes(NaN) === "");
+
+// Wiring: a page nobody can reach is a page nobody reads.
+const downloadPage = readFileSync(new URL("../app/download/page.tsx", import.meta.url), "utf8");
+// Next only accepts a literal here, so the number is written twice by
+// necessity. This is the guard that stops the two drifting.
+const pageRevalidate = Number(/export const revalidate = (\d+)/.exec(downloadPage)?.[1]);
+ok("the download page declares an ISR window", Number.isFinite(pageRevalidate), String(pageRevalidate));
+ok("the page's ISR window matches the one the release fetch uses",
+  pageRevalidate === DOWNLOAD_REVALIDATE_SECONDS, `page ${pageRevalidate} vs lib ${DOWNLOAD_REVALIDATE_SECONDS}`);
+ok("the ISR window picks up a new release without a redeploy, but is not per-request",
+  DOWNLOAD_REVALIDATE_SECONDS >= 600 && DOWNLOAD_REVALIDATE_SECONDS <= 86_400, `${DOWNLOAD_REVALIDATE_SECONDS}`);
+ok("/download is in the sitemap",
+  readFileSync(new URL("../app/sitemap.ts", import.meta.url), "utf8").includes("/download"));
+ok("/download is linked from the header",
+  readFileSync(new URL("../components/site/Chrome.tsx", import.meta.url), "utf8").includes('"/download"'));
+ok("/download is linked from the footer",
+  readFileSync(new URL("../lib/site.ts", import.meta.url), "utf8").includes('"/download"'));
 
 console.log(`\n${pass} passed, ${fail} failed`);
 if (fail > 0) process.exit(1);
