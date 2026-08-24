@@ -48,6 +48,26 @@ Driven end to end against a running build:
 - The sample clip progresses through real steps: fetching → reading → loading
   the speech model.
 
+### The paid path, proven against production
+
+Run end to end on 2026-08-24 with a throwaway account, which was deleted
+afterwards (production is back to zero users, zero orgs, zero meetings, zero
+tokens):
+
+- A new account signs in, and the signup trigger builds its workspace.
+- A **free** workspace is refused a token — HTTP 402, coded `upgrade_required`
+  so the UI can render it as an upsell rather than an error.
+- Upgraded to `team` (exactly what the Stripe webhook does), the same call mints
+  a token. It is an opaque `ldg_` secret, and only its SHA-256 is in the database
+  — checked, not assumed.
+- Presenting it to `https://www.ledgeur.com/api/mcp` returns all four tools, and
+  `tools/call` on `list_meetings` succeeds, scoped by row-level security to that
+  user (empty, correctly, for a new account).
+- Revoking it makes the very next request 401.
+
+The script is `e2e-paid-path.mjs` in the session scratchpad; it needs a service
+role key, so it is not committed.
+
 ### Needs a human, and why
 
 These cannot be driven headlessly, so they are the manual list:
@@ -70,8 +90,8 @@ These cannot be driven headlessly, so they are the manual list:
    call `/api/mcp` with it. Then cancel from the billing portal and confirm the
    plan reverts. This needs live Stripe keys and the webhook wired — see
    `docs/DEPLOYMENT.md`.
-5. **`SUPABASE_SERVICE_ROLE_KEY` in production.** The hosted agent endpoint
-   returns 503 without it. Nothing else needs it.
+5. ~~`SUPABASE_SERVICE_ROLE_KEY` in production.~~ Set, and the endpoint is
+   verified working — see above.
 6. **A long meeting.** The live path is designed to keep memory flat by
    discarding audio behind the models; an hour-long recording would confirm it.
 7. **Safari and Firefox.** The load ladder has rungs for them, and the fallback
