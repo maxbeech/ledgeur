@@ -118,8 +118,8 @@ These cannot be driven headlessly, so they are the manual list:
   `Ledgeur_0.2.0_aarch64.dmg`, **unsigned**) all pass.
 - **Site smoke test**: `/`, `/app`, `/pricing`, `/blog`, `/transcribe`,
   `/use-cases`, `/open-source`, `/sitemap.xml` (65 URLs), `/robots.txt`,
-  `/manifest.webmanifest` all return 200. `/download` 404s, which is correct —
-  no such page exists yet and nothing links to it.
+  `/manifest.webmanifest` all return 200. `/download` now serves the published
+  desktop build (see below).
 
 ### Also verified against production (second pass, with the Supabase PAT)
 
@@ -162,24 +162,17 @@ These cannot be driven headlessly, so they are the manual list:
 
 ### TO STILL TEST / DO — needs credentials or accounts Claude Code cannot reach
 
-1. **Notarise the universal build.** The earlier arm64-only build was
-   notarised and stapled successfully (verified: `accepted / source=Notarized
-   Developer ID`), which proves the credentials and the pipeline work. The
-   universal bundle is a different binary, so it needs its own notarisation:
+1. **Distributing the Mac app — done.** v0.2.0 is published on GitHub Releases
+   as a universal DMG, signed and notarised, and `/download` serves it. Verified
+   by downloading the published file: its SHA-256 matches the artefact that was
+   notarised, Gatekeeper reports `accepted / source=Notarized Developer ID`, the
+   stapled ticket validates, and `lipo` reports `x86_64 arm64`. Eleven checks
+   run against the production page (header link, version, asset reachability,
+   mobile layout, console errors).
 
-   ```sh
-   APPLE_ID=you@example.com APPLE_PASSWORD=abcd-efgh-ijkl-mnop \
-   APPLE_TEAM_ID=E353LGUVGH pnpm --filter @ledgeur/desktop release:mac
-   ```
-
-   It should end with "Accepted". Confirm with:
-
-   ```sh
-   xcrun stapler validate apps/desktop/src-tauri/target/universal-apple-darwin/release/bundle/dmg/Ledgeur_0.2.0_universal.dmg
-   ```
-
-   Windows signing still needs its own certificate, and there is no `/download`
-   page on the marketing site yet to put the DMG on.
+   Still open on this front: **Windows and Linux installers**. Both build from
+   source today; what is missing is a signed installer for each. Windows needs
+   its own code-signing certificate.
 
 2. **Notion integration.** `NOTION_CLIENT_ID` in Supabase is set to an *empty
    string* (confirmed: its stored hash is the SHA-256 of ""), and
