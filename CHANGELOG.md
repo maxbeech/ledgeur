@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased — A hosted MCP endpoint, so the paid tier is reachable without a process
+## Unreleased — A hosted MCP endpoint, and a Mac build Intel users can run
 
 ### The MCP server now has two front doors, and one set of tools
 
@@ -50,6 +50,29 @@ agree.
 `SUPABASE_SERVICE_ROLE_KEY` on the marketing project and a real token from a
 paid org. Until somebody runs that once, this is code that typechecks and passes
 its unit tests rather than a proven path.
+
+### macOS: universal builds, so Intel Macs are not left out
+
+`release:mac` shipped an Apple Silicon-only DMG, which simply would not run for
+anyone on an Intel Mac. It now builds `universal-apple-darwin` by default.
+
+- The blocker was the toolchain, not the config: the `cargo` on PATH is
+  Homebrew's, which carries std for the host architecture only. rustup was
+  installed but shadowed, so the script now puts `~/.cargo/bin` ahead of it for
+  the build (`rustup target add x86_64-apple-darwin aarch64-apple-darwin`).
+- **No silent single-arch builds**: the script refuses to start when a Rust
+  target is missing (naming the exact `rustup target add` to run), and after the
+  build asks `lipo` what is actually in the binary, failing if either
+  architecture is absent.
+- `LEDGEUR_MAC_TARGET=native` keeps the fast host-only build for development.
+- Verified: `lipo` reports `x86_64` + `arm64`; `codesign --verify --deep
+  --strict` passes; hardened runtime, mic entitlement and usage string all
+  present; and the Intel slice was launched under Rosetta 2 and ran, rather than
+  just being inspected.
+- Two latent bugs in the script fixed along the way: the bundled executable is
+  lowercase `ledgeur`, not `Ledgeur` (the hardcoded path would have failed), and
+  the DMG to notarise is now chosen by modification time rather than
+  alphabetically.
 
 
 ## [0.6.3] — 2026-08-17 — Production fixes: transcription outage, and a way to sign in

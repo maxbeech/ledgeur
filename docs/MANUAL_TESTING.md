@@ -42,32 +42,56 @@
   it; cancellation revokes it; `org_is_paid()` agrees throughout. Forged
   signatures, replayed (stale-timestamp) events and unsigned requests are all
   rejected with 400 and change nothing.
-- **macOS signing.** `pnpm --filter @ledgeur/desktop release:mac` builds and
-  signs with the *Developer ID Application: Maxed Labs Ltd (E353LGUVGH)*
-  certificate already in the keychain. Verified on the output: hardened runtime
-  on, `com.apple.security.device.audio-input` entitlement present,
-  `NSMicrophoneUsageDescription` present.
+- **macOS build is signed and universal.**
+  `pnpm --filter @ledgeur/desktop release:mac` produces a **universal** bundle
+  (`Ledgeur_0.2.0_universal.dmg`, 13 MB) signed with the *Developer ID
+  Application: Maxed Labs Ltd (E353LGUVGH)* certificate in the keychain.
+  Verified on the output: `lipo` reports both `x86_64` and `arm64`;
+  `codesign --verify --deep --strict` passes and the app satisfies its
+  designated requirement; hardened runtime on;
+  `com.apple.security.device.audio-input` entitlement and
+  `NSMicrophoneUsageDescription` both present. The Intel slice was *launched*
+  under Rosetta 2 and ran without crashing — not merely inspected.
+
+  The script refuses to start a universal build when a Rust target is missing,
+  and fails afterwards if `lipo` does not report both architectures, so a
+  "universal" build cannot silently ship as one arch. `LEDGEUR_MAC_TARGET=native`
+  gives a fast host-only build for development.
+
+  Note: this is the default feature set. A universal build with `--features
+  native-ai` is a separate problem — `sherpa-rs` downloads prebuilt native libs
+  per architecture and `whisper-rs`/`llama-cpp-2` compile native code, so those
+  would need per-arch handling before a universal AI build works.
 
 ### TO STILL TEST / DO — needs credentials or accounts Claude Code cannot reach
 
-1. **Notarise the desktop app** (the last step before you can distribute it).
-   Signing is done; Gatekeeper still says *"Unnotarized Developer ID"*, which
-   means other Macs will refuse to open it. Generate an app-specific password
-   at <https://account.apple.com> → App-Specific Passwords, then:
+1. **Notarise the universal build.** The earlier arm64-only build was
+   notarised and stapled successfully (verified: `accepted / source=Notarized
+   Developer ID`), which proves the credentials and the pipeline work. The
+   universal bundle is a different binary, so it needs its own notarisation:
 
    ```sh
    APPLE_ID=you@example.com APPLE_PASSWORD=abcd-efgh-ijkl-mnop \
    APPLE_TEAM_ID=E353LGUVGH pnpm --filter @ledgeur/desktop release:mac
    ```
 
-   The script notarises, staples and re-checks with Gatekeeper; it should end
-   with "Accepted". Windows signing still needs its own certificate, and there
-   is no `/download` page on the marketing site yet.
+   It should end with "Accepted". Confirm with:
+
+   ```sh
+   xcrun stapler validate apps/desktop/src-tauri/target/universal-apple-darwin/release/bundle/dmg/Ledgeur_0.2.0_universal.dmg
+   ```
+
+   Windows signing still needs its own certificate, and there is no `/download`
+   page on the marketing site yet to put the DMG on.
 
 2. **Notion integration.** `NOTION_CLIENT_ID` in Supabase is set to an *empty
    string* (confirmed: its stored hash is the SHA-256 of ""), and
    `NOTION_CLIENT_SECRET` is not set at all. Create the integration at
-   <https://www.notion.so/my-integrations>, then
+   <https://www.notion.so/my-integrations> as a **public** integration (only
+   public integrations do OAuth), with the redirect URI set to exactly
+   `https://www.ledgeur.com/oauth/notion` — the `www` host matters, because the
+   apex 308-redirects and Notion matches the string exactly, so a callback
+   registered on the apex fails the token exchange. Then
    `supabase secrets set NOTION_CLIENT_ID=… NOTION_CLIENT_SECRET=…` and put the
    client id in `VITE_NOTION_CLIENT_ID` in `apps/desktop/.env`.
 
