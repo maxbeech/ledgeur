@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-08-26: Marketing observability
+
+- Added Sentry browser, server, edge, and request-error monitoring to `apps/marketing`, with source-map uploads and the in-product feedback widget.
+
 ## Unreleased — Speakers, a real web app, and a price list that is true
 
 ### A download page, and the first published desktop build

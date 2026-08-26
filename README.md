@@ -21,6 +21,8 @@ rule and a test that enforces it.
 > Spline Sans Mono, bundled offline). See
 > [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) and [`docs/ROADMAP.md`](docs/ROADMAP.md).
 
+The Vercel marketing app sends errors, low-volume performance traces, source maps, and user feedback to Sentry; no telemetry runs if `NEXT_PUBLIC_SENTRY_DSN` is absent.
+
 ## Monorepo
 
 | Path | What |
