@@ -7,6 +7,7 @@ import { hasBackend } from "../lib/config.ts";
 import { useSession } from "../lib/session.ts";
 import { AccountCard } from "../components/integrations/AccountCard.tsx";
 import { NotionCard } from "../components/integrations/NotionCard.tsx";
+import { ContextelyCard } from "../components/integrations/ContextelyCard.tsx";
 import { GoogleCalendarCard } from "../components/integrations/GoogleCalendarCard.tsx";
 import { McpAccessCard } from "../components/integrations/McpAccessCard.tsx";
 import { AiEngineCard } from "../components/integrations/AiEngineCard.tsx";
@@ -39,6 +40,7 @@ export function Integrations() {
         <Section title="Connections">
           <div className="grid gap-3 sm:grid-cols-2">
             <NotionCard signedIn={Boolean(session)} />
+            <ContextelyCard signedIn={Boolean(session)} />
             <GoogleCalendarCard />
             {CONNECTIONS.map((c) => (
               <Card key={c.id} className="flex items-start gap-3 p-4">

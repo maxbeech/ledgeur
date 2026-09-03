@@ -8,11 +8,13 @@ import { listMeetings } from "./meetingsStore.ts";
 import { getSupabase } from "./supabase.ts";
 import { semanticContext } from "./embeddings.ts";
 import { notionContext } from "./notion.ts";
+import { contextelyContext } from "./contextely.ts";
 import { calendarContext } from "./calendar.ts";
 
 export async function gatherContext(question: string): Promise<ContextBlock[]> {
   let semantic: ContextBlock[] = [];
   let notion: ContextBlock[] = [];
+  let contextely: ContextBlock[] = [];
   try {
     const sb = getSupabase();
     if (sb) {
@@ -20,7 +22,7 @@ export async function gatherContext(question: string): Promise<ContextBlock[]> {
       if (session) {
         const { data: org } = await sb.from("orgs").select("id").limit(1).maybeSingle();
         if (org) semantic = await semanticContext(org.id, question);
-        notion = await notionContext(question);
+        [notion, contextely] = await Promise.all([notionContext(question), contextelyContext(question)]);
       }
     }
   } catch {
@@ -34,5 +36,5 @@ export async function gatherContext(question: string): Promise<ContextBlock[]> {
     source: `Meeting: ${m.title} (${new Date(m.createdAt).toLocaleDateString()})`,
     text: [m.summary.join(" "), m.actionItems.length ? `Action items: ${m.actionItems.join("; ")}` : ""].filter(Boolean).join("\n"),
   }));
-  return [...semantic, ...notion, ...calendar, ...local];
+  return [...semantic, ...notion, ...contextely, ...calendar, ...local];
 }
