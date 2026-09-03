@@ -7,9 +7,10 @@
 // suggestions) is composed here too, so it survives navigation and can be saved
 // with the recording. It merges with the transcript into one conversation.
 
-import { createContext, useRef, useState, type ReactNode } from "react";
+import { createContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { useRecorder } from "./useRecorder.ts";
 import { useMeetingThread } from "./useMeetingThread.ts";
+import { warmupModels } from "./modelWarmup.ts";
 import type { ChatMessage } from "./meetingsStore.ts";
 
 export type RecorderApi = ReturnType<typeof useRecorder> &
@@ -32,6 +33,11 @@ export function RecorderProvider({ children }: { children: ReactNode }) {
   const threadRef = useRef<() => ChatMessage[]>(() => []);
   const recorder = useRecorder(() => threadRef.current());
   const [title, setTitle] = useState("");
+
+  // RecorderProvider mounts once for the app's whole lifetime (see the header
+  // comment above), so this fires exactly once per launch — as early as the
+  // model is ever going to be needed.
+  useEffect(() => { warmupModels(); }, []);
 
   const stateRef = useRef(recorder.state);
   stateRef.current = recorder.state;
