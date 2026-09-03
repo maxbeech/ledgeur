@@ -55,8 +55,11 @@ export function Shell() {
     <div className="ldg-grain flex h-screen w-screen overflow-hidden bg-paper">
       <Sidebar onOpenPalette={openPalette} />
       <main className="flex min-w-0 flex-1 flex-col">
-        {/* Thin draggable strip so the frameless window can be moved. */}
-        <div className="ldg-drag h-9 shrink-0" />
+        {/* Thin draggable strip so the frameless window can be moved. The CSS
+            (-webkit-app-region: drag) only works on Chromium-based webviews;
+            macOS's WKWebView ignores it entirely and needs the Tauri-specific
+            data attribute instead — hence both. */}
+        <div className="ldg-drag h-9 shrink-0" data-tauri-drag-region />
         <div className="flex min-h-0 flex-1 px-3 pb-2 sm:px-4">
           <ScreenEmbedCard title={meta.title} icon={meta.icon} badge={recordingBadge}>
             <Outlet />

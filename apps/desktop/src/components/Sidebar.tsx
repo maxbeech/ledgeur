@@ -26,7 +26,7 @@ export function Sidebar({ onOpenPalette }: { onOpenPalette: () => void }) {
 
   return (
     <aside className="hidden h-full w-[232px] shrink-0 flex-col bg-ink text-on-ink md:flex" aria-label="Primary">
-      <div className="ldg-drag flex items-center gap-2.5 px-5 pb-5 pt-11">
+      <div className="ldg-drag flex items-center gap-2.5 px-5 pb-5 pt-11" data-tauri-drag-region>
         <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-accent/90 text-white">
           <Landmark className="h-[16px] w-[16px]" strokeWidth={2.1} />
         </div>
