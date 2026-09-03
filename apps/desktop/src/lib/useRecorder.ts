@@ -155,6 +155,17 @@ export function useRecorder(getThreadMessages?: () => ChatMessage[]) {
       startedAt.current = new Date().toISOString();
       patch({ status: "loading-model", error: "", segments: [], elapsed: 0, meetingId: null, notes: "" });
 
+      // getDisplayMedia/getUserMedia must be requested while the click that
+      // triggered `start` is still "live" — a browser's user-activation window
+      // is spent by the first await, and an IPC round-trip to the native engine
+      // (aiStatus, below) is more than enough to burn through it. So capture is
+      // opened first, before anything else async, and everything that can wait
+      // (model status, model loading) happens after.
+      const cap = new AudioCapture();
+      cap.onLevel = (rmsVal) => patch({ level: rmsVal });
+      await cap.start(opts);
+      capture.current = cap;
+
       const status = await aiStatus();
       native.current = Boolean(status?.compiled && status?.models_ready);
       if (native.current) {
@@ -178,10 +189,6 @@ export function useRecorder(getThreadMessages?: () => ChatMessage[]) {
         void dz.preload().catch((e: unknown) => log.warn("speaker models unavailable", e));
       }
 
-      const cap = new AudioCapture();
-      cap.onLevel = (rmsVal) => patch({ level: rmsVal });
-      await cap.start(opts);
-      capture.current = cap;
       patch({ status: "recording" });
       log.info("recording started", { native: native.current });
       timer.current = setInterval(() => { patch({ elapsed: cap.totalSeconds() }); void drain(); }, DRAIN_MS);
