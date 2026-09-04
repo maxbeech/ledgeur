@@ -1,11 +1,13 @@
 // The app's dark "furniture": spruce-ink rail with the wordmark, primary nav,
 // a live-recording pill (recordings survive navigation) and the account footer.
+import { useSyncExternalStore } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
-import { Landmark, House, CircleDot, Library, Sparkles, SquareCheck, Settings2, Command } from "lucide-react";
+import { Landmark, House, CircleDot, Library, Sparkles, SquareCheck, Settings2, Command, Download } from "lucide-react";
 import { cn, formatElapsed } from "@ledgeur/ui";
 import { hasBackend } from "../lib/config.ts";
 import { useSession } from "../lib/session.ts";
 import { useRecorderCtx } from "../lib/useRecorderCtx.ts";
+import { subscribeWarmup, getWarmupStatus } from "../lib/modelWarmup.ts";
 
 export const NAV = [
   { to: "/", label: "Home", icon: House, end: true },
@@ -20,6 +22,7 @@ export function Sidebar({ onOpenPalette }: { onOpenPalette: () => void }) {
   const nav = useNavigate();
   const { session } = useSession();
   const { state } = useRecorderCtx();
+  const warmup = useSyncExternalStore(subscribeWarmup, getWarmupStatus);
   const email = session?.user?.email ?? null;
   const connected = hasBackend && !!session;
   const recording = state.status === "recording";
@@ -78,6 +81,22 @@ export function Sidebar({ onOpenPalette }: { onOpenPalette: () => void }) {
             <span className="block font-mono text-[10.5px] text-on-ink-muted">{formatElapsed(state.elapsed)} · tap to return</span>
           </span>
         </button>
+      )}
+
+      {warmup.phase === "downloading" && (
+        <div className="mx-3 mb-2 rounded-xl border border-white/10 px-3 py-2.5">
+          <div className="flex items-center gap-2 text-[11.5px] font-medium text-on-ink-muted">
+            <Download className="h-3.5 w-3.5 shrink-0" />
+            <span className="min-w-0 flex-1 truncate">{warmup.label || "Preparing on-device model"}</span>
+            {warmup.progress != null && <span className="font-mono tabular-nums">{Math.round(warmup.progress)}%</span>}
+          </div>
+          <div className="mt-2 h-1 overflow-hidden rounded-full bg-white/10">
+            <div
+              className={cn("h-full rounded-full bg-glow transition-[width]", warmup.progress == null && "ldg-pulse w-1/3")}
+              style={warmup.progress != null ? { width: `${Math.max(4, warmup.progress)}%` } : undefined}
+            />
+          </div>
+        </div>
       )}
 
       <button

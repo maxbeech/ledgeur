@@ -19,7 +19,11 @@ export interface WorkerDeviceInfo {
 export interface LadderHandlers {
   /** Which backend actually started — the label changes if a rung was skipped. */
   onDevice?: (device: string, info: WorkerDeviceInfo) => void;
-  /** Model download progress, 0–100, per file. */
+  /**
+   * Overall model-download progress, 0–100, aggregated across every file the
+   * current load involves. `file` names whichever one just reported, but the
+   * number itself already accounts for all of them — see `trackProgress`.
+   */
   onProgress?: (file: string, progress: number) => void;
   /** A pipeline is live. */
   onReady?: () => void;
@@ -53,6 +57,9 @@ export class WorkerLadder {
   private readonly options: LadderOptions;
   /** Listeners the subclass wants on every worker this ladder spawns. */
   private readonly listeners: ((event: MessageEvent) => void)[] = [];
+  /** Bytes loaded/total per file, for the current worker's load only — reset
+   *  on every `spawnWorker` so a fresh rung starts its own count. */
+  private fileProgress = new Map<string, { loaded: number; total: number }>();
 
   constructor(options: LadderOptions) {
     this.options = options;
@@ -65,6 +72,7 @@ export class WorkerLadder {
   }
 
   private spawnWorker(): Worker {
+    this.fileProgress = new Map();
     const worker = this.options.spawn
       ? this.options.spawn(this.options.scriptUrl)
       : new Worker(this.options.scriptUrl, { type: "module" });
@@ -76,11 +84,41 @@ export class WorkerLadder {
           device: d.device, label: d.label, model: d.model, runtime: d.runtime,
         });
       } else if (d.status === "progress") {
-        this.options.handlers?.onProgress?.(d.file, d.progress);
+        this.options.handlers?.onProgress?.(d.file, this.trackProgress(d.file, d.progress, d.loaded, d.total));
       }
     });
     for (const l of this.listeners) worker.addEventListener("message", l as EventListener);
     return worker;
+  }
+
+  /**
+   * Fold one file's progress into an overall percentage across every file the
+   * current load has touched so far.
+   *
+   * A model load pulls down several files (weights, tokenizer, config…), each
+   * reported 0–100 on its own. Forwarding that number straight through made
+   * the UI restart from zero every time a new file began — several files
+   * meant the bar visibly looped instead of moving forward once. Byte counts
+   * (when the server sent a Content-Length) are summed across every file seen
+   * so far instead, so the number only goes up.
+   */
+  private trackProgress(file: string | undefined, progress: number, loaded?: number, total?: number): number {
+    const key = file ?? "";
+    if (typeof loaded === "number" && typeof total === "number" && total > 0) {
+      this.fileProgress.set(key, { loaded, total });
+    } else {
+      // No byte count available for this file — fall back to its own
+      // percentage against a nominal total, which is still better than
+      // dropping it from the aggregate entirely.
+      this.fileProgress.set(key, { loaded: Math.max(0, progress || 0), total: 100 });
+    }
+    let loadedSum = 0;
+    let totalSum = 0;
+    for (const v of this.fileProgress.values()) {
+      loadedSum += v.loaded;
+      totalSum += v.total;
+    }
+    return totalSum > 0 ? Math.min(100, Math.round((loadedSum / totalSum) * 100)) : 0;
   }
 
   /**

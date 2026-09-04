@@ -129,11 +129,10 @@ function updaterSigningEnv() {
  *  someone deciding whether to update. */
 function RELEASE_NOTES(version) {
   return `## Ledgeur ${version}\n\n` +
-    "- Fixed \"Start recording\" throwing a getDisplayMedia gesture error\n" +
-    "- Fixed the window not being draggable on macOS\n" +
-    "- The on-device model now starts warming up as soon as the app opens, instead of on first record\n" +
-    "- Ask can now draw on Contextely (your team's shared memory across Notion, Drive, and more), if connected in Settings\n" +
-    "- The app can now update itself automatically\n";
+    "- The sidebar now shows a progress bar while the on-device model downloads in the background\n" +
+    "- Fixed that progress bar restarting from zero for every file a model download touches\n" +
+    "- \"System audio\" is now off by default — recording no longer asks for Screen Recording permission unless you turn it on\n" +
+    "- Added diagnostics for the rare case where audio is captured but the speech model returns no text\n";
 }
 
 /** A universal build silently falls back to one arch if a target is missing. */

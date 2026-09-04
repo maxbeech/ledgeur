@@ -1,6 +1,6 @@
 {
   "name": "@ledgeur/desktop",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "private": true,
   "description": "Ledgeur cross-platform app (Tauri 2 + Vite + React) \u2014 macOS, Windows, iOS, Android.",
   "license": "MIT",

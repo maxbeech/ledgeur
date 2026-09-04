@@ -10,7 +10,6 @@ import { Button, Card, ErrorNote } from "../components/ui.tsx";
 import { LiveMeeting } from "../components/recorder/LiveMeeting.tsx";
 import { useRecorderCtx } from "../lib/useRecorderCtx.ts";
 import { finalizeMeeting } from "../lib/afterMeeting.ts";
-import { isTauri } from "../lib/runtime.ts";
 import { useFileImport, IMPORT_ACCEPT } from "../lib/useFileImport.ts";
 
 export function Record() {
@@ -18,7 +17,12 @@ export function Record() {
   const [params] = useSearchParams();
   const { state, start, stop, reset, title, setTitle } = useRecorderCtx();
   const [mic, setMic] = useState(true);
-  const [system, setSystem] = useState(() => isTauri()); // browser preview: mic-only default
+  // Off by default everywhere: turning this on triggers the OS's screen/system-
+  // audio-sharing picker (getDisplayMedia is the only way a webview can capture
+  // anyone else's audio), which is a heavier prompt than most recordings need.
+  // Left as an explicit opt-in for when the other side of a call actually needs
+  // capturing.
+  const [system, setSystem] = useState(false);
   const [lang, setLang] = useState("en");
   const importer = useFileImport();
   const fileInput = useRef<HTMLInputElement>(null);
@@ -79,6 +83,13 @@ export function Record() {
             <SourceToggle icon={<Mic className="h-4 w-4" />} label="Microphone" hint="Your voice" on={mic} onChange={setMic} />
             <SourceToggle icon={<MonitorSpeaker className="h-4 w-4" />} label="System audio" hint="Everyone else on the call" on={system} onChange={setSystem} />
           </div>
+          {system && (
+            <p className="-mt-4 mb-6 text-[11.5px] leading-relaxed text-faint">
+              This asks your Mac for Screen Recording permission — it's the only way a meeting app
+              without a bot can hear the other side of a call. Only the audio is used; nothing is saved
+              or shown from your screen.
+            </p>
+          )}
 
           <div className="mb-7">
             <label htmlFor="rec-lang" className="ldg-kicker mb-2 block">Language</label>

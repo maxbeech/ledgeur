@@ -122,6 +122,57 @@ export async function runBrowserTests(ok: (name: string, cond: boolean, detail?:
     controller.dispose();
   }
 
+  {
+    // A model load pulls down several files. Forwarding each file's own 0-100
+    // percentage made the UI bar restart from zero every time a new file
+    // began — several files meant it visibly looped instead of moving forward
+    // once. Byte totals must be summed across every file seen so far instead.
+    FakeWorker.spawned = [];
+    const seen: number[] = [];
+    const controller = new TranscriberController({
+      onProgress: (_f, p) => seen.push(p),
+    }, {
+      spawn: () => new FakeWorker((w, msg) => {
+        if (msg.type !== "load") return;
+        // Two files, reported independently with byte counts, as
+        // transformers.js actually does.
+        w.emit({ status: "progress", file: "encoder.onnx", progress: 100, loaded: 800, total: 800 });
+        w.emit({ status: "progress", file: "decoder.onnx", progress: 0, loaded: 0, total: 200 });
+        w.emit({ status: "progress", file: "decoder.onnx", progress: 100, loaded: 200, total: 200 });
+        w.emit({ status: "ready", attempt: 0 });
+      }) as unknown as Worker,
+    });
+    await controller.preload("en");
+    // A second, smaller file starting after the first finished dips the
+    // aggregate (800/1000 = 80%) — a real, bounded adjustment, not the old
+    // bug where each file's own count reset the whole bar to zero.
+    ok("progress never resets to zero once a file has started",
+      seen.every((p) => p > 0), JSON.stringify(seen));
+    ok("a second file finishing does not look like a restart",
+      seen[0] === 100 && seen[1] === 80, JSON.stringify(seen));
+    ok("the aggregate reaches 100 once every known file is complete",
+      seen.at(-1) === 100, JSON.stringify(seen));
+    controller.dispose();
+  }
+
+  {
+    // A file with no Content-Length (loaded/total absent) must still count
+    // towards the aggregate rather than being silently dropped.
+    FakeWorker.spawned = [];
+    const seen: number[] = [];
+    const controller = new TranscriberController({ onProgress: (_f, p) => seen.push(p) }, {
+      spawn: () => new FakeWorker((w, msg) => {
+        if (msg.type !== "load") return;
+        w.emit({ status: "progress", file: "tokenizer.json", progress: 50 });
+        w.emit({ status: "progress", file: "tokenizer.json", progress: 100 });
+        w.emit({ status: "ready", attempt: 0 });
+      }) as unknown as Worker,
+    });
+    await controller.preload("en");
+    ok("a file with no byte count still reports progress", JSON.stringify(seen) === JSON.stringify([50, 100]), JSON.stringify(seen));
+    controller.dispose();
+  }
+
   // ---------- transcription results ----------
   {
     FakeWorker.spawned = [];

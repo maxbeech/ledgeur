@@ -42,7 +42,10 @@ const caps = () => (capsPromise ??= hasWebGpu().then((webgpu) => ({ webgpu })));
 
 const onProgress = (x) => {
   if (x.status === "progress") {
-    self.postMessage({ status: "progress", file: x.file, progress: Math.round(x.progress || 0) });
+    // loaded/total (bytes) travel alongside the rounded percentage so the
+    // controller can aggregate across every file this load touches, rather
+    // than showing this one file's progress in isolation — see WorkerLadder.
+    self.postMessage({ status: "progress", file: x.file, progress: Math.round(x.progress || 0), loaded: x.loaded, total: x.total });
   }
 };
 

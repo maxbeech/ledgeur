@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "desktop-vite",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--filter", "@ledgeur/desktop", "dev"],
+      "port": 1420
+    }
+  ]
+}

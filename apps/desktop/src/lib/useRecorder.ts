@@ -76,6 +76,13 @@ export function useRecorder(getThreadMessages?: () => ChatMessage[]) {
   const fullLen = useRef(0);
   const capExceeded = useRef(false); // true once we stop retaining full audio (>cap)
   const statusRef = useRef<RecorderStatus>("idle");
+  /** Diagnostics for "audio was captured but nothing was transcribed" (task
+   *  #4): counts so a silent failure of the speech model is distinguishable
+   *  from an actually-quiet room, both in the logs and, past a few in a row,
+   *  as a visible note rather than a transcript that's just empty at the end. */
+  const silentDrains = useRef(0);
+  const emptyResultStreak = useRef(0);
+  const emptyResultWarned = useRef(false);
 
   const patch = (p: Partial<RecorderState>) => setState((s) => {
     const next = { ...s, ...p };
@@ -99,7 +106,11 @@ export function useRecorder(getThreadMessages?: () => ChatMessage[]) {
     if (raw.length === 0) return;
     const audio = resample(raw, cap.sampleRate, WHISPER_SAMPLE_RATE);
     const endMs = Math.round(cap.totalSeconds() * 1000);
-    if (rms(audio) < SILENCE_RMS) { lastOffsetMs.current = endMs; return; }
+    if (rms(audio) < SILENCE_RMS) {
+      silentDrains.current++;
+      lastOffsetMs.current = endMs;
+      return;
+    }
     try {
       if (native.current) {
         const segs = await nativeTranscribeChunk(audio);
@@ -129,6 +140,19 @@ export function useRecorder(getThreadMessages?: () => ChatMessage[]) {
             text: text.trim(), confidence: null, speakerConfidence: null,
           }];
           patch({ segments: segments.current });
+          emptyResultStreak.current = 0;
+        } else {
+          // Audible audio (it passed the silence gate) that the model
+          // transcribed as nothing. Once in a while that's just noise or a
+          // breath; several slices in a row with real audio and zero words
+          // back is how "recorded fine, transcript came out empty" happens
+          // silently — surface it instead of only finding out at the end.
+          emptyResultStreak.current++;
+          log.warn("non-silent audio produced no transcript", { streak: emptyResultStreak.current });
+          if (emptyResultStreak.current >= 3 && !emptyResultWarned.current) {
+            emptyResultWarned.current = true;
+            patch({ error: "Audio is being picked up, but the speech model isn't returning any text. The recording is continuing — if the transcript is still empty at the end, try again or restart the app." });
+          }
         }
 
         // Speakers are worked out in the background: a slow or failing speaker
@@ -150,6 +174,7 @@ export function useRecorder(getThreadMessages?: () => ChatMessage[]) {
     try {
       segments.current = []; lastOffsetMs.current = 0; fullAudio.current = []; fullLen.current = 0; capExceeded.current = false;
       asrChunks.current = []; slices.current = []; analysing.current = []; speakers.current = [];
+      silentDrains.current = 0; emptyResultStreak.current = 0; emptyResultWarned.current = false;
       lang.current = opts.lang ?? "en";
       notesRef.current = "";
       startedAt.current = new Date().toISOString();
@@ -268,6 +293,14 @@ export function useRecorder(getThreadMessages?: () => ChatMessage[]) {
     }
 
     const transcript = segments.current.map((s) => s.text).join(" ");
+    if (!transcript.trim()) {
+      // An empty transcript is either an actually-silent recording or a
+      // silently-failed one — these counts are the only way to tell which
+      // after the fact, since neither one throws.
+      log.warn("meeting ended with an empty transcript", {
+        silentDrains: silentDrains.current, emptyResultStreak: emptyResultStreak.current, native: native.current,
+      });
+    }
     const manualNotes = notesRef.current.trim();
     // Notes are written by the on-device model, falling back to the local
     // heuristic extractor when no model is available (task #3).
