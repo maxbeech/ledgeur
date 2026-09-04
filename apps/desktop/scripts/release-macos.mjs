@@ -11,19 +11,34 @@
 // locally and is dead on arrival for users. This script does all three and then
 // asks Gatekeeper for a second opinion.
 //
-// Credentials, all from the environment (never committed):
-//   APPLE_SIGNING_IDENTITY  optional — auto-detected from the keychain if unset
-//   APPLE_ID                Apple account email        \
-//   APPLE_PASSWORD          app-specific password       } required to notarise
-//   APPLE_TEAM_ID           10-character team id       /
+// Credentials, all from the environment (never committed) — the repo-root
+// .env.local holds all of these; `set -a && source .env.local && set +a`
+// before running this script, or export them yourself:
+//   APPLE_SIGNING_IDENTITY          optional — auto-detected from the keychain if unset
+//   APPLE_ID                        Apple account email                \
+//   APPLE_APP_SPECIFIC_PASSWORD     from account.apple.com → App-Specific } required to notarise
+//     (or APPLE_PASSWORD, same thing — notarytool's own flag name)         Passwords
+//   APPLE_TEAM_ID                   10-character team id               /
+//   TAURI_SIGNING_PRIVATE_KEY_PATH       optional — defaults to ~/.tauri/ledgeur-updater.key
+//   TAURI_SIGNING_PRIVATE_KEY_PASSWORD   required to sign the auto-updater artifacts
+//     (the matching public key is already committed in tauri.conf.json —
+//     generate a keypair once with `pnpm tauri signer generate -w ~/.tauri/ledgeur-updater.key`
+//     and never regenerate it, or every existing install stops trusting updates)
 //
 // Builds a universal binary (Apple Silicon + Intel) by default, because a
 // single-architecture download simply will not run for half the people who
 // click it. Set LEDGEUR_MAC_TARGET=native for a quick host-only build while
 // developing — never for something you hand to someone else.
+//
+// Pass --publish to also create the GitHub release and upload every asset
+// (dmg, the signed updater bundle, its signature, latest.json) — the download
+// page and every installed app's update check both read from that release.
+// Without the flag this only builds and signs locally; nothing leaves the
+// machine. Publishing refuses to run if the version's tag already exists, so
+// it can never silently overwrite a release someone already has.
 
 import { execFileSync } from "node:child_process";
-import { existsSync, readdirSync, statSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -31,6 +46,8 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const UNIVERSAL = "universal-apple-darwin";
 const TARGET = process.env.LEDGEUR_MAC_TARGET === "native" ? null : UNIVERSAL;
 const BUNDLE = join(ROOT, "src-tauri/target", TARGET ?? "", "release/bundle");
+const PUBLISH = process.argv.includes("--publish");
+const REPO = "maxbeech/ledgeur";
 
 // Homebrew's rust ships std for the host architecture only, so a universal
 // build needs the rustup toolchain (which carries both) ahead of it on PATH.
@@ -68,13 +85,55 @@ function signingIdentity() {
 
 /** Notarisation credentials, or null with an explanation of what is missing. */
 function notaryCredentials() {
-  const { APPLE_ID, APPLE_PASSWORD, APPLE_TEAM_ID } = process.env;
+  const { APPLE_ID, APPLE_TEAM_ID } = process.env;
+  // Apple's own docs call this an "app-specific password", so that's the name
+  // used in .env.local; accept the shorter APPLE_PASSWORD too since that's
+  // what `xcrun notarytool` itself calls the flag.
+  const APPLE_PASSWORD = process.env.APPLE_PASSWORD || process.env.APPLE_APP_SPECIFIC_PASSWORD;
   const missing = [
     !APPLE_ID && "APPLE_ID",
-    !APPLE_PASSWORD && "APPLE_PASSWORD",
+    !APPLE_PASSWORD && "APPLE_PASSWORD (or APPLE_APP_SPECIFIC_PASSWORD)",
     !APPLE_TEAM_ID && "APPLE_TEAM_ID",
   ].filter(Boolean);
   return missing.length ? { missing } : { APPLE_ID, APPLE_PASSWORD, APPLE_TEAM_ID };
+}
+
+/** Signing env for the auto-updater's artifacts, or die — unlike notarisation
+ *  this can't be skipped: `createUpdaterArtifacts` is unconditionally on in
+ *  tauri.conf.json, and the CLI refuses to build at all without a key to sign
+ *  them with. */
+function updaterSigningEnv() {
+  const keyPath = process.env.TAURI_SIGNING_PRIVATE_KEY_PATH
+    || join(process.env.HOME ?? "", ".tauri/ledgeur-updater.key");
+  if (!existsSync(keyPath)) {
+    die(`No updater signing key at ${keyPath}.\n` +
+        "  Generate one (once — never regenerate, or existing installs stop trusting updates):\n" +
+        "    pnpm tauri signer generate -w ~/.tauri/ledgeur-updater.key\n" +
+        "  then put its public key in tauri.conf.json's plugins.updater.pubkey and set\n" +
+        "  TAURI_SIGNING_PRIVATE_KEY_PASSWORD before running this script.");
+  }
+  if (!process.env.TAURI_SIGNING_PRIVATE_KEY_PASSWORD) {
+    die("TAURI_SIGNING_PRIVATE_KEY_PASSWORD is not set — required to sign the updater artifacts.");
+  }
+  // `tauri build`'s updater-signing step only reads TAURI_SIGNING_PRIVATE_KEY as the
+  // key's own content, not TAURI_SIGNING_PRIVATE_KEY_PATH — despite `tauri signer`
+  // accepting either. Read the file ourselves rather than relying on the CLI to.
+  return {
+    TAURI_SIGNING_PRIVATE_KEY: readFileSync(keyPath, "utf8"),
+    TAURI_SIGNING_PRIVATE_KEY_PASSWORD: process.env.TAURI_SIGNING_PRIVATE_KEY_PASSWORD,
+  };
+}
+
+/** Curated, human-written release notes — `gh release create --generate-notes`
+ *  dumps every commit message, most of which are internal and meaningless to
+ *  someone deciding whether to update. */
+function RELEASE_NOTES(version) {
+  return `## Ledgeur ${version}\n\n` +
+    "- Fixed \"Start recording\" throwing a getDisplayMedia gesture error\n" +
+    "- Fixed the window not being draggable on macOS\n" +
+    "- The on-device model now starts warming up as soon as the app opens, instead of on first record\n" +
+    "- Ask can now draw on Contextely (your team's shared memory across Notion, Drive, and more), if connected in Settings\n" +
+    "- The app can now update itself automatically\n";
 }
 
 /** A universal build silently falls back to one arch if a target is missing. */
@@ -123,11 +182,12 @@ const newestFile = (dir, ext) => {
 
 // ── 1. build + sign ────────────────────────────────────────────────────────
 const identity = signingIdentity();
+const updaterEnv = updaterSigningEnv();
 say(`\n▸ Signing as: ${identity}`);
 say(TARGET ? `▸ Target: ${TARGET} (Apple Silicon + Intel)` : "▸ Target: this machine only (LEDGEUR_MAC_TARGET=native)");
 if (TARGET) requireTargets();
 run("pnpm", ["tauri", "build", ...(TARGET ? ["--target", TARGET] : [])], {
-  env: { ...process.env, PATH: BUILD_PATH, APPLE_SIGNING_IDENTITY: identity },
+  env: { ...process.env, PATH: BUILD_PATH, APPLE_SIGNING_IDENTITY: identity, ...updaterEnv },
 });
 
 const app = join(BUNDLE, "macos/Ledgeur.app");
@@ -173,4 +233,66 @@ try {
   say("\n✖ Rejected. If it says 'Unnotarized Developer ID', the signing worked and\n" +
       "  only notarisation is left (see the instructions above).");
   process.exit(1);
+}
+
+// ── 4. build the auto-updater manifest ─────────────────────────────────────
+// `createUpdaterArtifacts` (tauri.conf.json) makes `tauri build` also emit a
+// signed .app.tar.gz next to the .app/.dmg — that's what installed apps
+// actually download and verify; the dmg is only ever a first-install vehicle.
+// One universal bundle serves both Mac architectures, so latest.json lists it
+// under both platform keys with the same signature and URL.
+const macosBundle = join(BUNDLE, "macos");
+const updaterBundle = newestFile(macosBundle, ".tar.gz");
+const updaterSig = updaterBundle ? `${updaterBundle}.sig` : null;
+if (!updaterBundle || !updaterSig || !existsSync(updaterSig)) {
+  die(`Updater artifacts missing from ${macosBundle} (expected a .app.tar.gz + .sig).\n` +
+      "  createUpdaterArtifacts is on in tauri.conf.json, so `tauri build` should always produce these.");
+}
+const version = JSON.parse(readFileSync(join(ROOT, "src-tauri/tauri.conf.json"), "utf8")).version;
+const tag = `v${version}`;
+const signature = readFileSync(updaterSig, "utf8").trim();
+const updaterAssetName = updaterBundle.split("/").pop();
+const assetUrl = (filename) => `https://github.com/${REPO}/releases/download/${tag}/${filename}`;
+
+const latestJsonPath = join(macosBundle, "latest.json");
+writeFileSync(latestJsonPath, JSON.stringify({
+  version,
+  notes: `See the release notes: https://github.com/${REPO}/releases/tag/${tag}`,
+  pub_date: new Date().toISOString(),
+  platforms: {
+    "darwin-x86_64": { signature, url: assetUrl(updaterAssetName) },
+    "darwin-aarch64": { signature, url: assetUrl(updaterAssetName) },
+  },
+}, null, 2));
+say(`\n▸ Wrote ${latestJsonPath}`);
+
+// ── 5. publish (opt-in) ─────────────────────────────────────────────────────
+if (!PUBLISH) {
+  say("\n▸ Built and signed locally only. Re-run with --publish to create the GitHub release\n" +
+      "  that the download page and every installed app's auto-update check both read from.");
+} else {
+  say(`\n▸ Publishing ${tag} to ${REPO}…`);
+  let alreadyPublished = false;
+  try {
+    execFileSync("gh", ["release", "view", tag, "--repo", REPO], { stdio: "ignore" });
+    alreadyPublished = true;
+  } catch { /* no such release — the expected case */ }
+  if (alreadyPublished) {
+    die(`${tag} is already published on ${REPO}.\n` +
+        "  Bump the version in tauri.conf.json (and package.json) before releasing again —\n" +
+        "  publishing never overwrites an existing release.");
+  }
+  if (!dmg) die("No .dmg was produced, so there is nothing to offer as a first install.");
+
+  const notesPath = join(macosBundle, "release-notes.md");
+  writeFileSync(notesPath, RELEASE_NOTES(version));
+  run("gh", [
+    "release", "create", tag,
+    dmg, updaterBundle, updaterSig, latestJsonPath,
+    "--repo", REPO,
+    "--title", `Ledgeur ${version} for macOS`,
+    "--notes-file", notesPath,
+  ]);
+
+  say(`\n✓ Published: https://github.com/${REPO}/releases/tag/${tag}`);
 }

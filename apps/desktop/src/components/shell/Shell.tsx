@@ -11,6 +11,7 @@ import { MobileTabBar } from "../MobileTabBar.tsx";
 import { CommandPalette } from "../CommandPalette.tsx";
 import { GlobalInput } from "./GlobalInput.tsx";
 import { ScreenEmbedCard } from "./ScreenEmbedCard.tsx";
+import { UpdateBanner } from "./UpdateBanner.tsx";
 import { useRecorderCtx } from "../../lib/useRecorderCtx.ts";
 
 /** Screen chrome (window title + icon) derived from the route. */
@@ -60,6 +61,7 @@ export function Shell() {
             macOS's WKWebView ignores it entirely and needs the Tauri-specific
             data attribute instead — hence both. */}
         <div className="ldg-drag h-9 shrink-0" data-tauri-drag-region />
+        <UpdateBanner />
         <div className="flex min-h-0 flex-1 px-3 pb-2 sm:px-4">
           <ScreenEmbedCard title={meta.title} icon={meta.icon} badge={recordingBadge}>
             <Outlet />

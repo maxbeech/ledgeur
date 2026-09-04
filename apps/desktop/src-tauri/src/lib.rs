@@ -31,6 +31,17 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_log::Builder::new().level(log::LevelFilter::Info).build())
+        // Auto-update: not available on mobile (Cargo.toml scopes the crates
+        // themselves to desktop targets), and the updater plugin additionally
+        // requires runtime setup rather than a plain `.plugin()` call.
+        .setup(|app| {
+            #[cfg(desktop)]
+            {
+                app.handle().plugin(tauri_plugin_updater::Builder::new().build())?;
+                app.handle().plugin(tauri_plugin_process::init())?;
+            }
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             ai::ai_status,
             ai::download_models,
