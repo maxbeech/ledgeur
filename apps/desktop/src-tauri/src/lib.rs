@@ -4,6 +4,7 @@
 // from the `ai` module (real when built with `--features native-ai`).
 
 mod ai;
+mod audio;
 
 /// Crash/error reporting for the native layer. Reads SENTRY_DSN, baked in at
 /// compile time from apps/desktop/.env by build.rs; disabled (returns None)
@@ -53,6 +54,9 @@ pub fn run() {
             ai::voices::list_voice_profiles,
             ai::voices::enroll_voice,
             ai::voices::delete_voice_profile,
+            audio::system_audio_tap_available,
+            audio::start_system_audio_tap,
+            audio::stop_system_audio_tap,
         ])
         .run(tauri::generate_context!())
         .expect("error while running the Ledgeur application");

@@ -66,3 +66,22 @@ export function rms(buf: Float32Array): number {
 export function durationSeconds(samples: number, rate: number): number {
   return rate > 0 ? samples / rate : 0;
 }
+
+/**
+ * Sum two mono PCM buffers sample-for-sample, e.g. a mic capture and a
+ * separately-clocked native system-audio tap that both cover roughly the same
+ * ~5s window. Zero-padded to the longer buffer rather than truncated, so
+ * neither source's tail is silently dropped when the two aren't drained at
+ * exactly the same instant. Not sample-accurate sync — the two sources can
+ * drift by a few milliseconds relative to each other — but that's well within
+ * what a speech model tolerates over a few seconds of audio.
+ */
+export function mixFloat32(a: Float32Array, b: Float32Array): Float32Array {
+  if (a.length === 0) return b;
+  if (b.length === 0) return a;
+  const out = new Float32Array(Math.max(a.length, b.length));
+  for (let i = 0; i < out.length; i++) {
+    out[i] = Math.max(-1, Math.min(1, (a[i] ?? 0) + (b[i] ?? 0)));
+  }
+  return out;
+}

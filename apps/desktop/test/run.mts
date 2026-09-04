@@ -9,6 +9,7 @@ import {
 } from "@ledgeur/core";
 import type { LocalSegment, ChatMessage } from "../src/lib/meetingsStore.ts";
 import { renameSpeakerInMeeting } from "../src/lib/renameSpeaker.ts";
+import { runModelWarmupTests } from "./modelWarmup.mts";
 
 let pass = 0, fail = 0;
 const ok = (name: string, cond: boolean, detail = "") => {
@@ -202,6 +203,8 @@ for (const file of surfaces) {
   const raw = /\b(?:text|bg|border|ring|from|to)-(?:stone|emerald|amber|slate|gray|zinc|neutral|rose|red|green|blue|indigo|teal|orange|yellow|lime|cyan|sky|violet|purple|fuchsia|pink)-\d{2,3}\b/.exec(src);
   ok(`${file.pathname.split("/desktop/")[1]} uses design tokens`, raw === null, raw?.[0]);
 }
+
+await runModelWarmupTests(ok);
 
 console.log(`\n${pass} passed, ${fail} failed`);
 if (fail > 0) process.exit(1);

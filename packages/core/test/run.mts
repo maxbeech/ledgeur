@@ -3,7 +3,7 @@ import { splitSentences, extractiveSummary, summarizeTranscript, notesToMarkdown
 import { parseSuggestions } from "../src/notes/suggest.ts";
 import { buildNotesRequest, providerById, AI_PROVIDERS } from "../src/notes/ai-notes.ts";
 import { toMeetingNote, actionItemsFromNotes } from "../src/notes/map.ts";
-import { resample, mergeToMono, rms, concatFloat32, WHISPER_SAMPLE_RATE } from "../src/audio/pcm.ts";
+import { resample, mergeToMono, rms, concatFloat32, mixFloat32, WHISPER_SAMPLE_RATE } from "../src/audio/pcm.ts";
 import { markdownToNotionBlocks, chunkBlocks, buildNotionPage } from "../src/integrations/notion.ts";
 import { chunkText, meetingChunks } from "../src/rag/chunk.ts";
 import { eventsToday, nextUpcoming, eventsNeedingPrompt, formatEventsForContext } from "../src/calendar/schedule.ts";
@@ -90,6 +90,16 @@ ok("mergeToMono averages two channels", (() => {
 })());
 ok("rms of zeros is 0", rms(new Float32Array([0, 0, 0])) === 0);
 ok("concatFloat32 length sums", concatFloat32([new Float32Array(4), new Float32Array(6)]).length === 10);
+ok("mixFloat32 sums sample-for-sample", (() => {
+  const m = mixFloat32(new Float32Array([0.1, 0.2]), new Float32Array([0.3, 0.4]));
+  return Math.abs(m[0] - 0.4) < 1e-6 && Math.abs(m[1] - 0.6) < 1e-6;
+})());
+ok("mixFloat32 clamps to [-1, 1]", mixFloat32(new Float32Array([0.9]), new Float32Array([0.9]))[0] === 1);
+ok("mixFloat32 pads the shorter buffer with zero rather than truncating", (() => {
+  const m = mixFloat32(new Float32Array([0.5, 0.5, 0.5]), new Float32Array([0.1]));
+  return m.length === 3 && Math.abs(m[1] - 0.5) < 1e-6;
+})());
+ok("mixFloat32 of an empty buffer returns the other one untouched", mixFloat32(new Float32Array(0), new Float32Array([1, 2, 3])).length === 3);
 
 // --- ai-notes ---
 const req = buildNotesRequest("gpt-4o-mini", "hello world");

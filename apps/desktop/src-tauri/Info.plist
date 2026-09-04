@@ -8,14 +8,19 @@
   whole product. The string below is what the user reads in the permission
   prompt, so it says what we take and where it goes.
 
-  Screen/system audio capture (getDisplayMedia, used to record the other people
-  on a call) is governed by the Screen Recording privacy setting, which macOS
-  prompts for on first use and which has no Info.plist key — nothing to declare
-  here for it.
+  Screen/system audio capture via getDisplayMedia (the webview fallback) is
+  governed by the Screen Recording privacy setting, which macOS prompts for on
+  first use and which has no Info.plist key — nothing to declare here for it.
+
+  NSAudioCaptureUsageDescription is for the native path (src-tauri/src/audio,
+  the `system-audio-tap` feature): Core Audio's process-tap API surfaces this
+  string in its own permission prompt the first time a tap is created.
 -->
 <plist version="1.0">
 <dict>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Ledgeur records meeting audio so it can transcribe it on this device. Audio and transcripts stay on your machine unless you choose to sync them.</string>
+	<key>NSAudioCaptureUsageDescription</key>
+	<string>Ledgeur captures the meeting audio your Mac is playing so it can transcribe the other side of a call. Audio and transcripts stay on your machine unless you choose to sync them.</string>
 </dict>
 </plist>

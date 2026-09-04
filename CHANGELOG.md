@@ -6,6 +6,54 @@
 
 ## Unreleased — Speakers, a real web app, and a price list that is true
 
+### Recording felt broken even when it worked
+
+Four reports after actually using the recorder, all traced to real causes
+rather than fixed by guessing:
+
+- **"Loading the on-device model" sat at 100%** even right after the sidebar
+  said the speech model was already downloaded. The background warmup
+  (`modelWarmup.ts`) loaded the model into a worker just to populate the
+  browser's cache, then threw the worker away — so starting a recording always
+  rebuilt the ONNX/WebGPU session and recompiled shaders from scratch, the part
+  that actually takes time, not the download. Reproduced live (Browser pane:
+  started a recording right after the sidebar reported 100%, watched it reload
+  from 8%) before fixing it. The warmed worker is now kept alive and claimed by
+  `useRecorder.start()` instead of rebuilt — verified with a new test
+  (`apps/desktop/test/modelWarmup.mts`) exercising the claim/dispose contract,
+  and by re-running the same live repro, which now resolves near-instantly.
+- **"Finishing the record" could hang for minutes.** `stop()` waited
+  unconditionally for every background speaker-analysis call made during the
+  meeting to land — a backlog with no bound if the speaker models fell behind
+  real time. Now bounded to 15s (`DIARIZE_WAIT_TIMEOUT_MS`); whatever hasn't
+  landed by then is left out of that meeting's speaker clustering rather than
+  blocking Stop, matching diarization's existing "never fail the meeting"
+  contract. Post-meeting note generation is separately bounded to 45s with the
+  same local-fallback behavior it already had on any other model failure.
+- **The live transcript could fall further and further behind.** Drains fired
+  on a plain `setInterval` regardless of whether the previous drain (which
+  awaits transcription) had finished — a chunk slower than 5s meant calls
+  piled up and the lag never recovered for the rest of the meeting. Replaced
+  with a self-rescheduling loop that only starts the next drain once the
+  current one resolves.
+- **Transcript accuracy**: the default "English" option was whisper-tiny.en,
+  the smallest and least accurate rung. Default is now "English, more
+  accurate" (whisper-base.en) — larger download, slower per-chunk, meaningfully
+  better transcripts.
+- **System audio without the screen-share picker (macOS).** `getDisplayMedia`
+  (video + a picker dialog, just to get audio) is now only the fallback.
+  `apps/desktop/src-tauri/src/audio/` adds Core Audio's Process Tap API
+  (`AudioHardwareCreateProcessTap`, macOS 14.2+) behind a new opt-in
+  `system-audio-tap` Cargo feature — modelled on Apple's own reference sample
+  (`insidegui/AudioCap`) rather than guessed, using the `objc2-core-audio`
+  bindings so the FFI surface isn't hand-rolled. No picker, no video, no
+  menu-bar recording indicator; still a one-time OS permission grant. Compiles
+  cleanly alone, with `native-ai`, and without either feature — **not yet
+  verified capturing real audio**, since that needs a signed build and real
+  hardware this environment doesn't have. Falls back to `getDisplayMedia`
+  automatically wherever the tap isn't available, so nothing regresses for
+  Windows, older macOS, or the plain website.
+
 ### A download page, and the first published desktop build
 
 The desktop app existed but there was nowhere to get it: `/download` 404ed and

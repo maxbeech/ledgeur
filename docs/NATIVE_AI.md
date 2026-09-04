@@ -137,6 +137,38 @@ RAG embeddings still use the HTTP endpoint (point it at `nomic-embed-text`,
 768-dim, matching the `embeddings.embedding vector(768)` column). Native
 embeddings are a follow-up; Ask degrades to keyword search without them.
 
+## Native system audio (Core Audio Process Tap)
+
+A separate feature from everything above — it captures audio, not AI. The
+webview's only way to hear the other side of a call is `getDisplayMedia`
+(video permission + a screen-share picker, just to get audio). On macOS
+14.2+, `apps/desktop/src-tauri/src/audio/` uses Core Audio's Process Tap API
+(`AudioHardwareCreateProcessTap`) instead: no picker, no video, no menu-bar
+recording indicator — a private aggregate device combines the tap with the
+system's default output device, and PCM is streamed to the frontend over a
+Tauri event (`system-audio:chunk`). Modelled on Apple's own reference sample
+(`insidegui/AudioCap`), using the `objc2-core-audio` crate's bindings rather
+than hand-rolled FFI.
+
+Behind its own opt-in Cargo feature, independent of `native-ai`:
+
+```bash
+cd apps/desktop/src-tauri && cargo check --features system-audio-tap
+# or combined with the AI engine:
+cargo check --features native-ai,system-audio-tap
+```
+
+`useRecorder.start()` (desktop only) checks `system_audio_tap_available` and
+uses the tap when it reports true, falling back to `getDisplayMedia`
+automatically everywhere else (Windows, older macOS, the plain website) — so
+enabling this feature can't regress anyone it doesn't apply to.
+
+**Not yet verified capturing real audio** — compiles cleanly (alone, with
+`native-ai`, and with neither), but actually tapping system audio, the macOS
+permission prompt (`NSAudioCaptureUsageDescription`), and signed-build /
+entitlement behavior all need a real Mac, which is more than this could be
+checked against so far.
+
 ## Manual test checklist (can't be verified headless)
 
 - [ ] `tauri:dev:ai` launches; `ai_status` reports `compiled: true`, `llm_status`
@@ -151,3 +183,9 @@ embeddings are a follow-up; Ask degrades to keyword search without them.
 - [ ] Stop the meeting → summary + action items are written by the model (or the
       heuristic fallback if the model isn't downloaded). With "Save copilot chat"
       off (default), the saved meeting holds only the transcript.
+- [ ] `tauri:dev` built with `--features system-audio-tap` on macOS 14.2+:
+      toggling "System audio" on shows the no-picker copy, `Start recording`
+      triggers the OS's one-time audio-recording permission prompt (not a
+      screen-share picker), and playing audio from another app during the
+      meeting shows up in the transcript. No menu-bar recording indicator
+      should appear.

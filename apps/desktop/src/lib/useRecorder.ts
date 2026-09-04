@@ -16,7 +16,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
-  resample, WHISPER_SAMPLE_RATE, rms, concatFloat32, notesToMarkdown,
+  resample, WHISPER_SAMPLE_RATE, rms, concatFloat32, mixFloat32, notesToMarkdown,
   defaultSpeakerLabel, type AsrChunk,
 } from "@ledgeur/core";
 import {
@@ -27,6 +27,8 @@ import { aiStatus, nativeTranscribeChunk, nativeTranscribeDiarize, type NativeSe
 import { saveMeeting, type LocalMeeting, type LocalSegment, type LocalSpeaker, type ChatMessage } from "./meetingsStore.ts";
 import { generateMeetingNotes } from "./notes.ts";
 import { getSettings } from "./settings.ts";
+import { claimWarmTranscriber, claimWarmDiarizer } from "./modelWarmup.ts";
+import { isSystemAudioTapAvailable, SystemAudioTap } from "./systemAudioTap.ts";
 import { createLogger } from "./logger.ts";
 
 const log = createLogger("recorder");
@@ -43,6 +45,10 @@ export interface RecorderState {
 const DRAIN_MS = 5000;
 const SILENCE_RMS = 0.006;
 const MAX_DIARIZE_SAMPLES = 45 * 60 * WHISPER_SAMPLE_RATE; // cap full-audio retention (~45 min)
+/** How long stop() waits for outstanding speaker analysis before giving up on
+ *  it — see the comment at the call site. */
+const DIARIZE_WAIT_TIMEOUT_MS = 15_000;
+const delay = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 const uid = () => (crypto?.randomUUID ? crypto.randomUUID() : `id-${Date.now()}-${Math.round(Math.random() * 1e6)}`);
 const toLocal = (s: NativeSegment, offsetMs: number): LocalSegment => ({
   id: uid(), speakerLabel: s.speaker_label, startMs: offsetMs + s.start_ms, endMs: offsetMs + s.end_ms,
@@ -54,6 +60,9 @@ export function useRecorder(getThreadMessages?: () => ChatMessage[]) {
     status: "idle", elapsed: 0, level: 0, modelProgress: 0, device: "", segments: [], error: "", meetingId: null, notes: "",
   });
   const capture = useRef<AudioCapture | null>(null);
+  /** Set only when the native Core Audio tap is supplying "system" audio
+   *  instead of getDisplayMedia — see start(). */
+  const systemTap = useRef<SystemAudioTap | null>(null);
   const transcriber = useRef<TranscriberController | null>(null);
   const diarizer = useRef<DiarizerController | null>(null);
   /** Timed transcript pieces, accumulated across drains for the webview path. */
@@ -103,9 +112,18 @@ export function useRecorder(getThreadMessages?: () => ChatMessage[]) {
     const cap = capture.current;
     if (!cap) return;
     const raw = cap.drainNew();
-    if (raw.length === 0) return;
-    const audio = resample(raw, cap.sampleRate, WHISPER_SAMPLE_RATE);
     const endMs = Math.round(cap.totalSeconds() * 1000);
+    // AudioCapture's clock (see clockOnly in capture.ts) keeps ticking even
+    // with nothing connected to it, so `raw` alone can legitimately be empty
+    // here when the native system-audio tap is the only source — mix in
+    // whatever it has before deciding there's nothing to transcribe.
+    let audio = raw.length ? resample(raw, cap.sampleRate, WHISPER_SAMPLE_RATE) : new Float32Array(0);
+    const tap = systemTap.current;
+    if (tap) {
+      const tapRaw = tap.drainNew();
+      if (tapRaw.length) audio = mixFloat32(audio, resample(tapRaw, tap.sampleRate, WHISPER_SAMPLE_RATE));
+    }
+    if (audio.length === 0) return;
     if (rms(audio) < SILENCE_RMS) {
       silentDrains.current++;
       lastOffsetMs.current = endMs;
@@ -169,13 +187,32 @@ export function useRecorder(getThreadMessages?: () => ChatMessage[]) {
     lastOffsetMs.current = endMs;
   }, []);
 
+  /**
+   * Drives periodic draining. Deliberately a self-rescheduling `setTimeout`
+   * rather than `setInterval`: `drain()` awaits transcription (and, on the
+   * webview path, kicks off diarization), and if that ever takes longer than
+   * DRAIN_MS an interval would fire the next drain anyway — calls pile up and
+   * the live transcript falls further and further behind for the rest of the
+   * meeting. Audio isn't lost while a drain is in flight (it keeps
+   * accumulating in AudioCapture's buffer), so a slow chunk just produces one
+   * bigger chunk next time instead of a growing backlog.
+   */
+  const scheduleDrain = useCallback((cap: AudioCapture) => {
+    timer.current = setTimeout(() => {
+      patch({ elapsed: cap.totalSeconds() });
+      void drain().finally(() => {
+        if (statusRef.current === "recording") scheduleDrain(cap);
+      });
+    }, DRAIN_MS);
+  }, [drain]);
+
   const start = useCallback(async (opts: { mic: boolean; system: boolean; lang?: string }) => {
     log.info("start requested", opts);
     try {
       segments.current = []; lastOffsetMs.current = 0; fullAudio.current = []; fullLen.current = 0; capExceeded.current = false;
       asrChunks.current = []; slices.current = []; analysing.current = []; speakers.current = [];
       silentDrains.current = 0; emptyResultStreak.current = 0; emptyResultWarned.current = false;
-      lang.current = opts.lang ?? "en";
+      lang.current = opts.lang ?? "en-hq";
       notesRef.current = "";
       startedAt.current = new Date().toISOString();
       patch({ status: "loading-model", error: "", segments: [], elapsed: 0, meetingId: null, notes: "" });
@@ -185,18 +222,49 @@ export function useRecorder(getThreadMessages?: () => ChatMessage[]) {
       // is spent by the first await, and an IPC round-trip to the native engine
       // (aiStatus, below) is more than enough to burn through it. So capture is
       // opened first, before anything else async, and everything that can wait
-      // (model status, model loading) happens after.
+      // (model status, model loading) happens after. The one exception is this
+      // tap-availability check: it has to be known *before* deciding whether
+      // AudioCapture should even attempt getDisplayMedia, and unlike aiStatus
+      // it's a single fast local IPC call (a compiled-in bool, not a real
+      // status query) — the same class of cost this comment already accepts.
+      const useNativeSystemAudio = opts.system && await isSystemAudioTapAvailable();
       const cap = new AudioCapture();
       cap.onLevel = (rmsVal) => patch({ level: rmsVal });
-      await cap.start(opts);
+      await cap.start({
+        mic: opts.mic,
+        system: opts.system && !useNativeSystemAudio,
+        clockOnly: useNativeSystemAudio && !opts.mic,
+      });
       capture.current = cap;
+
+      if (useNativeSystemAudio) {
+        const tap = new SystemAudioTap();
+        try {
+          await tap.start();
+          systemTap.current = tap;
+        } catch (e) {
+          // AudioCapture was deliberately told to skip getDisplayMedia above,
+          // so there's no fallback left to try here — surface it rather than
+          // silently recording without the other side of the call.
+          log.error("native system-audio tap failed to start", e);
+          patch({ error: e instanceof Error ? e.message : String(e) });
+        }
+      }
 
       const status = await aiStatus();
       native.current = Boolean(status?.compiled && status?.models_ready);
       if (native.current) {
         patch({ device: "whisper.cpp (native)" });
       } else {
-        const tr = new TranscriberController({
+        // A pipeline the background warmup already brought up (see
+        // modelWarmup.ts) is claimed instead of building a fresh one: a live
+        // session for the same language resolves near-instantly, where a new
+        // TranscriberController would re-run session creation and shader
+        // compilation from scratch despite the model bytes being cached —
+        // that step, not the download, is what used to make "Loading the
+        // on-device model" sit at 100% for a long time.
+        const warmTr = claimWarmTranscriber();
+        const tr = warmTr ?? new TranscriberController({
           // `info.label` names the rung that actually started ("WebGPU", "CPU");
           // it changes if the preferred backend could not create a session.
           onDevice: (device, info) => patch({ device: info?.label ?? device }),
@@ -204,19 +272,20 @@ export function useRecorder(getThreadMessages?: () => ChatMessage[]) {
         });
         transcriber.current = tr;
         await tr.preloadAndWait(lang.current);
+        if (warmTr) patch({ modelProgress: 100 });
 
         // Started but deliberately not awaited: the speaker models are a few
         // tens of megabytes, and waiting for them before the first word is
         // recorded would make the app feel broken. They warm up during the
         // meeting and are only needed at the end.
-        const dz = new DiarizerController();
+        const dz = claimWarmDiarizer() ?? new DiarizerController();
         diarizer.current = dz;
         void dz.preload().catch((e: unknown) => log.warn("speaker models unavailable", e));
       }
 
       patch({ status: "recording" });
       log.info("recording started", { native: native.current });
-      timer.current = setInterval(() => { patch({ elapsed: cap.totalSeconds() }); void drain(); }, DRAIN_MS);
+      scheduleDrain(cap);
     } catch (e) {
       log.error("start failed", e);
       patch({ status: "error", error: e instanceof Error ? e.message : String(e) });
@@ -235,11 +304,22 @@ export function useRecorder(getThreadMessages?: () => ChatMessage[]) {
       await drain();
       if ((capture.current?.pendingSamples() ?? 0) < WHISPER_SAMPLE_RATE / 10) break;
     }
-    // The speaker analyses were deliberately not awaited during the meeting.
-    // Now they have to land, or the final turns are clustered without them.
+    // Stop the tap's own capture, then one more drain to pick up whatever it
+    // delivered in the brief window before that took effect.
+    if (systemTap.current) {
+      await systemTap.current.stop();
+      await drain();
+      systemTap.current = null;
+    }
+    // The speaker analyses were deliberately not awaited during the meeting,
+    // so a backlog can build up if the speaker models can't keep up with real
+    // time — waiting for ALL of it here is what made "Finishing the record"
+    // hang for minutes on a longer meeting. Bounded instead: whatever hasn't
+    // landed by the timeout is left out of clustering (diarization is already
+    // non-fatal — see diarizer.ts — an unlabelled turn beats a stuck Stop).
     const outstanding = analysing.current;
     analysing.current = [];
-    await Promise.allSettled(outstanding);
+    await Promise.race([Promise.allSettled(outstanding), delay(DIARIZE_WAIT_TIMEOUT_MS)]);
     await capture.current?.stop();
     capture.current = null;
 
@@ -334,7 +414,8 @@ export function useRecorder(getThreadMessages?: () => ChatMessage[]) {
   const reset = useCallback(() => {
     if (timer.current) { clearInterval(timer.current); timer.current = null; }
     capture.current?.stop(); transcriber.current?.dispose(); diarizer.current?.dispose();
-    capture.current = null; transcriber.current = null; diarizer.current = null;
+    void systemTap.current?.stop();
+    capture.current = null; transcriber.current = null; diarizer.current = null; systemTap.current = null;
     segments.current = []; fullAudio.current = []; fullLen.current = 0; notesRef.current = "";
     asrChunks.current = []; slices.current = [];
     statusRef.current = "idle";
@@ -350,6 +431,7 @@ export function useRecorder(getThreadMessages?: () => ChatMessage[]) {
     if (timer.current) clearInterval(timer.current);
     if (statusRef.current === "recording") log.warn("recorder unmounted mid-recording — capture stopped");
     void capture.current?.stop();
+    void systemTap.current?.stop();
     transcriber.current?.dispose();
     diarizer.current?.dispose();
   }, []);

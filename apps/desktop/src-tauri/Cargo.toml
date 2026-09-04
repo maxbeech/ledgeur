@@ -49,9 +49,27 @@ encoding_rs = { version = "0.8", optional = true }
 tauri-plugin-updater = "2"
 tauri-plugin-process = "2"
 
+# Native system-audio capture (Core Audio Process Tap, macOS 14.2+) — the
+# alternative to getDisplayMedia's screen-share picker. macOS-only + optional:
+# `wry` already pulls in objc2/objc2-core-foundation at these versions for its
+# own webview glue, so this adds no duplicate copies.
+[target."cfg(target_os = \"macos\")".dependencies]
+objc2 = { version = "0.6", optional = true }
+objc2-core-audio = { version = "0.3", features = ["AudioHardware"], optional = true }
+objc2-core-audio-types = { version = "0.3", features = ["CoreAudioBaseTypes"], optional = true }
+objc2-core-foundation = { version = "0.3", optional = true }
+# CATapDescription's initializer takes an NSArray<NSNumber> (Foundation, not
+# CoreFoundation) of process ids to exclude from the tap.
+objc2-foundation = { version = "0.3", optional = true }
+block2 = { version = "0.6", optional = true }
+
 [features]
 # Enabled by tauri on desktop builds for custom protocol asset serving.
 custom-protocol = ["tauri/custom-protocol"]
 # On-device transcription (whisper.cpp), diarization (sherpa-onnx) and model
 # downloads. Heavy native build; opt-in.
 native-ai = ["dep:whisper-rs", "dep:sherpa-rs", "dep:reqwest", "dep:llama-cpp-2", "dep:encoding_rs"]
+# System audio without the screen-share picker (see src/audio/mod.rs). macOS
+# 14.2+ only; the command stubs return "unavailable" everywhere else. Opt-in
+# like native-ai until it's been verified on real hardware.
+system-audio-tap = ["dep:objc2", "dep:objc2-core-audio", "dep:objc2-core-audio-types", "dep:objc2-core-foundation", "dep:objc2-foundation", "dep:block2"]

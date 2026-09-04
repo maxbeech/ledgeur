@@ -7,6 +7,18 @@
 import { summarizeTranscript, type MeetingNotes } from "@ledgeur/core";
 import { chatComplete } from "./llm.ts";
 
+// The on-device model has no cancellation and can legitimately take a while
+// on slower hardware; an unreachable HTTP fallback can hang on connect too.
+// Neither should make "Finishing the record" wait forever — past this, fall
+// back to the local heuristic extractor exactly as on any other model failure.
+const NOTES_TIMEOUT_MS = 45_000;
+function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error("Notes generation timed out.")), ms);
+    p.then((v) => { clearTimeout(timer); resolve(v); }, (e) => { clearTimeout(timer); reject(e); });
+  });
+}
+
 const SYSTEM =
   "You are an expert meeting-notes writer. From a raw speech-to-text transcript, " +
   "extract structured notes. Be faithful to the transcript — never invent facts, " +
@@ -60,13 +72,13 @@ export async function generateMeetingNotes(transcript: string): Promise<MeetingN
   if (!text) return summarizeTranscript(transcript);
   const clipped = text.length > 48000 ? `${text.slice(0, 48000)}\n…(truncated)` : text;
   try {
-    const reply = await chatComplete(
+    const reply = await withTimeout(chatComplete(
       [
         { role: "system", content: SYSTEM },
         { role: "user", content: `Transcript:\n\n${clipped}` },
       ],
       { temperature: 0.2, maxTokens: 768 },
-    );
+    ), NOTES_TIMEOUT_MS);
     return parseAiNotes(reply, transcript);
   } catch {
     // No model, unreachable endpoint, or unparseable reply — use the local

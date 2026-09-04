@@ -5,9 +5,15 @@
 // Native engine (whisper.cpp/sherpa-onnx, compiled with --features native-ai):
 // kicks off the same download the "Download models" button in Settings does.
 // Webview engine (transformers.js, what the shipped build actually runs):
-// loads the model into a throwaway worker so its weights land in the
-// browser's persistent Cache Storage, then discards the worker — the real
-// worker created at record time reads from that cache instead of the network.
+// loads the model into a worker so its weights land in the browser's
+// persistent Cache Storage AND a live ONNX/WebGPU session is left running —
+// the model *bytes* being cached does not make session creation and shader
+// compilation instant, and that (not the download) is what actually takes
+// time. useRecorder.start() claims this warm worker via
+// claimWarmTranscriber()/claimWarmDiarizer() instead of building a fresh one,
+// so the first recording of a session skips that reload entirely. Only claims
+// this once — a second recording in the same session loads normally, same as
+// before this existed.
 //
 // The status below exists so this background work is actually visible
 // somewhere (the sidebar) instead of only surfacing the first time someone
@@ -52,6 +58,24 @@ export function getWarmupStatus(): WarmupStatus {
   return status;
 }
 
+let warmTranscriber: TranscriberController | null = null;
+let warmDiarizer: DiarizerController | null = null;
+
+/** One-shot claim: returns the warmed transcriber and clears it, so a second
+ *  caller (a second recording this session) gets null and loads normally. */
+export function claimWarmTranscriber(): TranscriberController | null {
+  const t = warmTranscriber;
+  warmTranscriber = null;
+  return t;
+}
+
+/** One-shot claim — see claimWarmTranscriber(). */
+export function claimWarmDiarizer(): DiarizerController | null {
+  const d = warmDiarizer;
+  warmDiarizer = null;
+  return d;
+}
+
 /** Idempotent within a session — call freely from anywhere the app mounts. */
 export function warmupModels(): void {
   if (started) return;
@@ -85,12 +109,15 @@ async function run(): Promise<void> {
     const dz = new DiarizerController({
       onProgress: (_f, p) => setStatus({ phase: "downloading", progress: p, label: "Speaker models" }),
     });
+    // Kept alive (not disposed) on success so useRecorder.start() can claim a
+    // pipeline that is already live — see the header comment. Only disposed
+    // here if its own load failed, since a dead worker has nothing to claim.
     const results = await Promise.allSettled([
-      tr.preloadAndWait("en").catch((e: unknown) => { log.warn("transcriber warmup failed", e); throw e; }),
-      dz.preload().catch((e: unknown) => { log.warn("diarizer warmup failed", e); throw e; }),
+      tr.preloadAndWait("en-hq").catch((e: unknown) => { log.warn("transcriber warmup failed", e); tr.dispose(); throw e; }),
+      dz.preload().catch((e: unknown) => { log.warn("diarizer warmup failed", e); dz.dispose(); throw e; }),
     ]);
-    tr.dispose();
-    dz.dispose();
+    if (results[0].status === "fulfilled") warmTranscriber = tr;
+    if (results[1].status === "fulfilled") warmDiarizer = dz;
     setStatus(results.some((r) => r.status === "fulfilled")
       ? { phase: "ready", progress: 100, label: "" }
       : { phase: "failed", progress: null, label: "" });

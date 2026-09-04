@@ -11,6 +11,7 @@ import { LiveMeeting } from "../components/recorder/LiveMeeting.tsx";
 import { useRecorderCtx } from "../lib/useRecorderCtx.ts";
 import { finalizeMeeting } from "../lib/afterMeeting.ts";
 import { useFileImport, IMPORT_ACCEPT } from "../lib/useFileImport.ts";
+import { isSystemAudioTapAvailable } from "../lib/systemAudioTap.ts";
 
 export function Record() {
   const nav = useNavigate();
@@ -23,7 +24,17 @@ export function Record() {
   // Left as an explicit opt-in for when the other side of a call actually needs
   // capturing.
   const [system, setSystem] = useState(false);
-  const [lang, setLang] = useState("en");
+  // When the native Core Audio tap is available (macOS 14.2+, the
+  // `system-audio-tap` build) there's no picker or menu-bar indicator to warn
+  // about, so the copy below changes — but the default stays off either way
+  // until the native path has been exercised on real hardware.
+  const [systemTapAvailable, setSystemTapAvailable] = useState(false);
+  useEffect(() => { void isSystemAudioTapAvailable().then(setSystemTapAvailable); }, []);
+  // "en-hq" (whisper-base.en) rather than the plain "en" tiny model: a larger
+  // download and somewhat slower per-chunk, but meaningfully more accurate —
+  // the tiny model was the biggest single contributor to inaccurate
+  // transcripts. Still overridable from the dropdown below.
+  const [lang, setLang] = useState("en-hq");
   const importer = useFileImport();
   const fileInput = useRef<HTMLInputElement>(null);
   const [dragging, setDragging] = useState(false);
@@ -85,9 +96,11 @@ export function Record() {
           </div>
           {system && (
             <p className="-mt-4 mb-6 text-[11.5px] leading-relaxed text-faint">
-              This asks your Mac for Screen Recording permission — it's the only way a meeting app
-              without a bot can hear the other side of a call. Only the audio is used; nothing is saved
-              or shown from your screen.
+              {systemTapAvailable
+                ? "This asks your Mac for a one-time audio-recording permission — no picker, no screen-sharing indicator. Only the audio is used; nothing is saved or shown from your screen."
+                : "This asks your Mac for Screen Recording permission — it's the only way a meeting app " +
+                  "without a bot can hear the other side of a call. Only the audio is used; nothing is saved " +
+                  "or shown from your screen."}
             </p>
           )}
 

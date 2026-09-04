@@ -82,6 +82,18 @@ export interface CaptureSources {
    * the call.
    */
   system: boolean;
+  /**
+   * Run the capture clock (the ScriptProcessorNode driving `totalSeconds()`)
+   * with neither source connected — used only by the desktop app when a
+   * native system-audio tap (Core Audio, outside this class entirely) is
+   * supplying the "system" audio instead of `getDisplayMedia`, and the user
+   * didn't also enable their mic. Without this, `mic: false, system: false`
+   * is rejected below as "nothing to record", which is right for every other
+   * caller but wrong here — there IS audio, this class just isn't the one
+   * capturing it. Every existing caller leaves this unset, so `start()`'s
+   * behaviour for them is unchanged.
+   */
+  clockOnly?: boolean;
 }
 
 export class AudioCapture {
@@ -146,7 +158,7 @@ export class AudioCapture {
       throw e instanceof CaptureError ? e : new CaptureError(friendlyCaptureError(e, opening));
     }
 
-    if (nodes.length === 0) {
+    if (nodes.length === 0 && !sources.clockOnly) {
       await this.stop();
       throw new CaptureError("Choose your microphone, the meeting audio, or both.");
     }
