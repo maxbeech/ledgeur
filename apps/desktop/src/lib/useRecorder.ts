@@ -122,6 +122,9 @@ export function useRecorder(getThreadMessages?: () => ChatMessage[]) {
   const startedAt = useRef<string>("");
   const native = useRef(false);
   const lang = useRef(getSettings().transcriptionLang);
+  /** Note template for this meeting, captured at start so changing the
+   *  preference mid-meeting cannot re-frame notes already being written. */
+  const template = useRef(getSettings().noteTemplate);
   const notesRef = useRef("");
   const threadRef = useRef<(() => ChatMessage[]) | undefined>(getThreadMessages);
   threadRef.current = getThreadMessages;
@@ -308,7 +311,7 @@ export function useRecorder(getThreadMessages?: () => ChatMessage[]) {
     }
   }, [transcribeOne]);
 
-  const start = useCallback(async (opts: { mic: boolean; system: boolean; lang?: string }) => {
+  const start = useCallback(async (opts: { mic: boolean; system: boolean; lang?: string; template?: string }) => {
     log.info("start requested", opts);
     try {
       segments.current = []; fullAudio.current = []; fullLen.current = 0; capExceeded.current = false;
@@ -317,6 +320,7 @@ export function useRecorder(getThreadMessages?: () => ChatMessage[]) {
       transcribing.current = false; lastEngineRetry.current = 0;
       elapsedShown.current = -1; backlogShown.current = 0;
       lang.current = opts.lang ?? getSettings().transcriptionLang;
+      template.current = opts.template ?? getSettings().noteTemplate;
       notesRef.current = "";
       startedAt.current = new Date().toISOString();
       segmenter.current = new UtteranceSegmenter();
@@ -513,7 +517,7 @@ export function useRecorder(getThreadMessages?: () => ChatMessage[]) {
     // Notes are written by the on-device model from the transcript AND whatever
     // the user typed during the meeting, falling back to the local heuristic
     // extractor when no model is available.
-    const notes = await generateMeetingNotes(transcript, manualNotes);
+    const notes = await generateMeetingNotes(transcript, manualNotes, template.current);
     // The copilot/user thread is saved with the meeting only when the user opts
     // in — by default just the spoken transcript is kept.
     const saveChat = getSettings().saveChatWithMeeting;

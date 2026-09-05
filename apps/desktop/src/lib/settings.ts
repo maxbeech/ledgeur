@@ -3,6 +3,7 @@
 // immediately). Typed keys with defaults — no magic strings at call sites.
 
 import { useSyncExternalStore } from "react";
+import { DEFAULT_TEMPLATE_ID } from "@ledgeur/core";
 
 /**
  * The transcription model tier used everywhere unless the user picks another.
@@ -32,6 +33,8 @@ export interface Settings {
   transcriptionLang: string;
   /** Capture the other side of the call as well as this device's microphone. */
   captureSystemAudio: boolean;
+  /** Which note template steers the summary — a NOTE_TEMPLATES id. */
+  noteTemplate: string;
 }
 
 const DEFAULTS: Settings = {
@@ -40,6 +43,7 @@ const DEFAULTS: Settings = {
   saveChatWithMeeting: false,
   transcriptionLang: DEFAULT_LANG,
   captureSystemAudio: false,
+  noteTemplate: DEFAULT_TEMPLATE_ID,
 };
 
 const KEY = "ledgeur.settings";

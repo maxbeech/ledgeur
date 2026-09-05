@@ -1,6 +1,7 @@
 // @ledgeur/core test suite — pure-logic checks. Run: pnpm --filter @ledgeur/core test
 import { splitSentences, extractiveSummary, summarizeTranscript, notesToMarkdown } from "../src/notes/summarize.ts";
 import { parseSuggestions } from "../src/notes/suggest.ts";
+import { NOTE_TEMPLATES, DEFAULT_TEMPLATE_ID, templateById, templateInstruction } from "../src/notes/templates.ts";
 import { buildNotesRequest, providerById, AI_PROVIDERS } from "../src/notes/ai-notes.ts";
 import { toMeetingNote, actionItemsFromNotes } from "../src/notes/map.ts";
 import { resample, mergeToMono, rms, concatFloat32, mixFloat32, WHISPER_SAMPLE_RATE } from "../src/audio/pcm.ts";
@@ -176,6 +177,28 @@ runLibraryTests(ok);
 
 // --- cloud sync mapping ---
 runSyncTests(ok);
+
+// --- note templates ---
+{
+  ok("ships more than one template", NOTE_TEMPLATES.length >= 5, String(NOTE_TEMPLATES.length));
+  ok("template ids are unique", new Set(NOTE_TEMPLATES.map((t) => t.id)).size === NOTE_TEMPLATES.length);
+  ok("every template has a name and a description",
+    NOTE_TEMPLATES.every((t) => t.name.length > 0 && t.description.length > 0));
+  ok("the default id resolves to a real template", templateById(DEFAULT_TEMPLATE_ID).id === DEFAULT_TEMPLATE_ID);
+  // A persisted id for a template that has since been removed must not break
+  // note generation — it degrades to the general one.
+  ok("an unknown id falls back rather than throwing", templateById("no-such-template").id === DEFAULT_TEMPLATE_ID);
+  ok("a null id falls back", templateById(null).id === DEFAULT_TEMPLATE_ID);
+
+  ok("the general template adds no instruction", templateInstruction(templateById("general")) === "");
+  const sales = templateInstruction(templateById("sales"));
+  ok("a specific template adds framing", sales.includes("sales conversation"), sales);
+  ok("a specific template lists what to look for", sales.includes("objections"));
+  // Sections a meeting did not cover must come back empty rather than padded.
+  ok("a template forbids padding empty sections", /empty section is correct/i.test(sales));
+  ok("every non-general template produces an instruction",
+    NOTE_TEMPLATES.filter((t) => t.id !== "general").every((t) => templateInstruction(t).length > 20));
+}
 
 // --- utterance segmentation (chunk boundaries the model sees) ---
 runSegmenterTests(ok);

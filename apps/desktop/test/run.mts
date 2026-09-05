@@ -61,6 +61,28 @@ ok("parseAiNotes throws on empty summary", (() => {
   try { parseAiNotes(JSON.stringify({ summary: [] }), "x"); return false; } catch { return true; }
 })());
 
+// --- note templates steer the prompt without overriding the contract ---
+{
+  const general = buildNotesPrompt("transcript", "", "general");
+  const sales = buildNotesPrompt("transcript", "", "sales");
+  ok("a template changes the system prompt", sales[0].content !== general[0].content);
+  ok("a template adds its framing", sales[0].content.includes("sales conversation"));
+  // A template may only ADD. The JSON contract and the never-invent rule are
+  // what keep notes parseable and grounded, and no template may weaken them.
+  ok("a template keeps the JSON contract", sales[0].content.includes('"actionItems"'));
+  ok("a template keeps the never-invent rule", sales[0].content.includes("never invent facts"));
+  ok("an unknown template id degrades to the general prompt",
+    buildNotesPrompt("transcript", "", "nope")[0].content === general[0].content);
+  ok("no template id degrades to the general prompt",
+    buildNotesPrompt("transcript", "")[0].content === general[0].content);
+  // The user's own notes are about THIS meeting; the template is about this
+  // KIND of meeting. Both apply, and the notes instruction comes last.
+  const both = buildNotesPrompt("transcript", "pricing - Sam pushing back", "sales");
+  ok("a template and typed notes both apply", both[0].content.includes("sales conversation") && both[0].content.includes("priority"));
+  ok("the typed-notes instruction comes last",
+    both[0].content.indexOf("sales conversation") < both[0].content.indexOf("typed their own"));
+}
+
 // --- buildNotesPrompt: the notes the user typed have to actually reach the model ---
 //
 // They were stored and rendered but never sent, which made typing during a

@@ -18,7 +18,7 @@
 // transcript does not support has to stay as the user wrote it, not get
 // elaborated into a plausible-sounding sentence nobody said.
 
-import { summarizeTranscript, type MeetingNotes } from "@ledgeur/core";
+import { summarizeTranscript, templateById, templateInstruction, type MeetingNotes } from "@ledgeur/core";
 import { chatComplete } from "./llm.ts";
 
 // The on-device model has no cancellation and can legitimately take a while on
@@ -97,14 +97,23 @@ export function parseAiNotes(raw: string, transcript: string): MeetingNotes {
  * model, and that the extra instruction only appears when there are notes to
  * apply it to, are both things that broke silently before.
  */
-export function buildNotesPrompt(transcript: string, manualNotes = ""): { role: "system" | "user"; content: string }[] {
+export function buildNotesPrompt(
+  transcript: string,
+  manualNotes = "",
+  templateId?: string,
+): { role: "system" | "user"; content: string }[] {
   const notes = manualNotes.trim();
   const clipped = transcript.length > 48000 ? `${transcript.slice(0, 48000)}\n…(truncated)` : transcript;
   const user = notes
     ? `The user's own notes from the meeting:\n\n${notes}\n\nTranscript:\n\n${clipped}`
     : `Transcript:\n\n${clipped}`;
+  // Order matters: the JSON contract and the never-invent rule come first and a
+  // template can only add to them. The user's own notes come last, because they
+  // outrank the template — a template says what this KIND of meeting is usually
+  // about, and the notes say what THIS one actually was.
+  const system = BASE_SYSTEM + templateInstruction(templateById(templateId)) + (notes ? NOTES_SYSTEM : "");
   return [
-    { role: "system", content: notes ? BASE_SYSTEM + NOTES_SYSTEM : BASE_SYSTEM },
+    { role: "system", content: system },
     { role: "user", content: user },
   ];
 }
@@ -115,14 +124,18 @@ export function buildNotesPrompt(transcript: string, manualNotes = ""): { role: 
  *
  * `manualNotes` is whatever the user typed during the meeting; see the header.
  */
-export async function generateMeetingNotes(transcript: string, manualNotes = ""): Promise<MeetingNotes> {
+export async function generateMeetingNotes(
+  transcript: string,
+  manualNotes = "",
+  templateId?: string,
+): Promise<MeetingNotes> {
   const text = transcript.trim();
   const notes = manualNotes.trim();
   // Nothing said and nothing typed: there is genuinely nothing to summarise.
   if (!text && !notes) return summarizeTranscript(transcript);
   try {
     const reply = await withTimeout(
-      chatComplete(buildNotesPrompt(text, notes), { temperature: 0.2, maxTokens: 768 }),
+      chatComplete(buildNotesPrompt(text, notes, templateId), { temperature: 0.2, maxTokens: 768 }),
       NOTES_TIMEOUT_MS,
     );
     return parseAiNotes(reply, transcript);

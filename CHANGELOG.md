@@ -105,6 +105,24 @@ wrote it rather than elaborating detail nobody said. Without a model, the
 heuristic fallback keeps your notes verbatim at the top instead of dropping
 them.
 
+### Note templates
+
+A sales call, a 1:1 and a user interview produce very different notes from the
+same transcript, and which one you wanted is not recoverable afterwards. Six
+built-in templates (`packages/core/src/notes/templates.ts`) now steer what the
+summariser pays attention to, chosen on the Record screen and remembered.
+
+They change content and emphasis, not the storage schema: notes are stored,
+rendered, exported to Notion, synced and read back as one `MeetingNotes` shape,
+and a per-template section list would mean changing every one of those
+consumers. So a template contributes framing and a priority list that the model
+folds into the existing four fields. That is a deliberate ceiling — a sales note
+whose objections land under `summary` is still searchable, exportable and
+diffable. A template may only ever *add* to the prompt: the JSON contract and
+the never-invent rule are what keep notes parseable and grounded, and tests
+assert no template can weaken either. A persisted id for a template that no
+longer exists degrades to the general one rather than failing note generation.
+
 ### Recording felt broken even when it worked
 
 Four reports after actually using the recorder, all traced to real causes

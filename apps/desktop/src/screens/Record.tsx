@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { CircleDot, Mic, MonitorSpeaker, Info, CheckCircle2, Upload } from "lucide-react";
 import { LANG_OPTIONS } from "@ledgeur/asr";
+import { NOTE_TEMPLATES, templateById } from "@ledgeur/core";
 import { Page, PageHeader } from "../components/PageHeader.tsx";
 import { Button, Card, ErrorNote } from "../components/ui.tsx";
 import { LiveMeeting } from "../components/recorder/LiveMeeting.tsx";
@@ -26,6 +27,8 @@ export function Record() {
   const lang = useSetting("transcriptionLang");
   const setSystem = (v: boolean) => setSetting("captureSystemAudio", v);
   const setLang = (v: string) => setSetting("transcriptionLang", v);
+  const template = useSetting("noteTemplate");
+  const setTemplate = (v: string) => setSetting("noteTemplate", v);
   // With the native Core Audio tap (macOS 14.2+) there is no picker, no video
   // and no screen-recording indicator — just a one-time OS permission — so
   // capturing the other side of the call is the sensible default for a meeting
@@ -113,21 +116,42 @@ export function Record() {
             </p>
           )}
 
-          <div className="mb-7">
-            <label htmlFor="rec-lang" className="ldg-kicker mb-2 block">Language</label>
-            <select
-              id="rec-lang"
-              value={lang}
-              onChange={(e) => setLang(e.target.value)}
-              className="rounded-xl border border-hairline bg-surface px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-accent/40"
-            >
-              {LANG_OPTIONS.map((option) => (
-                <option key={option.value} value={option.value}>{option.label}</option>
-              ))}
-            </select>
+          <div className="mb-7 grid gap-4 sm:grid-cols-2">
+            <div>
+              <label htmlFor="rec-lang" className="ldg-kicker mb-2 block">Language</label>
+              <select
+                id="rec-lang"
+                value={lang}
+                onChange={(e) => setLang(e.target.value)}
+                className="w-full rounded-xl border border-hairline bg-surface px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-accent/40"
+              >
+                {LANG_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>{option.label}</option>
+                ))}
+              </select>
+            </div>
+            {/* What the notes should pay attention to. A sales call and a 1:1
+                produce very different notes from the same transcript, and which
+                one you wanted cannot be recovered afterwards. */}
+            <div>
+              <label htmlFor="rec-template" className="ldg-kicker mb-2 block">Notes style</label>
+              <select
+                id="rec-template"
+                value={template}
+                onChange={(e) => setTemplate(e.target.value)}
+                className="w-full rounded-xl border border-hairline bg-surface px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-accent/40"
+              >
+                {NOTE_TEMPLATES.map((t) => (
+                  <option key={t.id} value={t.id}>{t.name}</option>
+                ))}
+              </select>
+              <p className="mt-1.5 text-[11.5px] leading-relaxed text-faint">
+                {templateById(template).description}
+              </p>
+            </div>
           </div>
 
-          <Button variant="accent" size="lg" onClick={() => void start({ mic, system, lang })} disabled={!mic && !system} className="w-full">
+          <Button variant="accent" size="lg" onClick={() => void start({ mic, system, lang, template })} disabled={!mic && !system} className="w-full">
             <CircleDot className="h-4 w-4" /> Start recording
           </Button>
 
