@@ -1,27 +1,17 @@
-// Warms the on-device model caches as soon as the app opens, so "Start
-// recording" doesn't have to wait for a multi-hundred-MB download the first
-// time someone uses it.
+// Starts the on-device models loading as soon as the app opens, so "Start
+// recording" never has to wait for them.
 //
-// Native engine (whisper.cpp/sherpa-onnx, compiled with --features native-ai):
-// kicks off the same download the "Download models" button in Settings does.
-// Webview engine (transformers.js, what the shipped build actually runs):
-// loads the model into a worker so its weights land in the browser's
-// persistent Cache Storage AND a live ONNX/WebGPU session is left running —
-// the model *bytes* being cached does not make session creation and shader
-// compilation instant, and that (not the download) is what actually takes
-// time. useRecorder.start() claims this warm worker via
-// claimWarmTranscriber()/claimWarmDiarizer() instead of building a fresh one,
-// so the first recording of a session skips that reload entirely. Only claims
-// this once — a second recording in the same session loads normally, same as
-// before this existed.
+// This module is only the *trigger* and the *status surface*. The pipeline
+// itself is owned by asrEngine.ts, for the whole life of the process — see the
+// long comment there for why that ownership had to move out of here. Warmup and
+// the recorder are now two callers of one engine, so warming up genuinely means
+// every recording starts instantly, not just the first one.
 //
-// The status below exists so this background work is actually visible
-// somewhere (the sidebar) instead of only surfacing the first time someone
-// hits "Start recording" — which used to be the only place a download's
-// progress was ever shown, making the background warmup look like it hadn't
-// started at all.
+// The status exists so this background work is visible somewhere (the sidebar)
+// rather than only surfacing the first time somebody hits "Start recording".
 
-import { TranscriberController, DiarizerController } from "@ledgeur/core/browser";
+import { getSettings } from "./settings.ts";
+import { ensureTranscriber, ensureDiarizer, subscribeEngine, getEngineStatus } from "./asrEngine.ts";
 import { aiStatus, downloadModels } from "./nativeAI.ts";
 import { isTauri } from "./runtime.ts";
 import { createLogger } from "./logger.ts";
@@ -40,40 +30,47 @@ export interface WarmupStatus {
 }
 
 const IDLE: WarmupStatus = { phase: "idle", progress: null, label: "" };
-let status: WarmupStatus = IDLE;
+/** Set only by the native path, which reports no per-byte progress. */
+let nativeStatus: WarmupStatus | null = null;
 const listeners = new Set<() => void>();
 
-function setStatus(next: WarmupStatus): void {
-  status = next;
+function setNativeStatus(next: WarmupStatus | null): void {
+  nativeStatus = next;
   listeners.forEach((l) => l());
 }
 
 /** For `useSyncExternalStore` — the sidebar's download indicator. */
 export function subscribeWarmup(listener: () => void): () => void {
   listeners.add(listener);
-  return () => listeners.delete(listener);
+  const unsubscribeEngine = subscribeEngine(listener);
+  return () => { listeners.delete(listener); unsubscribeEngine(); };
 }
 
+/**
+ * Warmup status, derived from the engine rather than tracked alongside it.
+ *
+ * Cached and identity-stable while nothing changes: `useSyncExternalStore`
+ * re-renders on every snapshot that isn't `Object.is`-equal to the last, so
+ * building a fresh object here would spin the sidebar forever.
+ */
+let snapshot: WarmupStatus = IDLE;
 export function getWarmupStatus(): WarmupStatus {
-  return status;
+  const next = computeWarmupStatus();
+  if (next.phase !== snapshot.phase || next.progress !== snapshot.progress || next.label !== snapshot.label) {
+    snapshot = next;
+  }
+  return snapshot;
 }
 
-let warmTranscriber: TranscriberController | null = null;
-let warmDiarizer: DiarizerController | null = null;
-
-/** One-shot claim: returns the warmed transcriber and clears it, so a second
- *  caller (a second recording this session) gets null and loads normally. */
-export function claimWarmTranscriber(): TranscriberController | null {
-  const t = warmTranscriber;
-  warmTranscriber = null;
-  return t;
-}
-
-/** One-shot claim — see claimWarmTranscriber(). */
-export function claimWarmDiarizer(): DiarizerController | null {
-  const d = warmDiarizer;
-  warmDiarizer = null;
-  return d;
+function computeWarmupStatus(): WarmupStatus {
+  if (nativeStatus) return nativeStatus;
+  const engine = getEngineStatus();
+  switch (engine.phase) {
+    case "loading": return { phase: "downloading", progress: engine.progress, label: "Speech model" };
+    case "ready": return { phase: "ready", progress: 100, label: "" };
+    case "failed": return { phase: "failed", progress: null, label: "" };
+    default: return IDLE;
+  }
 }
 
 /** Idempotent within a session — call freely from anywhere the app mounts. */
@@ -90,40 +87,32 @@ async function run(): Promise<void> {
       if (status?.compiled) {
         if (!status.models_ready) {
           log.info("warming native AI models in the background");
-          // The Rust download is one blocking call with no per-byte progress
-          // to report, so this is honest about showing a spinner rather than
+          // The Rust download is one blocking call with no per-byte progress to
+          // report, so this is honest about showing a spinner rather than
           // fabricating a percentage.
-          setStatus({ phase: "downloading", progress: null, label: "On-device models" });
+          setNativeStatus({ phase: "downloading", progress: null, label: "On-device models" });
           await downloadModels()
-            .then(() => setStatus({ phase: "ready", progress: 100, label: "" }))
-            .catch((e: unknown) => { log.warn("native model warmup failed", e); setStatus({ phase: "failed", progress: null, label: "" }); });
+            .then(() => setNativeStatus({ phase: "ready", progress: 100, label: "" }))
+            .catch((e: unknown) => {
+              log.warn("native model warmup failed", e);
+              setNativeStatus({ phase: "failed", progress: null, label: "" });
+            });
         }
-        return; // native engine handles transcription; the webview model isn't needed
+        return; // the native engine transcribes; the webview model isn't needed
       }
     }
 
-    setStatus({ phase: "downloading", progress: 0, label: "Speech model" });
-    const tr = new TranscriberController({
-      onProgress: (_f, p) => setStatus({ phase: "downloading", progress: p, label: "Speech model" }),
-    });
-    const dz = new DiarizerController({
-      onProgress: (_f, p) => setStatus({ phase: "downloading", progress: p, label: "Speaker models" }),
-    });
-    // Kept alive (not disposed) on success so useRecorder.start() can claim a
-    // pipeline that is already live — see the header comment. Only disposed
-    // here if its own load failed, since a dead worker has nothing to claim.
-    const results = await Promise.allSettled([
-      tr.preloadAndWait("en-hq").catch((e: unknown) => { log.warn("transcriber warmup failed", e); tr.dispose(); throw e; }),
-      dz.preload().catch((e: unknown) => { log.warn("diarizer warmup failed", e); dz.dispose(); throw e; }),
+    // Both are started together and neither is awaited by the other: the
+    // transcriber is what a recording needs first, and a slow speaker-model
+    // download must not delay it.
+    await Promise.allSettled([
+      // The user's own choice, not a constant: warming a model the next
+      // recording won't ask for is the same as not warming anything.
+      ensureTranscriber(getSettings().transcriptionLang),
+      ensureDiarizer().catch((e: unknown) => log.warn("speaker model warmup failed", e)),
     ]);
-    if (results[0].status === "fulfilled") warmTranscriber = tr;
-    if (results[1].status === "fulfilled") warmDiarizer = dz;
-    setStatus(results.some((r) => r.status === "fulfilled")
-      ? { phase: "ready", progress: 100, label: "" }
-      : { phase: "failed", progress: null, label: "" });
     log.info("model warmup complete");
   } catch (e) {
     log.warn("model warmup failed", e);
-    setStatus({ phase: "failed", progress: null, label: "" });
   }
 }

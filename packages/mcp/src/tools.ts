@@ -43,28 +43,95 @@ const clamp = (v: unknown, fallback: number, max: number) => {
   return Number.isFinite(n) && n > 0 ? Math.min(Math.floor(n), max) : fallback;
 };
 
+/**
+ * Where a meeting can be opened by a person. Emitted as `url` on every record so
+ * anything that ingests these can cite back to the source.
+ */
+const APP_BASE_URL = "https://ledgeur.com/app";
+const meetingUrl = (id: string) => `${APP_BASE_URL}/meetings/${id}`;
+
+/**
+ * The wire shape of a meeting record.
+ *
+ * Deliberately FLAT, with `id`, `title`, `url` and the text in named top-level
+ * fields. The repository's own `FullMeeting` is nested (`{ meeting, note,
+ * speakers, segments }`), and returning that directly is what broke ingestion
+ * into Contextely: a generic MCP consumer is configured with field paths — the
+ * Ledgeur preset reads `id`, `title`, `notes,transcript,summary` — and against
+ * a nested record every one of those resolved to nothing, so meetings arrived
+ * with no identifier, no title and no content. Anything reading these tools
+ * conversationally is unaffected (it was reading JSON either way); anything
+ * reading them by path now works.
+ *
+ * The nested detail is kept alongside, under `speakers` and `segments`, because
+ * an agent asking "who said what" still needs it.
+ */
+interface MeetingRecord {
+  id: string;
+  title: string;
+  url: string;
+  status: string;
+  startedAt: string | null;
+  endedAt: string | null;
+  createdAt: string;
+  lang: string;
+}
+
+function toRecord(m: {
+  id: string; title: string; status: string; lang: string;
+  startedAt: string | null; endedAt: string | null; createdAt: string;
+}): MeetingRecord {
+  return {
+    id: m.id,
+    title: m.title,
+    url: meetingUrl(m.id),
+    status: m.status,
+    startedAt: m.startedAt,
+    endedAt: m.endedAt,
+    createdAt: m.createdAt,
+    lang: m.lang,
+  };
+}
+
 export const TOOLS: ToolDefinition[] = [
   {
     name: "list_meetings",
     description:
       "List the user's most recent meetings (title, date, status). Use to browse before drilling into one.",
     input: { limit: z.number().int().min(1).max(100).optional().describe("How many to return, up to 100.") },
-    run: (db, args) => listMeetings(db, clamp(args.limit, 25, 100)),
+    run: async (db, args) => (await listMeetings(db, clamp(args.limit, 25, 100))).map(toRecord),
   },
   {
     name: "search_meetings",
     description: "Search the user's meetings by keyword in the title. Returns matching meetings.",
     input: { query: z.string().min(1).describe("Words to look for in the title.") },
-    run: (db, args) => searchMeetings(db, String(args.query ?? "")),
+    run: async (db, args) => (await searchMeetings(db, String(args.query ?? ""))).map(toRecord),
   },
   {
     name: "get_meeting",
-    description: "Get a single meeting with its notes, speakers and full transcript by meeting id.",
+    description:
+      "Get a single meeting by id: its summary, decisions, open questions, the full Markdown notes, "
+      + "the whole transcript as text, and the speakers and timed segments behind it.",
     input: { id: z.string().min(1).describe("The meeting id, as returned by list_meetings.") },
     run: async (db, args) => {
-      const meeting = await getMeeting(db, String(args.id ?? ""));
-      if (!meeting) throw new Error(`No meeting ${args.id} is visible to you.`);
-      return meeting;
+      const full = await getMeeting(db, String(args.id ?? ""));
+      if (!full) throw new Error(`No meeting ${args.id} is visible to you.`);
+      const speakerName = new Map(full.speakers.map((s) => [s.id, s.label]));
+      return {
+        ...toRecord(full.meeting),
+        // Named, top-level and plain text: this is what gets condensed into
+        // memory, and what a field-path consumer is configured to read.
+        summary: full.note?.summary.join("\n") ?? "",
+        decisions: full.note?.decisions.join("\n") ?? "",
+        questions: full.note?.questions.join("\n") ?? "",
+        notes: full.note?.markdown ?? "",
+        transcript: full.segments
+          .map((s) => `${speakerName.get(s.speakerId ?? "") ?? "Speaker"}: ${s.text}`)
+          .join("\n"),
+        wordCount: full.note?.wordCount ?? 0,
+        speakers: full.speakers,
+        segments: full.segments,
+      };
     },
   },
   {

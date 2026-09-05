@@ -205,7 +205,7 @@ mod inner {
 
         let mut sampler = LlamaSampler::chain_simple([
             LlamaSampler::top_k(40),
-            LlamaSampler::top_p(0.95),
+            LlamaSampler::top_p(0.95, 0),
             LlamaSampler::temp(temperature.max(0.0)),
             LlamaSampler::dist(1234),
         ]);

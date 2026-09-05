@@ -12,29 +12,32 @@ import { useRecorderCtx } from "../lib/useRecorderCtx.ts";
 import { finalizeMeeting } from "../lib/afterMeeting.ts";
 import { useFileImport, IMPORT_ACCEPT } from "../lib/useFileImport.ts";
 import { isSystemAudioTapAvailable } from "../lib/systemAudioTap.ts";
+import { useSetting, setSetting, hasChosenSystemAudio } from "../lib/settings.ts";
 
 export function Record() {
   const nav = useNavigate();
   const [params] = useSearchParams();
   const { state, start, stop, reset, title, setTitle } = useRecorderCtx();
   const [mic, setMic] = useState(true);
-  // Off by default everywhere: turning this on triggers the OS's screen/system-
-  // audio-sharing picker (getDisplayMedia is the only way a webview can capture
-  // anyone else's audio), which is a heavier prompt than most recordings need.
-  // Left as an explicit opt-in for when the other side of a call actually needs
-  // capturing.
-  const [system, setSystem] = useState(false);
-  // When the native Core Audio tap is available (macOS 14.2+, the
-  // `system-audio-tap` build) there's no picker or menu-bar indicator to warn
-  // about, so the copy below changes — but the default stays off either way
-  // until the native path has been exercised on real hardware.
+  // Both of these are persisted preferences rather than component state: the
+  // model warmed at app launch has to be the one the next recording asks for,
+  // or "warming up" achieves nothing and the recording pays a full reload.
+  const system = useSetting("captureSystemAudio");
+  const lang = useSetting("transcriptionLang");
+  const setSystem = (v: boolean) => setSetting("captureSystemAudio", v);
+  const setLang = (v: string) => setSetting("transcriptionLang", v);
+  // With the native Core Audio tap (macOS 14.2+) there is no picker, no video
+  // and no screen-recording indicator — just a one-time OS permission — so
+  // capturing the other side of the call is the sensible default for a meeting
+  // recorder. Where the tap isn't available the only route is getDisplayMedia's
+  // screen-share picker, which is far too heavy to turn on for someone.
   const [systemTapAvailable, setSystemTapAvailable] = useState(false);
-  useEffect(() => { void isSystemAudioTapAvailable().then(setSystemTapAvailable); }, []);
-  // "en-hq" (whisper-base.en) rather than the plain "en" tiny model: a larger
-  // download and somewhat slower per-chunk, but meaningfully more accurate —
-  // the tiny model was the biggest single contributor to inaccurate
-  // transcripts. Still overridable from the dropdown below.
-  const [lang, setLang] = useState("en-hq");
+  useEffect(() => {
+    void isSystemAudioTapAvailable().then((available) => {
+      setSystemTapAvailable(available);
+      if (available && !hasChosenSystemAudio()) setSetting("captureSystemAudio", true, "default");
+    });
+  }, []);
   const importer = useFileImport();
   const fileInput = useRef<HTMLInputElement>(null);
   const [dragging, setDragging] = useState(false);
@@ -46,7 +49,7 @@ export function Record() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [paramTitle]);
 
-  if (state.status === "recording" || state.status === "processing" || state.status === "loading-model") {
+  if (state.status === "recording" || state.status === "processing") {
     return (
       <LiveMeeting
         onStop={() => void stop(title).then((id) => { if (id) { void finalizeMeeting(id); nav(`/meetings/${id}`); } })}
@@ -92,15 +95,21 @@ export function Record() {
 
           <div className="mb-6 grid gap-3 sm:grid-cols-2">
             <SourceToggle icon={<Mic className="h-4 w-4" />} label="Microphone" hint="Your voice" on={mic} onChange={setMic} />
-            <SourceToggle icon={<MonitorSpeaker className="h-4 w-4" />} label="System audio" hint="Everyone else on the call" on={system} onChange={setSystem} />
+            <SourceToggle
+              icon={<MonitorSpeaker className="h-4 w-4" />}
+              label="System audio"
+              hint={systemTapAvailable ? "Everyone else on the call" : "Needs screen-recording permission"}
+              on={system}
+              onChange={setSystem}
+            />
           </div>
           {system && (
             <p className="-mt-4 mb-6 text-[11.5px] leading-relaxed text-faint">
               {systemTapAvailable
-                ? "This asks your Mac for a one-time audio-recording permission — no picker, no screen-sharing indicator. Only the audio is used; nothing is saved or shown from your screen."
-                : "This asks your Mac for Screen Recording permission — it's the only way a meeting app " +
-                  "without a bot can hear the other side of a call. Only the audio is used; nothing is saved " +
-                  "or shown from your screen."}
+                ? "Captured straight from Core Audio: a one-time audio-only permission the first time, then no picker, " +
+                  "no screen sharing and no recording indicator. Your screen is never read."
+                : "This build falls back to Screen Recording permission and a share picker — the only way a webview " +
+                  "can hear the other side of a call. Only the audio is used; nothing is saved or shown from your screen."}
             </p>
           )}
 

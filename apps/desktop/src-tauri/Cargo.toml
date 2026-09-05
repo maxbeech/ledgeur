@@ -39,7 +39,10 @@ sherpa-rs = { version = "0.6", optional = true }
 reqwest = { version = "0.12", default-features = false, features = ["blocking", "rustls-tls"], optional = true }
 # In-process LLM (copilot, coaching suggestions, post-meeting notes). CPU by
 # default; picks up Metal/CUDA/Vulkan where the platform toolchain provides it.
-llama-cpp-2 = { version = "0.1", optional = true }
+# Pinned exact: 0.1.x has broken its Rust API across patch releases before
+# (e.g. LlamaSampler::top_p gained a min_keep param in 0.1.150), and there's
+# no CI running `--features native-ai` to catch a silent transitive bump.
+llama-cpp-2 = { version = "=0.1.150", optional = true }
 encoding_rs = { version = "0.8", optional = true }
 
 # Auto-update: checks GitHub Releases' latest.json, downloads + verifies a
@@ -64,6 +67,14 @@ objc2-foundation = { version = "0.3", optional = true }
 block2 = { version = "0.6", optional = true }
 
 [features]
+# System audio without a screen-share picker is ON by default: it is the whole
+# point of the feature. Left opt-in, it shipped disabled, so every build still
+# fell back to getDisplayMedia and users still got the macOS screen-recording
+# prompt — the exact thing the module was written to remove. The deps it
+# activates are declared under the macOS target only, so this is inert on every
+# other platform, and the module's own cfg keeps the command stubs in place
+# there (and on macOS older than 14.2, where the API doesn't exist).
+default = ["system-audio-tap"]
 # Enabled by tauri on desktop builds for custom protocol asset serving.
 custom-protocol = ["tauri/custom-protocol"]
 # On-device transcription (whisper.cpp), diarization (sherpa-onnx) and model

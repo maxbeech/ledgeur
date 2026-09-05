@@ -13,6 +13,7 @@ import { runLibraryTests } from "./library.mts";
 import { runAssembleTests } from "./assemble.mts";
 import { runSyncTests } from "./sync.mts";
 import { runFailureTests } from "./failures.mts";
+import { runSegmenterTests } from "./segmenter.mts";
 import type { CalendarEvent } from "../src/domain/entities.ts";
 
 let pass = 0, fail = 0;
@@ -175,6 +176,9 @@ runLibraryTests(ok);
 
 // --- cloud sync mapping ---
 runSyncTests(ok);
+
+// --- utterance segmentation (chunk boundaries the model sees) ---
+runSegmenterTests(ok);
 
 // --- browser controllers (fake Worker) ---
 await runBrowserTests(ok);

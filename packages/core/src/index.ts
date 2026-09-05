@@ -3,6 +3,7 @@ export * from "./domain/index.ts";
 export * from "./auth/index.ts";
 export * from "./notes/index.ts";
 export * from "./audio/pcm.ts";
+export * from "./audio/segmenter.ts";
 export * from "./diarize/index.ts";
 export * from "./library/index.ts";
 export * from "./supabase/client.ts";

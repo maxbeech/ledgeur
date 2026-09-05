@@ -15,6 +15,14 @@ import type { ContextBlock } from "./chat.ts";
 
 /** Where to get a key, so the UI can link there directly. */
 export const CONTEXTELY_SIGNUP_URL = "https://www.contextely.com";
+/**
+ * Where a Contextely admin adds Ledgeur as a source — the other direction of
+ * the integration, in which meetings become company memory. Contextely ingests
+ * over MCP and ships a Ledgeur preset (`list_meetings` / `get_meeting`), so
+ * nothing is pushed from this app; Contextely pulls, condenses and refreshes on
+ * its own schedule under its own entitlement rules.
+ */
+export const CONTEXTELY_SOURCES_URL = "https://www.contextely.com/sources";
 
 export async function isContextelyConnected(): Promise<boolean> {
   const sb = getSupabase();

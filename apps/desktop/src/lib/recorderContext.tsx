@@ -48,7 +48,10 @@ export function RecorderProvider({ children }: { children: ReactNode }) {
     getTranscript: transcriptText,
     elapsedMs: () => Math.round(stateRef.current.elapsed * 1000),
     recording: recorder.state.status === "recording",
-    starting: recorder.state.status === "loading-model",
+    // The recording is live but the speech pipeline isn't yet, so there is no
+    // transcript for the copilot to reason about — it holds off rather than
+    // answering from an empty meeting.
+    starting: recorder.state.status === "recording" && recorder.state.modelPhase === "loading",
   });
   threadRef.current = () => thread.messages;
 

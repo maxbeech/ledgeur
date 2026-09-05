@@ -6,6 +6,105 @@
 
 ## Unreleased — Speakers, a real web app, and a price list that is true
 
+### The recorder, properly this time
+
+The previous round (below) found the right causes and then under-fixed three of
+them. Reported again after real use: the model still loaded when starting a
+recording, the live transcript was still slow, and system audio still asked for
+screen recording. All three were true, and all three are now verified against
+the real pipeline rather than argued from the code.
+
+- **The speech pipeline is now owned by the process, not by a recording.**
+  Keeping the warmed worker alive was right; handing it over with a *one-shot
+  claim* and then calling `dispose()` in `stop()` was not. Only the first
+  recording of a session ever benefited — every one after it terminated the
+  worker and rebuilt the ONNX/WebGPU session from scratch, which is exactly what
+  was reported. Worse, hitting Record before the warmup finished got `null` from
+  the claim and built a *second* controller alongside the still-loading first,
+  so two ONNX sessions competed for the GPU and the orphan leaked. There is now
+  one transcriber and one diarizer for the life of the app
+  (`apps/desktop/src/lib/asrEngine.ts`), created lazily, shared by warmup and
+  recorder, never disposed. Concurrent callers share one load.
+- **Recording no longer waits for the model at all.** `start()` used to `await`
+  the pipeline before setting the status to recording, so the meeting was
+  replaced by a full-screen "Loading the on-device model…" card. Capture now
+  begins immediately, the meeting UI appears immediately, and audio banks up and
+  is transcribed the moment a pipeline is live — so even a genuinely cold first
+  launch starts recording instantly instead of showing a wait. The model's state
+  is one quiet line under the header, and nothing at all in the normal case.
+- **Chunks are cut on speech pauses, not on a clock.** A fixed 5-second slice
+  lands mid-word, and Whisper does not lose a half-word — it *guesses* it, and
+  the guess drags the rest of the decode with it. That was a direct cause of
+  "the transcript was poor and inaccurate". `UtteranceSegmenter`
+  (`packages/core/src/audio/segmenter.ts`, pure and unit-tested) accumulates and
+  emits on a trailing pause, bounded to 3–18 seconds, cutting at the quietest
+  frame when a monologue offers no pause. It also fixes latency the other way
+  round: Whisper pads every input to a 30-second window, so a 3-second slice
+  costs almost what an 18-second one does, and slicing more often to feel faster
+  buys latency at a large multiple of the compute.
+- **Capture and transcription are now separate loops.** The pump moves PCM out
+  of the capture buffer every 250 ms and does no model work; a separate loop
+  takes whole utterances and runs the model over them one at a time. Capture can
+  no longer be starved by a slow model, and two model passes can never overlap.
+  Speaker analysis for a slice is started only after that slice's transcription
+  returns, so the two stop competing for the same GPU.
+- **The level meter no longer re-renders the meeting.** It lived on recorder
+  state and fired about twelve times a second, re-rendering the transcript,
+  every chat bubble and the notes panel to move one bar. It is a module store
+  (`audioLevel.ts`) that only the meter subscribes to.
+- **System audio without screen recording is now on by default.** The Core Audio
+  Process Tap shipped behind an opt-in Cargo feature, which meant every actual
+  build had it off and still fell back to `getDisplayMedia` — the exact prompt
+  it was written to remove. `system-audio-tap` is now a default feature. Its
+  dependencies are declared under the macOS target only, so this is inert
+  elsewhere and the command stubs stay in place on other platforms and on macOS
+  older than 14.2. (Granola, for comparison, requires macOS "Screen & System
+  Audio recording" permission for the same job.)
+- **Backlog and failure are bounded and honest.** A pipeline that fails to start
+  is retried at most every 30 seconds instead of on every 250 ms tick; audio
+  beyond a five-minute backlog is dropped with a loud log rather than growing
+  the heap until the app dies mid-meeting; and a transcript more than 45 seconds
+  behind says so instead of looking like a hang.
+
+**Verified end-to-end, not asserted.** The real pipeline was driven in the
+browser with a 60-second speech recording substituted for the microphone:
+transcription came back accurate and correctly punctuated, cut at sentence
+boundaries (12s, 10s, 4s, 17s — variable, as pause-based segmentation should
+be), lag held steady instead of compounding, a *second* recording in the same
+session went live in about 300 ms with no model load, and Stop saved in 1.0
+second against the "couple of minutes" reported.
+
+### Meetings become company memory (Contextely)
+
+Contextely ingests over MCP and already shipped a Ledgeur preset reading
+`list_meetings` and `get_meeting`. It could never have worked: those tools
+returned the repository's nested `FullMeeting` (`{ meeting, note, speakers,
+segments }`), and Contextely's connector reads dotted field paths — `id`,
+`title`, `notes,transcript,summary` — every one of which resolved to nothing
+against that shape. Meetings would have ingested with no identifier, no title
+and no content, and stored as empty memory objects rather than erroring.
+
+- The MCP tools now return flat, self-describing records: top-level `id`,
+  `title`, `url`, plus `summary`, `decisions`, `questions`, `notes` and a
+  speaker-attributed `transcript` as plain text. The structured `speakers` and
+  `segments` are kept alongside for agents that need "who said what".
+- Pinned by tests that assert every field path the Contextely preset reads
+  actually resolves — this fails silently at the far end, so it is not left to
+  a manual check.
+- The integrations card now shows both directions and hands over the endpoint to
+  paste into Contextely.
+
+### Notes you typed are finally used
+
+The notes panel stored what you typed during a meeting and rendered it in the
+saved record, but never sent it to the model — so the summary came out the same
+whether or not you had noted what mattered. Typed notes now steer note
+generation: covered first, in your order, each fragment expanded from the
+transcript, with an explicit instruction to leave an unsupported fragment as you
+wrote it rather than elaborating detail nobody said. Without a model, the
+heuristic fallback keeps your notes verbatim at the top instead of dropping
+them.
+
 ### Recording felt broken even when it worked
 
 Four reports after actually using the recorder, all traced to real causes

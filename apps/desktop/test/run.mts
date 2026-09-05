@@ -2,7 +2,7 @@
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 // Only import modules free of browser-only globals (no import.meta.env, DOM).
 import { mergeThread, quoteOf, messageToItem, type ThreadItem } from "../src/lib/thread.ts";
-import { parseAiNotes } from "../src/lib/notes.ts";
+import { parseAiNotes, buildNotesPrompt } from "../src/lib/notes.ts";
 import {
   authErrorMessage, hasNoAuthMethod, NO_AUTH, parseAuthSettings, providerUnavailableMessage,
   signUpNextStep, validateCredentials,
@@ -60,6 +60,35 @@ ok("parseAiNotes throws on non-JSON", (() => { try { parseAiNotes("no json here"
 ok("parseAiNotes throws on empty summary", (() => {
   try { parseAiNotes(JSON.stringify({ summary: [] }), "x"); return false; } catch { return true; }
 })());
+
+// --- buildNotesPrompt: the notes the user typed have to actually reach the model ---
+//
+// They were stored and rendered but never sent, which made typing during a
+// meeting pointless — the summary came out the same whether or not you'd noted
+// what mattered. These assert the wiring and the guard-rail on it.
+{
+  const plain = buildNotesPrompt("we agreed to ship on Friday", "");
+  ok("a transcript-only prompt has system + user", plain.length === 2 && plain[0].role === "system");
+  ok("a transcript-only prompt carries the transcript", plain[1].content.includes("ship on Friday"));
+  ok("a transcript-only prompt does not mention the user's notes",
+    !plain[0].content.includes("typed their own"), plain[0].content.slice(-80));
+
+  const withNotes = buildNotesPrompt("we agreed to ship on Friday", "pricing - Sam pushing back");
+  ok("typed notes reach the model", withNotes[1].content.includes("Sam pushing back"));
+  ok("the transcript is still sent alongside them", withNotes[1].content.includes("ship on Friday"));
+  ok("typed notes add the prioritising instruction", withNotes[0].content.includes("priority"));
+  // The instruction not to elaborate an unsupported fragment is the difference
+  // between expanding someone's shorthand and inventing a quote for them.
+  ok("the model is told not to invent detail for a fragment",
+    /not supported by the transcript/i.test(withNotes[0].content));
+
+  const blank = buildNotesPrompt("transcript here", "   \n  ");
+  ok("whitespace-only notes are treated as none", !blank[0].content.includes("priority"));
+
+  const long = buildNotesPrompt("x".repeat(60000), "");
+  ok("an over-long transcript is truncated", long[1].content.includes("(truncated)"));
+  ok("truncation keeps the prompt bounded", long[1].content.length < 50000, String(long[1].content.length));
+}
 
 // --- auth capabilities & messages ---
 // The app must never offer a sign-in button the backend cannot honour: the

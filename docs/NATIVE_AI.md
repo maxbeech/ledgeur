@@ -150,24 +150,35 @@ Tauri event (`system-audio:chunk`). Modelled on Apple's own reference sample
 (`insidegui/AudioCap`), using the `objc2-core-audio` crate's bindings rather
 than hand-rolled FFI.
 
-Behind its own opt-in Cargo feature, independent of `native-ai`:
+**On by default.** `system-audio-tap` is in the crate's `default` features. It
+shipped opt-in at first, which meant every real build had it *off* and still
+fell back to `getDisplayMedia` — the exact prompt the module exists to remove.
+Its dependencies are declared under the macOS target only, so the feature is
+inert on other platforms, and the module's own `cfg` keeps the command stubs in
+place there (and on macOS older than 14.2, where the API doesn't exist).
 
 ```bash
-cd apps/desktop/src-tauri && cargo check --features system-audio-tap
-# or combined with the AI engine:
-cargo check --features native-ai,system-audio-tap
+cd apps/desktop/src-tauri && cargo check                       # tap included
+cargo check --no-default-features                              # stubs only
+cargo check --features native-ai                               # with the AI engine
 ```
 
 `useRecorder.start()` (desktop only) checks `system_audio_tap_available` and
 uses the tap when it reports true, falling back to `getDisplayMedia`
 automatically everywhere else (Windows, older macOS, the plain website) — so
-enabling this feature can't regress anyone it doesn't apply to.
+this can't regress anyone it doesn't apply to. Where the tap is available, the
+"System audio" toggle defaults **on**: there is no picker and no recording
+indicator to spring on someone, only a one-time OS permission. Where it isn't,
+the toggle stays off and says it needs screen-recording permission.
 
-**Not yet verified capturing real audio** — compiles cleanly (alone, with
-`native-ai`, and with neither), but actually tapping system audio, the macOS
-permission prompt (`NSAudioCaptureUsageDescription`), and signed-build /
-entitlement behavior all need a real Mac, which is more than this could be
-checked against so far.
+For comparison, Granola requires macOS's "Screen & System Audio recording"
+permission to do the same job, so this is a real difference rather than parity.
+
+**Still not verified capturing real audio here** — it compiles cleanly (by
+default, with `native-ai`, and with no default features), but actually tapping
+system audio, the macOS permission prompt
+(`NSAudioCaptureUsageDescription`), and signed-build / entitlement behaviour all
+need a real Mac with a signed build. See the manual checklist below.
 
 ## Manual test checklist (can't be verified headless)
 
@@ -183,9 +194,17 @@ checked against so far.
 - [ ] Stop the meeting → summary + action items are written by the model (or the
       heuristic fallback if the model isn't downloaded). With "Save copilot chat"
       off (default), the saved meeting holds only the transcript.
-- [ ] `tauri:dev` built with `--features system-audio-tap` on macOS 14.2+:
-      toggling "System audio" on shows the no-picker copy, `Start recording`
+- [ ] `tauri:dev` (the tap is now a default feature) on macOS 14.2+: "System
+      audio" is already on and shows the no-picker copy, `Start recording`
       triggers the OS's one-time audio-recording permission prompt (not a
       screen-share picker), and playing audio from another app during the
       meeting shows up in the transcript. No menu-bar recording indicator
       should appear.
+- [ ] The same in a **signed, notarised** build, which is where entitlements
+      differ from a dev build — an unsigned binary can be allowed to tap where a
+      signed one is refused, or the reverse.
+- [ ] Contextely ingest end-to-end: add Ledgeur as a source in Contextely with
+      the endpoint from Integrations, and confirm meetings arrive with a title
+      and real content. The record *shape* is pinned by tests in
+      `packages/mcp/test/run.mts`, but nothing here can exercise a live
+      Contextely workspace.
