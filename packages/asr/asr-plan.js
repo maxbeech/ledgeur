@@ -40,8 +40,75 @@ export const RUNTIMES = Object.freeze({
   latest: "4.2.0",
 });
 
-/** Supported transcription languages/qualities. */
+/**
+ * Supported transcription tiers.
+ *
+ * `en`/`en-hq` are the English-only Whisper exports. `multi` is the
+ * multilingual one, and may carry a spoken-language code — `multi:fr` — which
+ * is passed to Whisper as a decoding hint. See SPOKEN_LANGUAGES.
+ */
 export const LANGS = Object.freeze(["en", "en-hq", "multi"]);
+
+/**
+ * The spoken languages offered for the multilingual model.
+ *
+ * ── Why a list, and why these ───────────────────────────────────────────────
+ * "Other languages" used to mean: run multilingual Whisper and let it detect
+ * the language from the first 30 seconds. That is a real feature and it is also
+ * the source of the worst failure this app can have — a meeting that opens in
+ * English pleasantries and continues in German is transcribed as an entire
+ * meeting of hallucinated English, confidently, with no error anywhere. Telling
+ * Whisper the language removes that failure mode outright, and also improves
+ * accuracy within the language, because the decoder is no longer spending its
+ * first tokens deciding.
+ *
+ * The set is the languages Whisper actually handles, ordered by the word error
+ * rates in the Whisper paper's own evaluation (Appendix D, large-v3 on FLEURS),
+ * and each carries an honest `tier`:
+ *
+ *   strong  usable transcripts from the base multilingual model.
+ *   fair    recognisable but with real errors; names and numbers need checking.
+ *
+ * `tier` is shown in the picker. Whisper supports ~99 languages, but most of
+ * the tail is unusable at the model sizes that run on a laptop in real time,
+ * and offering them would be offering something that does not work.
+ */
+export const SPOKEN_LANGUAGES = Object.freeze([
+  { code: "es", label: "Spanish", tier: "strong" },
+  { code: "it", label: "Italian", tier: "strong" },
+  { code: "pt", label: "Portuguese", tier: "strong" },
+  { code: "de", label: "German", tier: "strong" },
+  { code: "ca", label: "Catalan", tier: "strong" },
+  { code: "nl", label: "Dutch", tier: "strong" },
+  { code: "fr", label: "French", tier: "strong" },
+  { code: "id", label: "Indonesian", tier: "strong" },
+  { code: "pl", label: "Polish", tier: "strong" },
+  { code: "ja", label: "Japanese", tier: "strong" },
+  { code: "ru", label: "Russian", tier: "strong" },
+  { code: "sv", label: "Swedish", tier: "strong" },
+  { code: "ko", label: "Korean", tier: "strong" },
+  { code: "no", label: "Norwegian", tier: "strong" },
+  { code: "fi", label: "Finnish", tier: "strong" },
+  { code: "da", label: "Danish", tier: "strong" },
+  { code: "uk", label: "Ukrainian", tier: "strong" },
+  { code: "tr", label: "Turkish", tier: "strong" },
+  { code: "cs", label: "Czech", tier: "strong" },
+  { code: "ro", label: "Romanian", tier: "strong" },
+  { code: "el", label: "Greek", tier: "fair" },
+  { code: "zh", label: "Chinese", tier: "fair" },
+  { code: "hu", label: "Hungarian", tier: "fair" },
+  { code: "he", label: "Hebrew", tier: "fair" },
+  { code: "ms", label: "Malay", tier: "fair" },
+  { code: "vi", label: "Vietnamese", tier: "fair" },
+  { code: "ar", label: "Arabic", tier: "fair" },
+  { code: "hi", label: "Hindi", tier: "fair" },
+  { code: "th", label: "Thai", tier: "fair" },
+  { code: "bg", label: "Bulgarian", tier: "fair" },
+  { code: "sk", label: "Slovak", tier: "fair" },
+  { code: "hr", label: "Croatian", tier: "fair" },
+]);
+
+const SPOKEN_CODES = new Set(SPOKEN_LANGUAGES.map((l) => l.code));
 
 /**
  * How each option is described to a person, kept beside the plan it must match.
@@ -55,7 +122,14 @@ export const LANGS = Object.freeze(["en", "en-hq", "multi"]);
 export const LANG_OPTIONS = Object.freeze([
   { value: "en", label: "English", hint: "Fastest. Best for English-only meetings." },
   { value: "en-hq", label: "English, more accurate", hint: "A larger model. Slower to download and to run." },
-  { value: "multi", label: "Other languages", hint: "Multilingual. Slower, and less accurate than the English models." },
+  { value: "multi", label: "Detect the language", hint: "Multilingual. Picks the language itself — say which one below if you know it." },
+  ...SPOKEN_LANGUAGES.map((l) => ({
+    value: `multi:${l.code}`,
+    label: l.label,
+    hint: l.tier === "strong"
+      ? "Multilingual model, told to expect this language."
+      : "Multilingual model. Workable, but check names and numbers.",
+  })),
 ]);
 
 // WebGPU uses the onnx-community builds (WebGPU-optimised); WASM uses the
@@ -71,9 +145,45 @@ export function runtimeUrl(version) {
   return `https://cdn.jsdelivr.net/npm/@huggingface/transformers@${version}`;
 }
 
-/** Normalise an arbitrary lang input to a supported one (defaults to "en"). */
+/**
+ * Normalise an arbitrary lang input to a supported one (defaults to "en").
+ *
+ * Accepts both the tier on its own ("multi") and a tier with a spoken language
+ * ("multi:fr"). An unknown spoken code degrades to plain "multi" — detection
+ * rather than English, because somebody who asked for a language other than
+ * English should never silently get an English-only model.
+ */
 export function normaliseLang(lang) {
-  return LANGS.includes(lang) ? lang : "en";
+  if (typeof lang !== "string") return "en";
+  if (LANGS.includes(lang)) return lang;
+  if (lang.startsWith("multi:")) {
+    return SPOKEN_CODES.has(lang.slice(6)) ? lang : "multi";
+  }
+  return "en";
+}
+
+/** The tier a lang value belongs to — the key into MODELS. */
+export function langTier(lang) {
+  const norm = normaliseLang(lang);
+  return norm.startsWith("multi:") ? "multi" : norm;
+}
+
+/**
+ * The language code to hand Whisper, or null to let it decide.
+ *
+ * Null for the English-only models too: passing `language` to an English-only
+ * export is rejected by transformers.js, and the model has nothing to decide
+ * anyway.
+ */
+export function whisperLanguage(lang) {
+  const norm = normaliseLang(lang);
+  return norm.startsWith("multi:") ? norm.slice(6) : null;
+}
+
+/** The human label for a lang value, for UI and logs. */
+export function langLabel(lang) {
+  const norm = normaliseLang(lang);
+  return LANG_OPTIONS.find((o) => o.value === norm)?.label ?? norm;
 }
 
 /**
@@ -95,7 +205,7 @@ export function normaliseLang(lang) {
  * @returns {AsrAttempt[]}
  */
 export function buildLoadPlan(lang, caps = {}) {
-  const models = MODELS[normaliseLang(lang)];
+  const models = MODELS[langTier(lang)];
   /** @type {AsrAttempt[]} */
   const plan = [];
 

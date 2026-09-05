@@ -17,6 +17,9 @@ export interface MeetingCard {
   source: "local" | "cloud";
   /** Lowercased searchable text (title + transcript for local, title for cloud). */
   haystack: string;
+  /** The space this meeting is filed in, when it has one. Cloud copies carry
+   *  no space: filing is this device's organisation (see folders.ts). */
+  folderId?: string;
 }
 
 export function useMeetings() {
@@ -51,6 +54,7 @@ export function useMeetings() {
           id: m.id, title: m.title, createdAt: m.createdAt,
           wordCount: m.wordCount, actionItemCount: m.actionItems.length, source: "local",
           haystack: `${m.title} ${m.segments.map((s) => s.text).join(" ")}`.toLowerCase(),
+          folderId: m.folderId,
         }));
 
       const merged = [...cloud, ...localCards].sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));

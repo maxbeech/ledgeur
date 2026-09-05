@@ -86,8 +86,10 @@ Calendar (Google/MS) ──▶ auto-prompt ("Record?") ──▶ Record screen
  native audio capture ──▶ whisper.cpp ──▶ live transcript ──▶ sherpa-onnx
  (mic + system)                                   │            (who spoke, p=…)
                                                   ▼
- in-meeting chat ◀── llama.cpp ◀── context (live transcript + past meetings +
-                                    Notion + calendar + colleagues' shared notes)
+ in-meeting chat ◀── llama.cpp ◀── context (speaker-labelled live transcript +
+        │                           speaker roster + your typed notes +
+        │                           Contextely + Notion + calendar + ranked past
+        │                           meetings — see "Grounding" below)
         │
         ▼ (on stop)
  notes + action items ──▶ local cache (SQLite/IndexedDB) ──▶ Supabase sync
@@ -97,7 +99,52 @@ Calendar (Google/MS) ──▶ auto-prompt ("Record?") ──▶ Record screen
                                    │                              │
                                    ▼                              ▼
                           Notion export                 hive mind + MCP server
+                                   │
+                                   ▼
+                    follow-up email draft · signed webhook (meeting.completed)
 ```
+
+## Grounding — what a question is allowed to see
+
+Both surfaces that answer questions (the app-wide **Ask** and the **in-meeting
+copilot**) are built by the same code, in `packages/core/src/context/`:
+
+```
+question
+   │
+   ├─ the room (in-meeting only) ──── selectTranscriptContext ── speaker-labelled,
+   │                                    timestamped, recent tail always kept,
+   │                                    earlier passages retrieved, elisions marked
+   │                                  speakerRoster · the user's typed notes
+   │
+   └─ the company (both) ─── Contextely · Notion · org embeddings ·
+                             past meetings (ranked) · calendar
+                             ↓  gathered in parallel, per-source outcomes
+                          packContext  →  whole blocks to a budget, by relevance,
+                             ↓            reporting what it dropped
+                    buildGroundedPrompt  →  "meeting" or "library" framing
+                             ↓
+                          the model  →  answer + the source names behind it
+```
+
+Three rules the code enforces rather than hopes for:
+
+- **The transcript is pinned.** A question asked inside a meeting is about that
+  meeting even when it shares no vocabulary with it ("what did I miss?").
+- **A source that failed is named**, with its own error, not silently absent.
+  The in-meeting path additionally gives remote sources a five-second deadline
+  and reports whatever missed it — in a live conversation, a complete answer
+  that arrives late is worth less than a partial one that arrives now.
+- **The answer carries its provenance.** The source names are rendered under the
+  bubble, because "grounded in the company's memory" and "grounded in the last
+  four minutes of speech" are different claims and the prose does not
+  distinguish them.
+
+Notes carry provenance too: `attributeMeetingNotes`
+(`packages/core/src/notes/provenance.ts`) links each note line back to the
+transcript lines it came from, and deliberately returns **no** citation below a
+support threshold — a wrong citation is worse than none, because it looks
+verified.
 
 ## Security & sharing (the hive mind)
 

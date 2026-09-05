@@ -214,6 +214,7 @@ export default function Home() {
                 ["search_meetings", "Find a meeting by what it was called."],
                 ["get_meeting", "The full transcript, speakers and notes for one meeting."],
                 ["list_tasks", "Every action item, filtered by status."],
+                ["list_people", "Everyone named across your meetings."],
               ].map(([name, what]) => (
                 <li key={name} className="flex flex-wrap items-baseline gap-x-3 gap-y-1 px-5 py-3">
                   <code className="font-mono text-[12.5px] text-glow-strong">{name}</code>

@@ -6,8 +6,17 @@
 export declare const RUNTIMES: { readonly stable: string; readonly latest: string };
 export declare const LANGS: readonly string[];
 
+export interface SpokenLanguage {
+  /** ISO 639-1 code passed to Whisper as a decoding hint. */
+  code: string;
+  label: string;
+  /** How well the multilingual model actually does on it. Shown to the user. */
+  tier: "strong" | "fair";
+}
+export declare const SPOKEN_LANGUAGES: readonly SpokenLanguage[];
+
 export interface LangOption {
-  /** One of LANGS. */
+  /** A tier from LANGS, or `multi:<code>` for a specific spoken language. */
   value: string;
   label: string;
   hint: string;
@@ -25,5 +34,9 @@ export interface AsrAttempt {
 
 export declare function runtimeUrl(version: string): string;
 export declare function normaliseLang(lang: string): string;
+export declare function langTier(lang: string): string;
+/** The ISO code to hand Whisper, or null to let it detect. */
+export declare function whisperLanguage(lang: string): string | null;
+export declare function langLabel(lang: string): string;
 export declare function buildLoadPlan(lang: string, caps?: { webgpu?: boolean }): AsrAttempt[];
 export declare function friendlyAsrError(err: unknown, opts?: { exhausted?: boolean }): string;

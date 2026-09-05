@@ -5,7 +5,10 @@
 // scale" and could not transcribe at all (transformers.js 4.x + int8 Whisper).
 
 import { readFileSync } from "node:fs";
-import { buildLoadPlan, friendlyAsrError, normaliseLang, runtimeUrl, RUNTIMES, LANGS } from "../asr-plan.js";
+import {
+  buildLoadPlan, friendlyAsrError, normaliseLang, runtimeUrl, RUNTIMES, LANGS,
+  LANG_OPTIONS, SPOKEN_LANGUAGES, langTier, whisperLanguage, langLabel,
+} from "../asr-plan.js";
 import {
   buildDiarizePlan, friendlyDiarizeError, planWindows, DIARIZE_RUNTIME,
   SEGMENTATION_MODEL, EMBEDDING_MODEL, WINDOW_SECONDS, WINDOW_STRIDE_SECONDS,
@@ -61,6 +64,47 @@ ok("multi uses a multilingual model", buildLoadPlan("multi", { webgpu: false })[
 ok("en uses an English-only model", cpuPlan[0].model.endsWith(".en"));
 ok("en-hq uses the larger base model", buildLoadPlan("en-hq", { webgpu: false })[0].model === "Xenova/whisper-base.en");
 ok("unknown lang produces the en plan", JSON.stringify(buildLoadPlan("zz", { webgpu: false })) === JSON.stringify(cpuPlan));
+
+// --- spoken languages on the multilingual model ---
+// Whisper detecting the language for itself is the failure this replaces: a
+// meeting that opens in English and continues in another language comes back as
+// fluent invented English, with no error anywhere.
+ok("at least 30 spoken languages are offered", SPOKEN_LANGUAGES.length >= 30, `${SPOKEN_LANGUAGES.length}`);
+ok("every spoken language has a code, a label and an honest tier",
+  SPOKEN_LANGUAGES.every((l) => /^[a-z]{2}$/.test(l.code) && l.label.length > 1 && (l.tier === "strong" || l.tier === "fair")));
+ok("spoken language codes are unique", new Set(SPOKEN_LANGUAGES.map((l) => l.code)).size === SPOKEN_LANGUAGES.length);
+ok("English is not duplicated as a spoken language", !SPOKEN_LANGUAGES.some((l) => l.code === "en"));
+
+ok("a spoken language passes through normalisation", normaliseLang("multi:fr") === "multi:fr");
+ok("an unknown spoken code degrades to detection, never to English",
+  normaliseLang("multi:zz") === "multi", normaliseLang("multi:zz"));
+ok("every spoken language normalises to itself",
+  SPOKEN_LANGUAGES.every((l) => normaliseLang(`multi:${l.code}`) === `multi:${l.code}`));
+
+ok("a spoken language uses the multilingual model",
+  buildLoadPlan("multi:fr", { webgpu: false })[0].model === "Xenova/whisper-tiny");
+ok("every spoken language builds the same plan as plain multi", (() => {
+  const base = JSON.stringify(buildLoadPlan("multi", { webgpu: false }));
+  return SPOKEN_LANGUAGES.every((l) => JSON.stringify(buildLoadPlan(`multi:${l.code}`, { webgpu: false })) === base);
+})());
+ok("langTier collapses a spoken language to its model tier", langTier("multi:de") === "multi" && langTier("en-hq") === "en-hq");
+
+ok("whisperLanguage returns the code for a spoken language", whisperLanguage("multi:de") === "de");
+ok("whisperLanguage is null for detection", whisperLanguage("multi") === null);
+ok("whisperLanguage is null for the English-only models",
+  whisperLanguage("en") === null && whisperLanguage("en-hq") === null,
+  "passing `language` to an English-only export is rejected by transformers.js");
+ok("whisperLanguage is null for junk", whisperLanguage("klingon") === null);
+
+ok("every LANG_OPTION builds a real plan",
+  LANG_OPTIONS.every((o) => buildLoadPlan(o.value, { webgpu: false }).length >= 2));
+ok("no LANG_OPTION silently becomes English", (() => {
+  const other = LANG_OPTIONS.filter((o) => !o.value.startsWith("en"));
+  return other.every((o) => !buildLoadPlan(o.value, { webgpu: false })[0].model.endsWith(".en"));
+})());
+ok("LANG_OPTION values are unique", new Set(LANG_OPTIONS.map((o) => o.value)).size === LANG_OPTIONS.length);
+ok("langLabel names a spoken language", langLabel("multi:fr") === "French");
+ok("langLabel falls back rather than throwing", typeof langLabel("nonsense") === "string");
 
 // --- runtime url ---
 ok("runtimeUrl pins an exact version", runtimeUrl("3.8.1") === "https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.8.1");
@@ -165,6 +209,10 @@ const workerSrc = readFileSync(sourcePath("transcribe.worker.js"), "utf8");
 ok("the ASR worker asks Whisper for timestamps", /return_timestamps:\s*true/.test(workerSrc));
 ok("the ASR worker sends chunks alongside the text", /status: "result", id, text, chunks/.test(workerSrc));
 ok("the ASR worker offsets live slices onto the clip clock", /offsetSeconds/.test(workerSrc));
+ok("the ASR worker tells Whisper which language to expect", /whisperLanguage\(lang\)/.test(workerSrc));
+ok("the ASR worker keys its pipeline by tier, not by spoken language",
+  /langTier\(lang\)/.test(workerSrc),
+  "keying on multi:fr vs multi:de would rebuild an identical ONNX session on every change");
 
 // --- both workers ship to both apps ---
 ok("the diarization worker is a synced asset", ASSETS.includes("diarize.worker.js"), JSON.stringify(ASSETS));

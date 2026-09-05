@@ -5,6 +5,7 @@
 
 mod ai;
 mod audio;
+mod net;
 
 /// Crash/error reporting for the native layer. Reads SENTRY_DSN, baked in at
 /// compile time from apps/desktop/.env by build.rs; disabled (returns None)
@@ -57,6 +58,7 @@ pub fn run() {
             audio::system_audio_tap_available,
             audio::start_system_audio_tap,
             audio::stop_system_audio_tap,
+            net::http_post,
         ])
         .run(tauri::generate_context!())
         .expect("error while running the Ledgeur application");

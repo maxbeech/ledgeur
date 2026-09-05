@@ -8,6 +8,7 @@ import { Meetings } from "./screens/Meetings.tsx";
 import { MeetingDetail } from "./screens/MeetingDetail.tsx";
 import { Ask } from "./screens/Ask.tsx";
 import { Tasks } from "./screens/Tasks.tsx";
+import { People } from "./screens/People.tsx";
 import { Integrations } from "./screens/Integrations.tsx";
 
 export function App() {
@@ -26,6 +27,7 @@ export function App() {
               <Route path="/meetings/:id" element={<MeetingDetail />} />
               <Route path="/ask" element={<Ask />} />
               <Route path="/tasks" element={<Tasks />} />
+              <Route path="/people" element={<People />} />
               <Route path="/integrations" element={<Integrations />} />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Route>

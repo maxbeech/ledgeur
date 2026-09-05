@@ -2,7 +2,7 @@
 // four voices with the app's color semantics: transcript = the room (neutral,
 // with a speaker mark), you = ink (right), copilot = gold/glow (left),
 // suggestion = a gold "you could say" whisper. Any bubble can be quoted.
-import { Lightbulb, Quote, AlertCircle } from "lucide-react";
+import { Lightbulb, Quote, AlertCircle, BookOpen } from "lucide-react";
 import { formatElapsed, confidenceTier } from "@ledgeur/ui";
 import { SpeakerTag } from "../SpeakerTag.tsx";
 import type { ThreadItem } from "../../lib/thread.ts";
@@ -84,8 +84,40 @@ export function ThreadBubble({ item, onQuote }: { item: ThreadItem; onQuote?: (i
         )}
         {item.quote && <QuoteRef label={item.quote.label} text={item.quote.text} />}
         <p className="whitespace-pre-wrap">{isSuggestion ? `“${item.text}”` : item.text}</p>
+        {!isSuggestion && <Provenance sources={item.sources} missing={item.missing} />}
       </div>
       {quoteBtn}
+    </div>
+  );
+}
+
+/**
+ * What the answer above was allowed to see.
+ *
+ * Shown on every copilot answer, not just suspicious ones: the difference
+ * between "grounded in the room and the company's memory" and "grounded in the
+ * last four minutes of speech" is the difference between an answer worth acting
+ * on and one worth checking, and it is invisible from the prose.
+ */
+function Provenance({ sources, missing }: { sources?: string[]; missing?: string }) {
+  if ((!sources || sources.length === 0) && !missing) return null;
+  return (
+    <div className="mt-2 border-t border-glow/20 pt-1.5">
+      {sources && sources.length > 0 && (
+        <div className="flex flex-wrap items-center gap-1">
+          <BookOpen className="h-3 w-3 shrink-0 text-faint" aria-hidden />
+          <span className="sr-only">Grounded in:</span>
+          {sources.map((s) => (
+            <span
+              key={s}
+              className="rounded-full bg-surface-muted/70 px-1.5 py-px font-mono text-[9.5px] uppercase tracking-wider text-faint"
+            >
+              {s}
+            </span>
+          ))}
+        </div>
+      )}
+      {missing && <p className="mt-1 text-[10.5px] leading-snug text-faint">{missing}</p>}
     </div>
   );
 }

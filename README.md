@@ -118,6 +118,16 @@ activating anything and an access-token scheme in which every token issued was
 unusable. See [`docs/OVERHAUL.md`](docs/OVERHAUL.md) and the
 [changelog](CHANGELOG.md).
 
+The 2026-09 **grounding pass** rebuilt what a question is allowed to see. Asking
+something mid-meeting now reaches the live transcript *with speakers and
+timestamps*, who has spoken, your own typed notes, and — in the same prompt —
+Contextely company memory, Notion, the org's indexed meetings and your past
+recordings, on a five-second deadline that names whatever did not arrive in
+time. Every answer shows the sources it was grounded in. The same pass added
+per-line provenance from notes back to the transcript, follow-up email drafts,
+user-written note recipes, 32 spoken languages, spaces, a derived people
+directory, signed outbound webhooks, calendar auto-start and SAML SSO.
+
 Earlier: editorial design system, ⌘K palette, mobile tab bar, recordings that
 survive navigation. See [`docs/ROADMAP.md`](docs/ROADMAP.md) for what's next,
 [`docs/NATIVE_AI.md`](docs/NATIVE_AI.md) for the on-device engine, and

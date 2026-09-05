@@ -69,6 +69,55 @@ export async function getMeeting(db: SupabaseClient, id: string): Promise<FullMe
 
 /** Keyword search over meeting titles and note summaries the caller can see.
  *  (Vector RAG via match_embeddings is layered on once embeddings are populated.) */
+/** One person across every meeting the caller can see. */
+export interface DirectoryEntry {
+  /** The name they are known by — an identified name where there is one, else
+   *  the speaker label from the transcript. */
+  name: string;
+  /** True when the name came from voice identification rather than a label. */
+  identified: boolean;
+  meetingCount: number;
+  meetings: { id: string; title: string; createdAt: string }[];
+}
+
+/**
+ * Who appears across the caller's meetings, aggregated.
+ *
+ * Named speakers only. A bare "Speaker 2" is an unnamed voice, not a person,
+ * and listing them would fill any consumer's directory with numbered strangers
+ * who are mostly the same handful of people nobody has named yet.
+ *
+ * One query with an embedded meeting rather than N+1: a directory is read
+ * whole, and the alternative is a round trip per speaker.
+ */
+export async function listPeople(db: SupabaseClient, limit = 200): Promise<DirectoryEntry[]> {
+  const rows = unwrap(
+    await db
+      .from("speakers")
+      .select("*, meetings(id, title, created_at)")
+      .limit(limit),
+  ) as (SpeakerRow & { meetings: { id: string; title: string; created_at: string } | null })[];
+
+  const unnamed = /^speaker\s*\d+$/i;
+  const byName = new Map<string, DirectoryEntry>();
+  for (const r of rows) {
+    const name = (r.identified_name ?? r.label ?? "").trim();
+    if (!name || unnamed.test(name)) continue;
+    const entry = byName.get(name) ?? {
+      name, identified: Boolean(r.identified_name), meetingCount: 0, meetings: [],
+    };
+    entry.identified = entry.identified || Boolean(r.identified_name);
+    entry.meetingCount++;
+    if (r.meetings) {
+      entry.meetings.push({ id: r.meetings.id, title: r.meetings.title, createdAt: r.meetings.created_at });
+    }
+    byName.set(name, entry);
+  }
+  return [...byName.values()]
+    .map((e) => ({ ...e, meetings: e.meetings.sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1)) }))
+    .sort((a, b) => b.meetingCount - a.meetingCount);
+}
+
 export async function searchMeetings(db: SupabaseClient, query: string, limit = 20): Promise<Meeting[]> {
   const q = query.trim();
   if (!q) return listMeetings(db, limit);

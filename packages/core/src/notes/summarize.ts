@@ -2,6 +2,8 @@
 // no LLM, no network, no fabrication. Used as the free fallback when no on-device
 // or BYO-key LLM is available. Deterministic, so it is unit-tested.
 
+import { STOPWORDS, tokenize } from "../text/tokens.ts";
+
 export interface MeetingNotes {
   summary: string[];
   actionItems: string[];
@@ -10,16 +12,6 @@ export interface MeetingNotes {
   wordCount: number;
 }
 
-const STOPWORDS = new Set(
-  ("a an the and or but so to of in on at for with as is are was were be been being " +
-    "i you he she it we they me him her us them my your our their this that these those " +
-    "do does did have has had will would can could should may might must just like yeah " +
-    "okay ok um uh kind sort really very actually basically gonna wanna got get gets " +
-    "about into over than then there here what which who whom how when where why not no yes " +
-    "if because while from by up down out off again once also too more most some any all")
-    .split(" "),
-);
-
 /** Split free-form transcript text into trimmed sentences. */
 export function splitSentences(text: string): string[] {
   return text
@@ -27,10 +19,6 @@ export function splitSentences(text: string): string[] {
     .split(/(?<=[.!?])\s+(?=[A-Z0-9"'])|\n+/)
     .map((s) => s.trim())
     .filter((s) => s.length > 0);
-}
-
-function tokenize(s: string): string[] {
-  return s.toLowerCase().match(/[a-z0-9']+/g) ?? [];
 }
 
 /** Word-frequency (TF) extractive summary: highest-information sentences, kept

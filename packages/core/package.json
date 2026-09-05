@@ -15,6 +15,7 @@
     "./data": "./src/data/repository.ts",
     "./integrations/notion": "./src/integrations/notion.ts",
     "./browser": "./src/browser/index.ts",
+    "./context": "./src/context/index.ts",
     "./library": "./src/library/index.ts",
     "./auth": "./src/auth/index.ts"
   },

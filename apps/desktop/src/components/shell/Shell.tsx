@@ -4,7 +4,7 @@
 // thread state and the input never unmount.
 import { useCallback, useEffect, useState } from "react";
 import { Outlet, useLocation } from "react-router-dom";
-import { House, CircleDot, Library, Sparkles, SquareCheck, Settings2, MessageSquare, type LucideIcon } from "lucide-react";
+import { House, CircleDot, Library, Sparkles, SquareCheck, Settings2, MessageSquare, Users, type LucideIcon } from "lucide-react";
 import { formatElapsed } from "@ledgeur/ui";
 import { Sidebar } from "../Sidebar.tsx";
 import { MobileTabBar } from "../MobileTabBar.tsx";
@@ -12,6 +12,7 @@ import { CommandPalette } from "../CommandPalette.tsx";
 import { GlobalInput } from "./GlobalInput.tsx";
 import { ScreenEmbedCard } from "./ScreenEmbedCard.tsx";
 import { UpdateBanner } from "./UpdateBanner.tsx";
+import { CalendarWatcher } from "./CalendarWatcher.tsx";
 import { useRecorderCtx } from "../../lib/useRecorderCtx.ts";
 
 /** Screen chrome (window title + icon) derived from the route. */
@@ -22,6 +23,7 @@ function screenMeta(pathname: string): { title: string; icon: LucideIcon } {
   if (pathname.startsWith("/meetings")) return { title: "Library", icon: Library };
   if (pathname.startsWith("/ask")) return { title: "Copilot", icon: Sparkles };
   if (pathname.startsWith("/tasks")) return { title: "Tasks", icon: SquareCheck };
+  if (pathname.startsWith("/people")) return { title: "People", icon: Users };
   if (pathname.startsWith("/integrations")) return { title: "Settings", icon: Settings2 };
   return { title: "Ledgeur", icon: House };
 }
@@ -54,6 +56,10 @@ export function Shell() {
 
   return (
     <div className="ldg-grain flex h-screen w-screen overflow-hidden bg-paper">
+      {/* Renders nothing — watches the calendar for as long as the app is
+          open, so the record prompt and auto-start do not depend on which
+          screen happens to be showing. */}
+      <CalendarWatcher />
       <Sidebar onOpenPalette={openPalette} />
       <main className="flex min-w-0 flex-1 flex-col">
         {/* Thin draggable strip so the frameless window can be moved. The CSS

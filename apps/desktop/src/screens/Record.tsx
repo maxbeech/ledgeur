@@ -4,8 +4,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { CircleDot, Mic, MonitorSpeaker, Info, CheckCircle2, Upload } from "lucide-react";
-import { LANG_OPTIONS } from "@ledgeur/asr";
-import { NOTE_TEMPLATES, templateById } from "@ledgeur/core";
+import { LANG_OPTIONS, SPOKEN_LANGUAGES } from "@ledgeur/asr";
 import { Page, PageHeader } from "../components/PageHeader.tsx";
 import { Button, Card, ErrorNote } from "../components/ui.tsx";
 import { LiveMeeting } from "../components/recorder/LiveMeeting.tsx";
@@ -14,6 +13,7 @@ import { finalizeMeeting } from "../lib/afterMeeting.ts";
 import { useFileImport, IMPORT_ACCEPT } from "../lib/useFileImport.ts";
 import { isSystemAudioTapAvailable } from "../lib/systemAudioTap.ts";
 import { useSetting, setSetting, hasChosenSystemAudio } from "../lib/settings.ts";
+import { usePickableTemplates, templateFor } from "../lib/recipes.ts";
 
 export function Record() {
   const nav = useNavigate();
@@ -41,6 +41,9 @@ export function Record() {
       if (available && !hasChosenSystemAudio()) setSetting("captureSystemAudio", true, "default");
     });
   }, []);
+  // Built-ins plus whatever the user has written (see recipes.ts) — one list,
+  // so a recipe is picked exactly the way a built-in is.
+  const templates = usePickableTemplates();
   const importer = useFileImport();
   const fileInput = useRef<HTMLInputElement>(null);
   const [dragging, setDragging] = useState(false);
@@ -119,16 +122,35 @@ export function Record() {
           <div className="mb-7 grid gap-4 sm:grid-cols-2">
             <div>
               <label htmlFor="rec-lang" className="ldg-kicker mb-2 block">Language</label>
+              {/* Grouped rather than one flat list of thirty-odd: English and
+                  "detect it" are what almost everyone wants, and burying them
+                  in an alphabetical run of languages would be worse than not
+                  offering the languages at all. */}
               <select
                 id="rec-lang"
                 value={lang}
                 onChange={(e) => setLang(e.target.value)}
                 className="w-full rounded-xl border border-hairline bg-surface px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-accent/40"
               >
-                {LANG_OPTIONS.map((option) => (
-                  <option key={option.value} value={option.value}>{option.label}</option>
-                ))}
+                <optgroup label="English">
+                  {LANG_OPTIONS.filter((o) => o.value.startsWith("en")).map((o) => (
+                    <option key={o.value} value={o.value}>{o.label}</option>
+                  ))}
+                </optgroup>
+                <optgroup label="Multilingual">
+                  <option value="multi">Detect the language</option>
+                </optgroup>
+                <optgroup label="Say which language">
+                  {SPOKEN_LANGUAGES.map((l) => (
+                    <option key={l.code} value={`multi:${l.code}`}>
+                      {l.label}{l.tier === "fair" ? " — workable" : ""}
+                    </option>
+                  ))}
+                </optgroup>
               </select>
+              <p className="mt-1.5 text-[11.5px] leading-relaxed text-faint">
+                {langHint(lang)}
+              </p>
             </div>
             {/* What the notes should pay attention to. A sales call and a 1:1
                 produce very different notes from the same transcript, and which
@@ -141,12 +163,12 @@ export function Record() {
                 onChange={(e) => setTemplate(e.target.value)}
                 className="w-full rounded-xl border border-hairline bg-surface px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-accent/40"
               >
-                {NOTE_TEMPLATES.map((t) => (
+                {templates.map((t) => (
                   <option key={t.id} value={t.id}>{t.name}</option>
                 ))}
               </select>
               <p className="mt-1.5 text-[11.5px] leading-relaxed text-faint">
-                {templateById(template).description}
+                {templateFor(template).description}
               </p>
             </div>
           </div>
@@ -237,6 +259,28 @@ export function Record() {
       </div>
     </Page>
   );
+}
+
+/**
+ * What choosing this language actually means, in a sentence.
+ *
+ * Naming the language is not cosmetic: left to detect, Whisper decides from the
+ * first thirty seconds, and a meeting that opens in English small talk and
+ * continues in another language comes back as fluent, entirely invented
+ * English — with no error anywhere. Worth saying out loud at the point of
+ * choosing.
+ */
+function langHint(lang: string): string {
+  const spoken = SPOKEN_LANGUAGES.find((l) => `multi:${l.code}` === lang);
+  if (spoken) {
+    return spoken.tier === "strong"
+      ? `The multilingual model, told to expect ${spoken.label}. More accurate than letting it guess.`
+      : `The multilingual model, told to expect ${spoken.label}. Workable, but check names and numbers — this is one of the harder languages for it.`;
+  }
+  if (lang === "multi") {
+    return "The model works out the language from the first half-minute. If you know it, pick it below — a meeting that starts in one language and continues in another is the case this gets wrong.";
+  }
+  return LANG_OPTIONS.find((o) => o.value === lang)?.hint ?? "";
 }
 
 function SourceToggle({ icon, label, hint, on, onChange }: { icon: React.ReactNode; label: string; hint: string; on: boolean; onChange: (v: boolean) => void }) {

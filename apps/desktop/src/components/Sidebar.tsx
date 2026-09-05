@@ -2,7 +2,7 @@
 // a live-recording pill (recordings survive navigation) and the account footer.
 import { useSyncExternalStore } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
-import { Landmark, House, CircleDot, Library, Sparkles, SquareCheck, Settings2, Command, Download } from "lucide-react";
+import { Landmark, House, CircleDot, Library, Sparkles, SquareCheck, Settings2, Command, Download, Users } from "lucide-react";
 import { cn, formatElapsed } from "@ledgeur/ui";
 import { hasBackend } from "../lib/config.ts";
 import { useSession } from "../lib/session.ts";
@@ -15,6 +15,7 @@ export const NAV = [
   { to: "/meetings", label: "Library", icon: Library },
   { to: "/ask", label: "Ask", icon: Sparkles },
   { to: "/tasks", label: "Tasks", icon: SquareCheck },
+  { to: "/people", label: "People", icon: Users },
   { to: "/integrations", label: "Settings", icon: Settings2 },
 ];
 

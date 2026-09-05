@@ -59,6 +59,16 @@ export interface RecorderState {
   /** Seconds of captured audio not yet transcribed. Surfaced once it's large
    *  enough to be worth admitting to. */
   backlogSeconds: number;
+  /**
+   * Identifies the current take. Changes on every `start()`.
+   *
+   * Anything that has to be cleared when a new recording begins keys off this
+   * rather than inferring it. The meeting copilot used to infer it from "we are
+   * recording AND the model is still loading" — true only on a cold start, so
+   * once the model began staying warm between recordings a second meeting
+   * opened with the first one's conversation still in it.
+   */
+  takeId: string;
 }
 
 /** How often captured PCM is moved into the segmenter. Cheap — no model runs. */
@@ -100,7 +110,7 @@ const toLocal = (s: NativeSegment, offsetMs: number): LocalSegment => ({
 export function useRecorder(getThreadMessages?: () => ChatMessage[]) {
   const [state, setState] = useState<RecorderState>({
     status: "idle", elapsed: 0, modelProgress: 0, modelPhase: "loading", device: "",
-    segments: [], error: "", meetingId: null, notes: "", backlogSeconds: 0,
+    segments: [], error: "", meetingId: null, notes: "", backlogSeconds: 0, takeId: "",
   });
   const capture = useRef<AudioCapture | null>(null);
   /** Set only when the native Core Audio tap is supplying "system" audio
@@ -326,7 +336,7 @@ export function useRecorder(getThreadMessages?: () => ChatMessage[]) {
       segmenter.current = new UtteranceSegmenter();
       patch({
         status: "recording", error: "", segments: [], elapsed: 0, meetingId: null, notes: "",
-        backlogSeconds: 0, modelPhase: "loading", modelProgress: 0, device: "",
+        backlogSeconds: 0, modelPhase: "loading", modelProgress: 0, device: "", takeId: uid(),
       });
 
       // getDisplayMedia/getUserMedia must be requested while the click that
@@ -533,6 +543,7 @@ export function useRecorder(getThreadMessages?: () => ChatMessage[]) {
       messages: messages.length ? messages : undefined,
       noteMarkdown: notesToMarkdown(title || "Untitled meeting", now.slice(0, 10), notes, transcript, manualNotes),
       wordCount: notes.wordCount, synced: false,
+      templateId: template.current,
     };
     await saveMeeting(meeting);
     // The pipeline is process-wide and deliberately NOT disposed here: disposing
@@ -557,7 +568,7 @@ export function useRecorder(getThreadMessages?: () => ChatMessage[]) {
     setAudioLevel(0);
     setState({
       status: "idle", elapsed: 0, modelProgress: 0, modelPhase: "loading", device: "",
-      segments: [], error: "", meetingId: null, notes: "", backlogSeconds: 0,
+      segments: [], error: "", meetingId: null, notes: "", backlogSeconds: 0, takeId: "",
     });
   }, []);
 

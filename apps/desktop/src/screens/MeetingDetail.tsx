@@ -1,18 +1,32 @@
 // A single entry in the record: editorial notes page + fully attributed
 // transcript. Opens local meetings instantly and falls back to the cloud copy
 // (recorded on another device). Delete asks for confirmation.
-import { useEffect, useMemo, useState } from "react";
+//
+// ── Provenance ──────────────────────────────────────────────────────────────
+// Every note line carries a link back to the transcript lines it came from
+// (see @ledgeur/core notes/provenance.ts). Clicking it opens the transcript at
+// that moment and highlights it. A line with no link is a line nothing in the
+// meeting supports well enough to point at — that is shown too, because a
+// summary bullet the transcript does not back up is exactly the one worth
+// looking at.
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, Copy, Check, Trash2, FileText, ListChecks, MessageSquareText, PenLine } from "lucide-react";
+import {
+  ArrowLeft, Copy, Check, Trash2, FileText, ListChecks, MessageSquareText, PenLine,
+  CornerDownRight, FolderOpen, TriangleAlert,
+} from "lucide-react";
 import { formatElapsed } from "@ledgeur/ui";
+import { attributeMeetingNotes, type AttributedNote, type AttributableLine } from "@ledgeur/core";
 import { Page } from "../components/PageHeader.tsx";
 import { Button, Card, ErrorNote, Kicker, Spinner } from "../components/ui.tsx";
 import { SpeakerTag } from "../components/SpeakerTag.tsx";
+import { FollowUpPanel } from "../components/meeting/FollowUpPanel.tsx";
 import { getMeeting, saveMeeting, deleteMeeting, type LocalMeeting } from "../lib/meetingsStore.ts";
 import { renameSpeakerInMeeting } from "../lib/renameSpeaker.ts";
 import { getCloudMeeting, deleteCloudMeeting } from "../lib/cloudMeeting.ts";
 import { hasBackend } from "../lib/config.ts";
 import { saveMeetingToNotion } from "../lib/notion.ts";
+import { useFolders, setMeetingFolder } from "../lib/folders.ts";
 
 export function MeetingDetail() {
   const { id } = useParams();
@@ -27,6 +41,10 @@ export function MeetingDetail() {
   const [renaming, setRenaming] = useState<string | null>(null);
   const [draftName, setDraftName] = useState("");
   const [renameNote, setRenameNote] = useState("");
+  /** Transcript line to scroll to and highlight, set by clicking a citation. */
+  const [jumpTo, setJumpTo] = useState<string | null>(null);
+  const folders = useFolders();
+  const segmentRefs = useRef<Map<string, HTMLDivElement>>(new Map());
 
   useEffect(() => {
     if (!id) return;
@@ -46,6 +64,27 @@ export function MeetingDetail() {
     for (const s of meeting?.segments ?? []) seen.set(s.speakerLabel, (seen.get(s.speakerLabel) ?? 0) + 1);
     return [...seen.entries()];
   }, [meeting]);
+
+  // Linking notes back to the transcript is pure and cheap, but it is O(notes ×
+  // lines) over a whole meeting — memoised so switching tabs doesn't redo it.
+  const attributed = useMemo(() => {
+    if (!meeting) return null;
+    const lines: AttributableLine[] = meeting.segments.map((s) => ({
+      id: s.id, startMs: s.startMs, speakerLabel: s.speakerLabel, text: s.text,
+    }));
+    return attributeMeetingNotes(meeting, lines);
+  }, [meeting]);
+
+  // Scrolling has to happen after the transcript tab has actually rendered.
+  useEffect(() => {
+    if (!jumpTo || tab !== "transcript") return;
+    const el = segmentRefs.current.get(jumpTo);
+    el?.scrollIntoView({ behavior: "smooth", block: "center" });
+    const timer = setTimeout(() => setJumpTo(null), 2600);
+    return () => clearTimeout(timer);
+  }, [jumpTo, tab]);
+
+  const openAt = (lineId: string) => { setTab("transcript"); setJumpTo(lineId); };
 
   /**
    * Name a voice.
@@ -118,6 +157,31 @@ export function MeetingDetail() {
             </Button>
           </div>
         </div>
+        {/* Filing. Local meetings only: a cloud copy belongs to whichever
+            device recorded it, and spaces are this device's organisation. */}
+        {!fromCloud && (
+          <div className="mt-3 flex items-center gap-2">
+            <FolderOpen className="h-3.5 w-3.5 shrink-0 text-faint" />
+            <label htmlFor="md-folder" className="sr-only">Space</label>
+            <select
+              id="md-folder"
+              value={meeting.folderId ?? ""}
+              onChange={(e) => {
+                const next = e.target.value || null;
+                setMeeting({ ...meeting, folderId: next ?? undefined });
+                void setMeetingFolder(meeting.id, next).catch((err: unknown) =>
+                  setRenameNote(err instanceof Error ? err.message : String(err)));
+              }}
+              className="rounded-lg border border-hairline bg-surface px-2 py-1 text-xs text-ink-text outline-none focus:ring-2 focus:ring-accent/40"
+            >
+              <option value="">Unfiled</option>
+              {folders.map((f) => <option key={f.id} value={f.id}>{f.name}</option>)}
+            </select>
+            {folders.length === 0 && (
+              <span className="text-[11px] text-faint">Create spaces in the Library to file meetings.</span>
+            )}
+          </div>
+        )}
         <div className="mt-4 h-px bg-hairline" />
       </header>
 
@@ -136,7 +200,7 @@ export function MeetingDetail() {
 
       {tab === "notes" ? (
         <div className="ldg-stagger ldg-prose space-y-5">
-          <NoteBlock title="Summary" items={meeting.summary} />
+          <NoteBlock title="Summary" items={attributed?.summary ?? []} onJump={openAt} />
           {meeting.manualNotes?.trim() && (
             <Card className="border-glow/25 p-6">
               <div className="mb-3 flex items-center gap-2"><PenLine className="h-4 w-4 text-glow-strong" /><Kicker>Your notes</Kicker></div>
@@ -147,19 +211,39 @@ export function MeetingDetail() {
             <Card className="p-6">
               <div className="mb-3 flex items-center gap-2"><ListChecks className="h-4 w-4 text-accent-strong" /><Kicker>Action items</Kicker></div>
               <ul className="space-y-2.5">
-                {meeting.actionItems.map((a, i) => (
-                  <li key={i} className="flex items-start gap-2.5 text-[15px] leading-relaxed text-ink-text">
-                    <span className="mt-1 h-4 w-4 shrink-0 rounded border border-hairline-strong" />{a}
+                {(attributed?.actionItems ?? []).map((a, i) => (
+                  <li key={i} className="text-[15px] leading-relaxed text-ink-text">
+                    <span className="flex items-start gap-2.5">
+                      <span className="mt-1 h-4 w-4 shrink-0 rounded border border-hairline-strong" />
+                      <span>{a.text}</span>
+                    </span>
+                    <CitationLink note={a} onJump={openAt} />
                   </li>
                 ))}
               </ul>
             </Card>
           )}
-          <NoteBlock title="Decisions" items={meeting.decisions} />
-          <NoteBlock title="Open questions" items={meeting.questions} />
+          <NoteBlock title="Decisions" items={attributed?.decisions ?? []} onJump={openAt} />
+          <NoteBlock title="Open questions" items={attributed?.questions ?? []} onJump={openAt} />
           {meeting.summary.length === 0 && meeting.actionItems.length === 0 && !meeting.manualNotes?.trim() && (
             <p className="text-sm text-muted">No structured notes were extracted — the transcript may have been very short.</p>
           )}
+          {/* Lines nothing in the transcript supports. Worth naming rather than
+              leaving as a silently uncited bullet: it is either a model getting
+              ahead of itself or a gap in what was heard, and both are things
+              somebody reading these notes should know before acting on them. */}
+          {attributed && attributed.unsupported > 0 && meeting.segments.length > 0 && (
+            <div className="flex items-start gap-2 rounded-xl border border-warn/25 bg-warn-soft/40 px-4 py-3 text-[12.5px] leading-relaxed text-ink-text">
+              <TriangleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0 text-warn" />
+              <span>
+                {attributed.unsupported} note {attributed.unsupported === 1 ? "line has" : "lines have"} no matching
+                moment in the transcript, so {attributed.unsupported === 1 ? "it carries" : "they carry"} no link back.
+                That usually means paraphrasing, but it can also mean something was misheard — worth a look before
+                you rely on {attributed.unsupported === 1 ? "it" : "them"}.
+              </span>
+            </div>
+          )}
+          {!fromCloud && <FollowUpPanel meeting={meeting} />}
         </div>
       ) : (
         <Card className="ldg-prose p-6">
@@ -211,7 +295,11 @@ export function MeetingDetail() {
           ) : (
             <div className="space-y-5">
               {meeting.segments.map((s) => (
-                <div key={s.id} className="grid grid-cols-[52px_1fr] gap-x-3">
+                <div
+                  key={s.id}
+                  ref={(el) => { if (el) segmentRefs.current.set(s.id, el); else segmentRefs.current.delete(s.id); }}
+                  className={`grid grid-cols-[52px_1fr] gap-x-3 rounded-lg transition-colors duration-500 ${jumpTo === s.id ? "bg-glow-soft/60" : ""}`}
+                >
                   <span className="pt-0.5 text-right font-mono text-[10.5px] tabular-nums leading-5 text-faint">{formatElapsed(s.startMs / 1000)}</span>
                   <div className="border-l border-hairline pl-3">
                     <div className="mb-1"><SpeakerTag label={s.speakerLabel} confidence={s.speakerConfidence} /></div>
@@ -227,18 +315,49 @@ export function MeetingDetail() {
   );
 }
 
-function NoteBlock({ title, items }: { title: string; items: string[] }) {
+function NoteBlock({ title, items, onJump }: { title: string; items: AttributedNote[]; onJump: (lineId: string) => void }) {
   if (items.length === 0) return null;
   return (
     <Card className="p-6">
       <Kicker className="mb-3">{title}</Kicker>
-      <ul className="space-y-2.5">
+      <ul className="space-y-3">
         {items.map((it, i) => (
-          <li key={i} className="flex items-start gap-2.5 text-[15px] leading-relaxed text-ink-text">
-            <span className="mt-[9px] h-1.5 w-1.5 shrink-0 rounded-full bg-accent" />{it}
+          <li key={i} className="text-[15px] leading-relaxed text-ink-text">
+            <span className="flex items-start gap-2.5">
+              <span className="mt-[9px] h-1.5 w-1.5 shrink-0 rounded-full bg-accent" />
+              <span>{it.text}</span>
+            </span>
+            <CitationLink note={it} onJump={onJump} />
           </li>
         ))}
       </ul>
     </Card>
+  );
+}
+
+/**
+ * "From 12:04" under a note line — the click that turns a claim into evidence.
+ *
+ * Absent when the line has no citation, rather than shown greyed out: a
+ * disabled link invites clicking, and there is nothing to go to.
+ */
+function CitationLink({ note, onJump }: { note: AttributedNote; onJump: (lineId: string) => void }) {
+  if (!note.citation) return null;
+  const { lineIds, startMs, confidence } = note.citation;
+  return (
+    <button
+      type="button"
+      onClick={() => onJump(lineIds[0])}
+      className="mt-1 ml-[18px] inline-flex items-center gap-1 font-mono text-[10px] uppercase tracking-wider text-faint transition-colors hover:text-accent-strong"
+      title={
+        confidence >= 0.6
+          ? "This line closely matches what was said here"
+          : "A looser match — the wording differs from the transcript, so check it"
+      }
+    >
+      <CornerDownRight className="h-3 w-3" />
+      from {formatElapsed(startMs / 1000)}
+      {confidence < 0.6 && <span className="text-warn"> · loose match</span>}
+    </button>
   );
 }

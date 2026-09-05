@@ -39,6 +39,47 @@ export function eventsNeedingPrompt(
   });
 }
 
+/**
+ * The one event that should start recording by itself, or null.
+ *
+ * Auto-start is the difference between a recorder you have to remember and one
+ * that is simply always on for the meetings that matter, so the rules are
+ * deliberately conservative — a recording nobody asked for is a much worse
+ * failure than a meeting you had to start by hand:
+ *
+ *   online only     an event with a join link is a call. A "Lunch" block or a
+ *                   focus-time hold is not, and recording your kitchen because
+ *                   the calendar said something is exactly the behaviour that
+ *                   makes people uninstall a recorder.
+ *   just started    within `graceMs` of the start time, so waking the laptop
+ *                   an hour into the day does not retroactively start a
+ *                   recording for a meeting that is nearly over.
+ *   not ended       obvious, and cheap to get wrong across a timezone bug.
+ *   once each       `alreadyStarted` is the caller's memory, so declining and
+ *                   stopping a take does not restart it seconds later.
+ *
+ * One event, not a list: two recordings at once is never right, and picking the
+ * earliest is the only defensible tie-break.
+ */
+export function eventToAutoStart(
+  events: CalendarEvent[],
+  now: Date,
+  graceMs: number,
+  alreadyStarted: ReadonlySet<string>,
+): CalendarEvent | null {
+  const t = now.getTime();
+  const due = events
+    .filter((e) => {
+      if (alreadyStarted.has(e.id)) return false;
+      if (!e.isOnline) return false;
+      const start = new Date(e.startsAt).getTime();
+      const end = new Date(e.endsAt).getTime();
+      return start <= t && t - start <= graceMs && end > t;
+    })
+    .sort((a, b) => new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime());
+  return due[0] ?? null;
+}
+
 /** Human-readable event list for the Ask copilot's context block. */
 export function formatEventsForContext(events: CalendarEvent[]): string {
   return events

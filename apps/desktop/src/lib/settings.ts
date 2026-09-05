@@ -33,8 +33,28 @@ export interface Settings {
   transcriptionLang: string;
   /** Capture the other side of the call as well as this device's microphone. */
   captureSystemAudio: boolean;
-  /** Which note template steers the summary — a NOTE_TEMPLATES id. */
+  /** Which note template steers the summary — a NOTE_TEMPLATES id, or a
+   *  `custom:` id from the user's own recipes (see recipes.ts). */
   noteTemplate: string;
+  /**
+   * Start recording by itself when a calendar meeting with a join link begins.
+   *
+   * Off by default and deliberately so: a recorder that starts on its own is
+   * the single behaviour most likely to capture something nobody meant to
+   * capture, and that has to be an explicit choice rather than a default
+   * somebody discovers afterwards.
+   */
+  autoStartFromCalendar: boolean;
+  /** POST finished meetings here. Empty = off. See webhooks.ts. */
+  webhookUrl: string;
+  /** HMAC secret for the webhook signature. Empty = deliveries are unsigned. */
+  webhookSecret: string;
+  /** Include the full transcript in the webhook payload, not just the notes. */
+  webhookIncludeTranscript: boolean;
+  /** How to sign off a follow-up email. Empty = no signature is invented. */
+  senderName: string;
+  /** Follow-up email register. */
+  followUpTone: "warm" | "neutral" | "brief";
 }
 
 const DEFAULTS: Settings = {
@@ -44,6 +64,12 @@ const DEFAULTS: Settings = {
   transcriptionLang: DEFAULT_LANG,
   captureSystemAudio: false,
   noteTemplate: DEFAULT_TEMPLATE_ID,
+  autoStartFromCalendar: false,
+  webhookUrl: "",
+  webhookSecret: "",
+  webhookIncludeTranscript: false,
+  senderName: "",
+  followUpTone: "neutral",
 };
 
 const KEY = "ledgeur.settings";

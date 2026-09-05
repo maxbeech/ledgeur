@@ -8,8 +8,10 @@
 // with the recording. It merges with the transcript into one conversation.
 
 import { createContext, useEffect, useRef, useState, type ReactNode } from "react";
+import { formatTranscript } from "@ledgeur/core";
 import { useRecorder } from "./useRecorder.ts";
 import { useMeetingThread } from "./useMeetingThread.ts";
+import { gatherMeetingContext, toTranscriptLines } from "./meetingContext.ts";
 import { warmupModels } from "./modelWarmup.ts";
 import type { ChatMessage } from "./meetingsStore.ts";
 
@@ -41,17 +43,26 @@ export function RecorderProvider({ children }: { children: ReactNode }) {
 
   const stateRef = useRef(recorder.state);
   stateRef.current = recorder.state;
-  const transcriptText = () => stateRef.current.segments.map((s) => s.text).join(" ");
+  const titleRef = useRef(title);
+  titleRef.current = title;
+  // Speaker-labelled and timed, not a flat join: the proactive coach reads the
+  // same transcript the copilot does, and "who said it" changes what is worth
+  // suggesting next.
+  const transcriptText = () => formatTranscript(toTranscriptLines(stateRef.current.segments));
 
   const thread = useMeetingThread({
-    getContext: () => [{ source: "Live transcript", text: transcriptText() }],
+    gather: (question) =>
+      gatherMeetingContext({
+        question,
+        title: titleRef.current,
+        lines: toTranscriptLines(stateRef.current.segments),
+        notes: stateRef.current.notes,
+        elapsedMs: Math.round(stateRef.current.elapsed * 1000),
+      }),
     getTranscript: transcriptText,
     elapsedMs: () => Math.round(stateRef.current.elapsed * 1000),
     recording: recorder.state.status === "recording",
-    // The recording is live but the speech pipeline isn't yet, so there is no
-    // transcript for the copilot to reason about — it holds off rather than
-    // answering from an empty meeting.
-    starting: recorder.state.status === "recording" && recorder.state.modelPhase === "loading",
+    takeId: recorder.state.takeId,
   });
   threadRef.current = () => thread.messages;
 

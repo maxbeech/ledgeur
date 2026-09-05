@@ -1,16 +1,18 @@
-// Today's meetings from the connected calendar, with one-click record + the
-// native auto-prompt watcher. Honest states: signed-out, error, loading, empty.
+// Today's meetings from the connected calendar, with one-click record. Honest
+// states: signed-out, error, loading, empty.
+//
+// The prompt/auto-start watcher deliberately does NOT live here: it hung off
+// this card and so only ran while Home was on screen. It is in the Shell now
+// (CalendarWatcher), which is mounted for the app's whole lifetime.
 import { useNavigate } from "react-router-dom";
 import { CalendarClock, Video, CircleDot } from "lucide-react";
 import { formatClock } from "@ledgeur/ui";
 import { Button, Card, EmptyState, ErrorNote, Spinner } from "./ui.tsx";
 import { useTodayEvents } from "../lib/useCalendar.ts";
-import { useMeetingPrompts } from "../lib/meetingPrompt.ts";
 
 export function TodaySchedule() {
   const nav = useNavigate();
   const { events, error, signedIn } = useTodayEvents();
-  useMeetingPrompts(events);
 
   if (!signedIn) {
     return (

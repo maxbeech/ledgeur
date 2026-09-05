@@ -1,8 +1,10 @@
-// After a meeting is recorded locally, best-effort push it to the cloud (source
-// of truth), index it for RAG, and optionally auto-save to Notion. Failures are
-// logged, never fatal — the local copy is always saved first.
+// After a meeting is recorded locally: fire the outbound webhook, best-effort
+// push it to the cloud (source of truth), index it for RAG, and optionally
+// auto-save to Notion. Failures are logged, never fatal — the local copy is
+// always saved first.
 
 import { getMeeting } from "./meetingsStore.ts";
+import { deliverMeeting } from "./webhooks.ts";
 import { getSupabase } from "./supabase.ts";
 import { pushMeeting } from "./sync.ts";
 import { indexMeeting } from "./embeddings.ts";
@@ -16,13 +18,19 @@ export const notionAutoSaveEnabled = (): boolean => localStorage.getItem(AUTOSAV
 export const setNotionAutoSave = (v: boolean): void => localStorage.setItem(AUTOSAVE_KEY, v ? "1" : "0");
 
 export async function finalizeMeeting(localId: string): Promise<void> {
+  const m = await getMeeting(localId);
+  if (!m) return;
+
+  // The webhook is a local feature and runs first: it must not depend on being
+  // signed in, and it is the one step whose whole point is that another system
+  // hears about the meeting promptly.
+  await deliverMeeting(m).catch((e) => log.error("webhook delivery threw", e));
+
   const sb = getSupabase();
   if (!sb) return; // local-only mode — nothing to sync
   const { data: { session } } = await sb.auth.getSession();
   if (!session) return;
 
-  const m = await getMeeting(localId);
-  if (!m) return;
   // The org's admin-set default decides whether new meetings join the hive mind.
   const { data: org } = await sb.from("orgs").select("id, default_meeting_visibility").limit(1).maybeSingle();
   if (!org) return;

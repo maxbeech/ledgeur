@@ -30,6 +30,13 @@ export interface ChatMessage {
   /** Milliseconds since the meeting started — orders it against transcript. */
   atMs: number;
   quote?: ChatQuote;
+  /** For an assistant answer: the context sources it was allowed to see, in
+   *  prompt order. This is the answer's provenance — shown under the bubble so
+   *  "where did that come from?" is answerable without re-asking. */
+  sources?: string[];
+  /** Set only when something was missing: a context source that failed, timed
+   *  out, or did not fit. An answer that saw everything carries nothing here. */
+  missing?: string;
 }
 
 /** A distinct voice in a meeting, with the vector that identifies it.
@@ -76,6 +83,12 @@ export interface LocalMeeting {
   noteMarkdown: string;
   wordCount: number;
   synced: boolean;
+  /** The space this meeting is filed in (see folders.ts). Absent = unfiled,
+   *  which is the correct state for most meetings and the default. */
+  folderId?: string;
+  /** Which note template wrote the notes, kept so the meeting can say so and
+   *  so notes can be regenerated the same way. */
+  templateId?: string;
 }
 
 const DB_NAME = "ledgeur";

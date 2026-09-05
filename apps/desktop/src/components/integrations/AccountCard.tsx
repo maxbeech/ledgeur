@@ -4,11 +4,11 @@
 
 import { useState, type FormEvent } from "react";
 import type { Session } from "@supabase/supabase-js";
-import { LogIn, LogOut, Mail } from "lucide-react";
+import { LogIn, LogOut, Mail, Building2 } from "lucide-react";
 import { Button, Card, ErrorNote, Spinner } from "../ui.tsx";
 import { hasBackend } from "../../lib/config.ts";
 import {
-  sendPasswordReset, signInWith, signInWithPassword, signOut, signUpWithPassword, useAuthCapabilities,
+  sendPasswordReset, signInWith, signInWithPassword, signInWithSso, signOut, signUpWithPassword, useAuthCapabilities,
 } from "../../lib/session.ts";
 import {
   hasNoAuthMethod, PROVIDER_LABELS, signUpNextStep, validateCredentials, type OAuthProvider,
@@ -24,6 +24,7 @@ export function AccountCard({ session }: { session: Session | null }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [sso, setSso] = useState("");
 
   const run = async (fn: () => Promise<void>) => {
     setBusy(true); setError(""); setNotice("");
@@ -53,6 +54,11 @@ export function AccountCard({ session }: { session: Session | null }) {
   };
 
   const onOAuth = (p: OAuthProvider) => void run(() => signInWith(p));
+
+  const onSso = (e: FormEvent) => {
+    e.preventDefault();
+    void run(() => signInWithSso(sso));
+  };
 
   if (session) {
     return (
@@ -165,6 +171,31 @@ export function AccountCard({ session }: { session: Session | null }) {
             </Button>
           ))}
         </div>
+      )}
+
+      {/* SSO is its own form rather than another button: there is no provider
+          to pick, the server resolves the identity provider from the domain. */}
+      {caps.sso && (
+        <form onSubmit={onSso} noValidate className="mt-4 max-w-md">
+          <div className="mb-1.5 flex items-center gap-1.5 text-xs text-muted">
+            <Building2 className="h-3.5 w-3.5" /> Your company uses single sign-on?
+          </div>
+          <div className="flex gap-2">
+            <input
+              type="email"
+              value={sso}
+              onChange={(e) => setSso(e.target.value)}
+              autoComplete="email"
+              placeholder="you@company.com"
+              disabled={busy}
+              aria-label="Work email address for single sign-on"
+              className="min-w-0 flex-1 rounded-xl border border-line bg-surface px-3 py-2 text-sm text-ink-text outline-none placeholder:text-muted focus:border-accent"
+            />
+            <Button type="submit" variant="outline" disabled={busy}>
+              {busy ? <Spinner className="h-4 w-4" /> : <LogIn className="h-4 w-4" />} Continue with SSO
+            </Button>
+          </div>
+        </form>
       )}
 
       {notice && <p className="mt-3 text-xs leading-relaxed text-accent-strong">{notice}</p>}

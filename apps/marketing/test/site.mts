@@ -56,8 +56,16 @@ export function runSiteTests(ok: (name: string, cond: boolean, detail?: string) 
   // The Enterprise note is allowed to mention them, because it says we do NOT
   // have them — which is the point.
   const enterprise = PLANS.find((p) => p.id === "enterprise");
+  // Asserted on intent rather than on one phrase: the note must name the
+  // enterprise features we do not have and say we do not have them. SSO moved
+  // from "not built" to "built, but not switched on for our hosted backend",
+  // which is a different and more precise claim — and still a "no" to a buyer.
   ok("the enterprise plan says plainly what is missing",
-    /do not currently ship/i.test(enterprise?.note ?? ""), enterprise?.note ?? "(no note)");
+    /\bdo not\b/i.test(enterprise?.note ?? "") && /scim/i.test(enterprise?.note ?? ""),
+    enterprise?.note ?? "(no note)");
+  ok("the enterprise plan does not claim SSO works with us today",
+    !/\bwe (?:ship|offer|support) (?:sso|saml)\b/i.test(enterprise?.note ?? ""),
+    enterprise?.note ?? "(no note)");
 
   ok("there is a free plan", PLANS.some((p) => p.price === "$0"));
   ok("the free plan needs no account",

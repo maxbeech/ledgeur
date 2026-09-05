@@ -15,6 +15,26 @@ export interface Release {
 
 export const RELEASES: readonly Release[] = [
   {
+    date: "2026-09-05",
+    title: "Asking mid-meeting, in 32 languages, with a link back to what was said",
+    changes: [
+      { kind: "fixed", text: "Asking the copilot a question during a meeting could only see the words spoken so far, as one undifferentiated block — no speakers, no timestamps, and nothing your company already knows. So “what did she just commit to?” was unanswerable, and anything needing a fact from outside the room came back as “I don’t have that information” while the fact sat one lookup away." },
+      { kind: "new", text: "A mid-meeting question now reaches the transcript with speakers and timestamps, who has spoken and for how long, your own typed notes, and — in the same breath — your Contextely company memory, Notion, your past meetings and your calendar." },
+      { kind: "new", text: "Every answer shows what it was allowed to see, and says so when something was missing: “Answered without Contextely company memory (timed out).” A source that fails is named with its own error instead of quietly vanishing." },
+      { kind: "fixed", text: "In a long meeting the copilot was given the transcript with the end cut off — the most recent and most relevant part. It now always keeps the recent stretch and retrieves the earlier passages that bear on your question, marking anything it left out." },
+      { kind: "new", text: "Every line of the notes links back to the moment it came from. Click “from 12:04” and the transcript opens there. A line nothing in the meeting supports gets no link at all, and is counted — because a bullet the recording does not back up is the one worth reading twice." },
+      { kind: "new", text: "Follow-up emails, drafted from the meeting’s real decisions and action items, editable before they go anywhere. Nothing is invented: an action item with nobody’s name on it stays that way." },
+      { kind: "new", text: "Write your own note styles. If you run the same kind of call every week, tell Ledgeur what to look for in it once." },
+      { kind: "new", text: "32 spoken languages, each labelled with how well the model actually does on it. Previously “other languages” meant letting the model guess — which quietly turns a meeting that starts in English and continues in German into a whole transcript of invented English." },
+      { kind: "new", text: "Spaces, for filing meetings. Deleting one keeps every meeting in it." },
+      { kind: "new", text: "A people directory, built from who has actually spoken in your meetings. There is nothing to fill in." },
+      { kind: "new", text: "Send finished meetings to anywhere you like with a signed webhook — Zapier, n8n, your own CRM. Notes by default, the transcript only if you ask; voice prints never leave, under any setting." },
+      { kind: "new", text: "Ledgeur can start recording when a calendar meeting begins. Off unless you turn it on, only for meetings with a join link, and it tells you every time it does." },
+      { kind: "new", text: "Sign in with your company’s single sign-on, where your workspace has it configured." },
+      { kind: "fixed", text: "Starting a second meeting opened it with the previous meeting’s copilot conversation still in it." },
+    ],
+  },
+  {
     date: "2026-08-24",
     title: "Speakers, imports, and an honest price list",
     changes: [

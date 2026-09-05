@@ -97,7 +97,7 @@ export const PLANS: readonly Plan[] = [
       "A support agreement and a named contact",
       "Input on the roadmap",
     ],
-    note: "We will tell you plainly what we do and do not have. We do not currently ship SSO/SAML, SCIM or an admin audit console — if you need those, say so and we will tell you where they sit.",
+    note: "We will tell you plainly what we do and do not have. The app supports SAML single sign-on, but it is not enabled on our hosted backend yet, so today it is only usable if you run your own. We do not ship SCIM or an admin audit console at all — if you need those, say so and we will tell you where they sit.",
     cta: { label: "Talk to us", kind: "contact" },
   },
 ];

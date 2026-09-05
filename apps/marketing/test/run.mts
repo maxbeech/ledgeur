@@ -1,7 +1,10 @@
 // Ledgeur test suite. Pure-logic + data-integrity checks. Run: npm test
 import { existsSync, readFileSync } from "node:fs";
 // The canonical speech-model load plan, as served to the browser.
-import { LANGS as ASR_LANGS, LANG_OPTIONS as ASR_LANG_OPTIONS } from "../public/asr-plan.js";
+import {
+  LANGS as ASR_LANGS, LANG_OPTIONS as ASR_LANG_OPTIONS, normaliseLang,
+  buildLoadPlan as buildAsrPlan,
+} from "../public/asr-plan.js";
 // Notes, audio and the AI-key plumbing all live in the shared package now —
 // this app used to carry forked copies that had already drifted from it.
 import {
@@ -119,9 +122,15 @@ ok("slugs are url-safe", [...COMPETITORS, ...PLATFORMS].every((x) => /^[a-z0-9-]
 // They now come from the same file, so this asserts that stays true.
 const offeredLangs = ASR_LANG_OPTIONS.map((o) => o.value);
 ok("the recorder offers language options", offeredLangs.length >= 3, JSON.stringify(offeredLangs));
+// A value the plan does not recognise normalises to "en", which is exactly the
+// silent-English failure this guards against — so assert the round trip rather
+// than membership of the tier list, now that a value can also name a spoken
+// language ("multi:fr").
 ok("every offered language is one the load plan supports",
-  offeredLangs.every((l) => (ASR_LANGS as readonly string[]).includes(l)),
-  `offered ${JSON.stringify(offeredLangs)} vs plan ${JSON.stringify(ASR_LANGS)}`);
+  offeredLangs.every((l) => normaliseLang(l) === l),
+  `offered ${JSON.stringify(offeredLangs.filter((l) => normaliseLang(l) !== l))}`);
+ok("no non-English option silently loads an English-only model",
+  offeredLangs.filter((l) => !l.startsWith("en")).every((l) => !buildAsrPlan(l, { webgpu: false })[0].model.endsWith(".en")));
 ok("every planned language is offered in the UI",
   (ASR_LANGS as readonly string[]).every((l) => offeredLangs.includes(l)));
 ok("every option has a label and a hint a person can act on",

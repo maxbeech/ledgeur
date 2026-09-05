@@ -12,7 +12,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { z, type ZodRawShape } from "zod";
 import { zodToJsonSchema } from "zod-to-json-schema";
-import { getMeeting, listActionItems, listMeetings, searchMeetings } from "@ledgeur/core";
+import { getMeeting, listActionItems, listMeetings, listPeople, searchMeetings } from "@ledgeur/core";
 
 /**
  * ONE definition per tool, in zod.
@@ -133,6 +133,24 @@ export const TOOLS: ToolDefinition[] = [
         segments: full.segments,
       };
     },
+  },
+  {
+    name: "list_people",
+    description:
+      "List the people who appear across the user's meetings, with how many meetings each was in "
+      + "and which ones. Only people who have been named — unnamed voices are not people.",
+    input: { limit: z.number().int().min(1).max(500).optional().describe("How many speaker records to scan, up to 500.") },
+    run: async (db, args) =>
+      (await listPeople(db, clamp(args.limit, 200, 500))).map((p) => ({
+        // Flat and named, for the same reason as MeetingRecord above: a
+        // field-path consumer reads `name`/`content`, not a nested object.
+        name: p.name,
+        identified: p.identified,
+        meetingCount: p.meetingCount,
+        content: `${p.name} appears in ${p.meetingCount} meeting${p.meetingCount === 1 ? "" : "s"}: `
+          + p.meetings.map((m) => m.title).join(", "),
+        meetings: p.meetings.map((m) => ({ ...m, url: meetingUrl(m.id) })),
+      })),
   },
   {
     name: "list_tasks",

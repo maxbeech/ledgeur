@@ -1,5 +1,57 @@
 # Manual test checklist
 
+## The grounding pass (2026-09-05)
+
+### Verified automatically — no need to re-test by hand
+
+Unit tests (1252 across the workspace) cover the tokenizer and relevance
+scoring, transcript windowing and elision, context packing and both prompt
+framings, note provenance (including that an unsupported line gets no citation),
+follow-up drafting and parsing, recipe validation and resolution, the webhook
+payload/signature and the rule that a voice embedding can never be in one, the
+calendar auto-start rules, all 32 spoken languages against the load plan, the
+people directory and meeting ranking.
+
+Driven for real in a browser against the live pipeline (see
+`packages/asr/verify` and the memory note on substituting a speech clip for
+`getUserMedia`):
+
+- Recording started, 60s of real speech transcribed accurately with speakers and
+  timestamps, live UI in ~2s with no blocking loader, Stop → saved in 1.2s.
+- A question asked mid-meeting: the prompt actually sent was captured and
+  confirmed to contain the meeting-mode system prompt, the situation line, the
+  speaker-labelled transcript, the speaker roster, the user's typed notes and
+  five ranked past meetings. The source chips under the answer matched.
+- A space created, a meeting filed into it, the filter chips counting correctly.
+- Note provenance: clicking "from 00:07" switched to the transcript tab and
+  highlighted the right line. Loose matches were flagged as loose.
+- A follow-up email drafted (local path, correctly labelled).
+- A webhook delivered to a real HTTP receiver that verified the HMAC with its
+  own independent implementation: signature valid, transcript correctly absent,
+  no embedding anywhere in the body. Then again automatically on a real meeting
+  completing.
+
+### Needs a human, and why
+
+- **Webhooks from the packaged app.** Delivery goes through the native side
+  (`src-tauri/src/net.rs`) to avoid CORS. That path was compile-checked and the
+  frontend path was proven against a real receiver, but the *native* path has
+  not been exercised in a built app. Configure a webhook in Settings → Data
+  access, hit "Send a test", and confirm it arrives.
+- **Calendar auto-start.** Needs a real connected calendar and a real meeting
+  with a join link starting. Turn it on in Settings → Automation, then watch a
+  meeting begin. Confirm: it starts, a notification says so, the meeting room
+  opens, and a "Lunch"-style block with no join link does **not** start
+  anything.
+- **SAML SSO.** Needs a Supabase project with SAML enabled and a registered
+  domain. The button only appears when the backend reports SSO on, so on a
+  project without it the correct observation is that no SSO field is shown.
+- **Contextely in a mid-meeting answer.** Needs a live Contextely workspace with
+  a Ledgeur source. Ask a question mid-meeting whose answer is only in company
+  memory and confirm "Contextely company memory" appears in the source chips.
+- **A non-English meeting.** Pick a language in the Record screen and confirm
+  the transcript comes back in that language rather than hallucinated English.
+
 ## The overhaul pass (2026-08-24)
 
 ### Verified automatically — no need to re-test by hand

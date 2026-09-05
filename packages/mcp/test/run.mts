@@ -21,10 +21,10 @@ const fakeDb = {} as never;
 
 // --- the tool set -----------------------------------------------------------
 
-ok("exposes the four documented tools", TOOLS.length === 4);
+ok("exposes the five documented tools", TOOLS.length === 5, TOOLS.map((t) => t.name).join(", "));
 ok(
   "names them what the app's own documentation says",
-  ["list_meetings", "search_meetings", "get_meeting", "list_tasks"].every((n) => !!toolByName(n)),
+  ["list_meetings", "search_meetings", "get_meeting", "list_tasks", "list_people"].every((n) => !!toolByName(n)),
   TOOLS.map((t) => t.name).join(", "),
 );
 ok("has a description on every tool, because a client shows it to a model", TOOLS.every((t) => t.description.length > 20));

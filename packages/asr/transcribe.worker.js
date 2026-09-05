@@ -24,7 +24,7 @@
 //   { status: "load-error", attempt, hasNext, message, friendly }
 //   { status: "error", id, message }
 
-import { buildLoadPlan, friendlyAsrError, normaliseLang, runtimeUrl } from "./asr-plan.js";
+import { buildLoadPlan, friendlyAsrError, langTier, runtimeUrl, whisperLanguage } from "./asr-plan.js";
 
 async function hasWebGpu() {
   try {
@@ -49,11 +49,18 @@ const onProgress = (x) => {
   }
 };
 
-/** The single pipeline this worker instance owns, keyed by lang+attempt. */
+/**
+ * The single pipeline this worker instance owns, keyed by tier+attempt.
+ *
+ * Tier, not the full lang value: "multi:fr" and "multi:de" are the same model
+ * told to expect a different language, and keying on the full value would tear
+ * down and rebuild an identical ONNX session — a ~10 second stall — every time
+ * somebody changed the language in the picker.
+ */
 let loaded = null; // { key, promise }
 
 function load(lang, attempt) {
-  const key = `${normaliseLang(lang)}#${attempt}`;
+  const key = `${langTier(lang)}#${attempt}`;
   if (loaded && loaded.key === key) return loaded.promise;
 
   const promise = (async () => {
@@ -141,10 +148,17 @@ self.addEventListener("message", async (event) => {
       // timings the transcript is one undifferentiated string and there is
       // nothing to line up against the diarization turns. It costs nothing
       // extra — Whisper already predicts timestamp tokens.
+      // Telling the multilingual model which language to expect is what stops
+      // it deciding for itself from the first few seconds — a meeting that
+      // opens with English small talk and continues in another language is
+      // otherwise transcribed as fluent, entirely invented English. Null for
+      // the English-only exports, which reject the option.
+      const language = whisperLanguage(lang);
       const output = await transcriber(audio, {
         chunk_length_s: 30,
         stride_length_s: 5,
         return_timestamps: true,
+        ...(language ? { language, task: "transcribe" } : {}),
       });
       const first = Array.isArray(output) ? output[0] : output;
       const text = (first?.text || "").trim();

@@ -26,10 +26,19 @@ export interface AuthCapabilities {
   autoConfirm: boolean;
   /** Only the providers actually configured server-side. */
   providers: OAuthProvider[];
+  /**
+   * SAML single sign-on is switched on for this project.
+   *
+   * Separate from `providers` because it works differently in every way that
+   * matters to the UI: there is no button per identity provider, the user types
+   * a work email or domain and the server decides where to send them, and which
+   * domains are registered is not something the client can enumerate.
+   */
+  sso: boolean;
 }
 
 /** Nothing works — the safe assumption before/without a settings response. */
-export const NO_AUTH: AuthCapabilities = { email: false, signupsAllowed: false, autoConfirm: false, providers: [] };
+export const NO_AUTH: AuthCapabilities = { email: false, signupsAllowed: false, autoConfirm: false, providers: [], sso: false };
 
 /**
  * Parse GET /auth/v1/settings. Anything missing is treated as "off" rather than
@@ -43,7 +52,28 @@ export function parseAuthSettings(raw: unknown): AuthCapabilities {
     signupsAllowed: s.disable_signup !== true,
     autoConfirm: s.mailer_autoconfirm === true,
     providers: OAUTH_PROVIDERS.filter((p) => external[p] === true),
+    // GoTrue has reported this in two places across versions; treat either as
+    // "on" rather than picking one and silently hiding SSO for half of them.
+    sso: external.saml === true || s.saml_enabled === true,
   };
+}
+
+/**
+ * The domain to hand Supabase for an SSO sign-in, or an error.
+ *
+ * Accepts either a work email or a bare domain, because people type both and
+ * the difference is not one they should have to think about. Deliberately does
+ * NOT try to guess whether the domain is registered for SSO — only the server
+ * knows that, and pretending otherwise would reject valid domains.
+ */
+export function ssoDomain(input: string): { domain: string } | { error: string } {
+  const value = input.trim().toLowerCase();
+  if (!value) return { error: "Enter your work email address." };
+  const domain = value.includes("@") ? value.slice(value.lastIndexOf("@") + 1) : value;
+  if (!/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)+$/.test(domain)) {
+    return { error: "That doesn't look like a work email address or domain." };
+  }
+  return { domain };
 }
 
 /** True when no sign-in method at all is configured on the backend. */

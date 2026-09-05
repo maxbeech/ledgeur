@@ -15,6 +15,8 @@ import { runAssembleTests } from "./assemble.mts";
 import { runSyncTests } from "./sync.mts";
 import { runFailureTests } from "./failures.mts";
 import { runSegmenterTests } from "./segmenter.mts";
+import { runContextTests } from "./context.mts";
+import { runGranolaTests } from "./granola.mts";
 import type { CalendarEvent } from "../src/domain/entities.ts";
 
 let pass = 0, fail = 0;
@@ -202,6 +204,8 @@ runSyncTests(ok);
 
 // --- utterance segmentation (chunk boundaries the model sees) ---
 runSegmenterTests(ok);
+runContextTests(ok);
+await runGranolaTests(ok);
 
 // --- browser controllers (fake Worker) ---
 await runBrowserTests(ok);

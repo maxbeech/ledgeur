@@ -20,6 +20,10 @@ export type ThreadItem =
       atMs: number;
       text: string;
       quote?: ChatQuote;
+      /** Context sources behind an assistant answer — see ChatMessage.sources. */
+      sources?: string[];
+      /** What the answer could not see, if anything. */
+      missing?: string;
     };
 
 /** Time-ordered stream of transcript lines + copilot messages. Ties keep
@@ -39,7 +43,10 @@ export function mergeThread(segments: LocalSegment[], messages: ChatMessage[]): 
     }),
   );
   messages.forEach((m, i) =>
-    items.push({ kind: m.role, id: m.id, atMs: m.atMs, text: m.text, quote: m.quote, _o: 1e6 + i }),
+    items.push({
+      kind: m.role, id: m.id, atMs: m.atMs, text: m.text, quote: m.quote,
+      sources: m.sources, missing: m.missing, _o: 1e6 + i,
+    }),
   );
   items.sort((a, b) => (a.atMs !== b.atMs ? a.atMs - b.atMs : a._o - b._o));
   return items.map(({ _o, ...rest }) => rest);
@@ -48,7 +55,7 @@ export function mergeThread(segments: LocalSegment[], messages: ChatMessage[]): 
 /** A standalone chat message (no transcript) as a thread item — for the
  *  app-level copilot view, which has messages but no spoken segments. */
 export function messageToItem(m: ChatMessage): ThreadItem {
-  return { kind: m.role, id: m.id, atMs: m.atMs, text: m.text, quote: m.quote };
+  return { kind: m.role, id: m.id, atMs: m.atMs, text: m.text, quote: m.quote, sources: m.sources, missing: m.missing };
 }
 
 /** Build a quote reference from any thread item. */

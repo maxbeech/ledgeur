@@ -14,6 +14,9 @@ import { AiEngineCard } from "../components/integrations/AiEngineCard.tsx";
 import { CopilotCard } from "../components/integrations/CopilotCard.tsx";
 import { VoicesCard } from "../components/integrations/VoicesCard.tsx";
 import { SharingPolicyCard } from "../components/integrations/SharingPolicyCard.tsx";
+import { RecipesCard } from "../components/integrations/RecipesCard.tsx";
+import { WebhookCard } from "../components/integrations/WebhookCard.tsx";
+import { AutomationCard } from "../components/integrations/AutomationCard.tsx";
 
 const CONNECTIONS = [
   { id: "microsoft", name: "Microsoft 365", desc: "Outlook calendar + Teams meeting detection.", icon: Cloud },
@@ -62,6 +65,14 @@ export function Integrations() {
           </div>
         </Section>
 
+        <Section title="Automation">
+          <AutomationCard />
+        </Section>
+
+        <Section title="How your notes are written">
+          <RecipesCard />
+        </Section>
+
         <Section title="On-device AI">
           <div className="space-y-3">
             <AiEngineCard />
@@ -75,7 +86,10 @@ export function Integrations() {
         </Section>
 
         <Section title="Data access (MCP)">
-          <McpAccessCard session={session} />
+          <div className="space-y-3">
+            <McpAccessCard session={session} />
+            <WebhookCard />
+          </div>
         </Section>
       </div>
     </Page>

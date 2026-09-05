@@ -7,7 +7,7 @@
 import { createContext, useCallback, useRef, useState, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import { askWithContext } from "./chat.ts";
-import { gatherContext } from "./askContext.ts";
+import { gatherContextDetailed } from "./askContext.ts";
 import { useRecorderCtx } from "./useRecorderCtx.ts";
 import { quoteOf, type ThreadItem } from "./thread.ts";
 import type { ChatMessage, ChatQuote } from "./meetingsStore.ts";
@@ -46,10 +46,18 @@ export function ChatDockProvider({ children }: { children: ReactNode }) {
     setAppMessages((m) => [...m, { id: uid(), role: "user", text, atMs: at, quote: q }]);
     setAppBusy(true);
     try {
-      const context = await gatherContext(text);
       const question = q ? `Regarding this — "${q.text}" (${q.label}):\n\n${text}` : text;
-      const answer = await askWithContext({ question, context });
-      setAppMessages((m) => [...m, { id: uid(), role: "assistant", text: answer, atMs: clock.current++ }]);
+      const gathered = await gatherContextDetailed(question);
+      const answer = await askWithContext({ question, context: gathered.blocks });
+      const missing = [
+        ...gathered.failed.map((f) => `${f.label} (${f.error})`),
+        ...(answer.dropped.length ? [`${answer.dropped.length} source${answer.dropped.length === 1 ? "" : "s"} too large to include`] : []),
+      ];
+      setAppMessages((m) => [...m, {
+        id: uid(), role: "assistant", text: answer.text, atMs: clock.current++,
+        sources: answer.sources,
+        missing: missing.length ? `Answered without ${missing.join("; ")}.` : undefined,
+      }]);
     } catch (e) {
       setAppMessages((m) => [...m, { id: uid(), role: "error", text: e instanceof Error ? e.message : String(e), atMs: clock.current++ }]);
     } finally {

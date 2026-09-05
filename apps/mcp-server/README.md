@@ -10,6 +10,7 @@ user's Supabase RLS, so nothing leaks past your sharing rules.
 - `search_meetings` — keyword search over meeting titles
 - `get_meeting` — a meeting with notes, speakers and full transcript
 - `list_tasks` — action items, optionally filtered by status
+- `list_people` — everyone named across your meetings, and which meetings they were in
 
 ## Run
 

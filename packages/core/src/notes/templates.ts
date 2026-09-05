@@ -114,6 +114,85 @@ export function templateById(id: string | undefined | null): NoteTemplate {
   return NOTE_TEMPLATES.find((t) => t.id === id) ?? NOTE_TEMPLATES[0];
 }
 
+// ── Custom templates ────────────────────────────────────────────────────────
+// Six built-ins cover most meetings and none of anybody's actual job. A team
+// running the same kind of call every week — a customer QBR, a design critique,
+// a support triage — wants notes shaped for that, and only they know what it
+// should look for. A custom template is the same NoteTemplate shape written by
+// the user, so it flows through the identical prompt path with no second code
+// path to keep in step.
+//
+// Storage is the caller's problem (the desktop app keeps them in localStorage);
+// core owns validation, id generation and resolution, so every surface agrees
+// on what a valid template is.
+
+/** Ids are prefixed so a custom template can never shadow a built-in, whatever
+ *  the user names it. */
+export const CUSTOM_TEMPLATE_PREFIX = "custom:";
+
+export const isCustomTemplateId = (id: string | undefined | null): boolean =>
+  typeof id === "string" && id.startsWith(CUSTOM_TEMPLATE_PREFIX);
+
+/** A stable id from a name, unique against `existing`. */
+export function newTemplateId(name: string, existing: readonly string[] = []): string {
+  const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 40) || "template";
+  let id = `${CUSTOM_TEMPLATE_PREFIX}${slug}`;
+  let n = 2;
+  while (existing.includes(id)) id = `${CUSTOM_TEMPLATE_PREFIX}${slug}-${n++}`;
+  return id;
+}
+
+/**
+ * Why a draft template is not usable yet, or an empty list.
+ *
+ * A template with no name is unpickable and one with neither a focus nor
+ * anything to look for is a no-op that silently produces the general notes —
+ * both are worth refusing at the point of writing rather than discovering
+ * after a meeting.
+ */
+export function validateTemplate(draft: Partial<NoteTemplate>): string[] {
+  const errors: string[] = [];
+  if (!draft.name?.trim()) errors.push("Give it a name.");
+  if ((draft.name?.trim().length ?? 0) > 60) errors.push("The name has to be under 60 characters.");
+  const looksFor = (draft.looksFor ?? []).filter((l) => l.trim());
+  if (!draft.focus?.trim() && looksFor.length === 0) {
+    errors.push("Say what this kind of meeting is for, or add at least one thing to look for — otherwise it does nothing.");
+  }
+  if (looksFor.length > 10) errors.push("Ten things to look for is the most that meaningfully steers the notes.");
+  return errors;
+}
+
+/** Normalise a draft into a storable template. Assumes it validates. */
+export function toTemplate(draft: Partial<NoteTemplate> & { id: string; name: string }): NoteTemplate {
+  return {
+    id: draft.id,
+    name: draft.name.trim(),
+    description: draft.description?.trim() || "Your own notes style.",
+    focus: draft.focus?.trim() ?? "",
+    looksFor: (draft.looksFor ?? []).map((l) => l.trim()).filter(Boolean).slice(0, 10),
+  };
+}
+
+/**
+ * Resolve an id against the built-ins *and* the user's own templates.
+ *
+ * Prefer this over `templateById` anywhere the user's templates are in scope.
+ * `templateById` stays for the built-in-only callers (and because a saved
+ * meeting's template id must still resolve on a machine that never had the
+ * custom template).
+ */
+export function resolveTemplate(
+  id: string | undefined | null,
+  custom: readonly NoteTemplate[] = [],
+): NoteTemplate {
+  return custom.find((t) => t.id === id) ?? templateById(id);
+}
+
+/** Everything pickable, built-ins first. Single source of truth for pickers. */
+export function allTemplates(custom: readonly NoteTemplate[] = []): NoteTemplate[] {
+  return [...NOTE_TEMPLATES, ...custom];
+}
+
 /**
  * The template's contribution to the system prompt, or "" for the general one.
  *

@@ -111,7 +111,7 @@ export default function Pricing() {
         />
         <Card className="mt-8 divide-y divide-hairline">
           {[
-            ["SSO / SAML and SCIM provisioning", "Not built. If your security review requires it, we are not the right fit yet — and we would rather tell you now than during onboarding."],
+            ["SCIM provisioning, and SSO on our hosted backend", "The app signs in with SAML single sign-on, and the button appears when your workspace has it configured — but SAML is not switched on for Ledgeur's own hosted backend today, so in practice you cannot use it with us yet. SCIM provisioning is not built at all. If your security review requires either, we are not the right fit yet, and we would rather tell you now than during onboarding."],
             ["An admin console and audit log", "Not built. Workspace administration today is one owner and a member list."],
             ["A packaged self-host bundle", "There is no Docker or Helm chart. Self-hosting is genuinely possible — the source is MIT and the schema is in the repository — but it is a manual job, and Enterprise means we help you do it."],
             ["A mobile app in the stores", "The web app works on a phone. There is no App Store build yet."],

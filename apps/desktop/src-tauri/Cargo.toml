@@ -36,7 +36,11 @@ whisper-rs = { version = "0.16", optional = true }
 # networked machine. For offline/CI builds, set default-features = false and point
 # SHERPA_LIB_PATH at a pre-downloaded lib dir (see docs/NATIVE_AI.md).
 sherpa-rs = { version = "0.6", optional = true }
-reqwest = { version = "0.12", default-features = false, features = ["blocking", "rustls-tls"], optional = true }
+# Not optional: webhook deliveries go through the native side (src/net.rs)
+# because a webview fetch is subject to CORS and real webhook receivers do not
+# implement it. `sentry` already pulls reqwest+rustls into every build, so this
+# costs approximately nothing.
+reqwest = { version = "0.12", default-features = false, features = ["blocking", "rustls-tls"] }
 # In-process LLM (copilot, coaching suggestions, post-meeting notes). CPU by
 # default; picks up Metal/CUDA/Vulkan where the platform toolchain provides it.
 # Pinned exact: 0.1.x has broken its Rust API across patch releases before
@@ -79,7 +83,7 @@ default = ["system-audio-tap"]
 custom-protocol = ["tauri/custom-protocol"]
 # On-device transcription (whisper.cpp), diarization (sherpa-onnx) and model
 # downloads. Heavy native build; opt-in.
-native-ai = ["dep:whisper-rs", "dep:sherpa-rs", "dep:reqwest", "dep:llama-cpp-2", "dep:encoding_rs"]
+native-ai = ["dep:whisper-rs", "dep:sherpa-rs", "dep:llama-cpp-2", "dep:encoding_rs"]
 # System audio without the screen-share picker (see src/audio/mod.rs). macOS
 # 14.2+ only; the command stubs return "unavailable" everywhere else. Opt-in
 # like native-ai until it's been verified on real hardware.

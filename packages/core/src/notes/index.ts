@@ -3,3 +3,6 @@ export * from "./ai-notes.ts";
 export * from "./map.ts";
 export * from "./suggest.ts";
 export * from "./templates.ts";
+export * from "./provenance.ts";
+export * from "./followup.ts";
+export * from "./webhook.ts";

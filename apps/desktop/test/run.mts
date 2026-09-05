@@ -5,11 +5,12 @@ import { mergeThread, quoteOf, messageToItem, type ThreadItem } from "../src/lib
 import { parseAiNotes, buildNotesPrompt } from "../src/lib/notes.ts";
 import {
   authErrorMessage, hasNoAuthMethod, NO_AUTH, parseAuthSettings, providerUnavailableMessage,
-  signUpNextStep, validateCredentials,
+  signUpNextStep, ssoDomain, validateCredentials,
 } from "@ledgeur/core";
 import type { LocalSegment, ChatMessage } from "../src/lib/meetingsStore.ts";
 import { renameSpeakerInMeeting } from "../src/lib/renameSpeaker.ts";
 import { runModelWarmupTests } from "./modelWarmup.mts";
+import { runGranolaDesktopTests } from "./granola.mts";
 
 let pass = 0, fail = 0;
 const ok = (name: string, cond: boolean, detail = "") => {
@@ -116,10 +117,16 @@ ok("parseAiNotes throws on empty summary", (() => {
 // The app must never offer a sign-in button the backend cannot honour: the
 // production Supabase project has google/azure OFF and email ON, and the old UI
 // showed Google/Microsoft buttons that failed with a raw redirect error.
+// Copied from the real GET /auth/v1/settings response of the production
+// project on 2026-09-05, including the SAML flag's actual location: it is
+// top-level `saml_enabled`, NOT `external.saml`, which is where it would be
+// natural to look for it.
 const LIVE_SETTINGS = {
   external: { google: false, azure: false, github: false, email: true, phone: false },
   disable_signup: false,
   mailer_autoconfirm: false,
+  saml_enabled: false,
+  passkeys_enabled: false,
 };
 const live = parseAuthSettings(LIVE_SETTINGS);
 ok("parses email auth as available", live.email === true);
@@ -133,6 +140,23 @@ ok("offers exactly the providers that are enabled", bothOn.providers.join(",") =
 ok("autoConfirm reflected", bothOn.autoConfirm === true);
 ok("unknown providers are ignored", parseAuthSettings({ external: { github: true, email: false } }).providers.length === 0);
 ok("signups disabled is respected", parseAuthSettings({ disable_signup: true }).signupsAllowed === false);
+
+ok("SSO is off when the project has SAML disabled", live.sso === false);
+ok("SSO is read from the top-level saml_enabled flag, where GoTrue puts it",
+  parseAuthSettings({ ...LIVE_SETTINGS, saml_enabled: true }).sso === true);
+ok("SSO is also read from external.saml, which older GoTrue reports instead",
+  parseAuthSettings({ external: { saml: true, email: true } }).sso === true);
+ok("a missing SAML flag is off, not guessed", parseAuthSettings({ external: { email: true } }).sso === false);
+
+// A person types either a work email or a bare domain; the difference is not
+// one they should have to think about.
+ok("an SSO email yields its domain", (ssoDomain("max@company.com") as { domain: string }).domain === "company.com");
+ok("a bare domain is accepted", (ssoDomain("company.co.uk") as { domain: string }).domain === "company.co.uk");
+ok("an SSO domain is lowercased", (ssoDomain("  Max@Company.COM ") as { domain: string }).domain === "company.com");
+ok("an empty SSO input is refused with a usable message",
+  (ssoDomain("") as { error: string }).error.includes("work email"));
+ok("junk is refused", "error" in ssoDomain("not a domain"));
+ok("a bare hostname with no dot is refused", "error" in ssoDomain("localhost"));
 
 const empty = parseAuthSettings({});
 ok("missing settings are treated as nothing enabled, not guessed", empty.email === false && empty.providers.length === 0);
@@ -254,6 +278,8 @@ for (const file of surfaces) {
   const raw = /\b(?:text|bg|border|ring|from|to)-(?:stone|emerald|amber|slate|gray|zinc|neutral|rose|red|green|blue|indigo|teal|orange|yellow|lime|cyan|sky|violet|purple|fuchsia|pink)-\d{2,3}\b/.exec(src);
   ok(`${file.pathname.split("/desktop/")[1]} uses design tokens`, raw === null, raw?.[0]);
 }
+
+runGranolaDesktopTests(ok);
 
 await runModelWarmupTests(ok);
 

@@ -4,6 +4,9 @@
 //  • OAuth (Google or Microsoft/Azure) — personal OR work accounts, requesting
 //    calendar read scopes at sign-in so the meeting auto-prompt can see
 //    upcoming meetings.
+//  • SAML single sign-on — a work email, from which the server works out which
+//    identity provider to send them to. Offered only when the project actually
+//    has SAML on, for the same reason as the OAuth buttons.
 //
 // Which OAuth providers exist is a property of the *backend*, not of this app,
 // so we ask it (GET /auth/v1/settings) instead of assuming. A provider that
@@ -16,7 +19,7 @@ import type { Session } from "@supabase/supabase-js";
 import { getSupabase } from "./supabase.ts";
 import { CONFIG, hasBackend } from "./config.ts";
 import {
-  authErrorMessage, NO_AUTH, parseAuthSettings, providerUnavailableMessage,
+  authErrorMessage, NO_AUTH, parseAuthSettings, providerUnavailableMessage, ssoDomain,
   type AuthCapabilities, type OAuthProvider,
 } from "@ledgeur/core";
 
@@ -84,6 +87,25 @@ export async function signInWith(provider: OAuthProvider): Promise<void> {
   if (!caps.providers.includes(provider)) throw new Error(providerUnavailableMessage(provider));
   const { error } = await sb.auth.signInWithOAuth({ provider, options: { scopes: SCOPES[provider] } });
   if (error) throw new Error(authErrorMessage(error));
+}
+
+/**
+ * Start a SAML single sign-on flow for a work email or domain.
+ *
+ * Supabase returns a redirect URL rather than navigating itself, so the caller
+ * gets an explicit failure ("no SSO provider is registered for that domain")
+ * instead of a blank page — which is what most SSO attempts actually hit, and
+ * is only fixable by an admin who needs to be told which domain failed.
+ */
+export async function signInWithSso(input: string): Promise<void> {
+  const parsed = ssoDomain(input);
+  if ("error" in parsed) throw new Error(parsed.error);
+  const caps = await authCapabilities();
+  if (!caps.sso) throw new Error("This workspace does not have single sign-on switched on. An admin enables SAML in the Supabase project's auth settings.");
+  const { data, error } = await client().auth.signInWithSSO({ domain: parsed.domain });
+  if (error) throw new Error(authErrorMessage(error));
+  if (!data?.url) throw new Error(`No single sign-on provider is registered for ${parsed.domain}.`);
+  window.location.assign(data.url);
 }
 
 export async function signInWithPassword(email: string, password: string): Promise<void> {

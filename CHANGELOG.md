@@ -4,6 +4,133 @@
 
 - Added Sentry browser, server, edge, and request-error monitoring to `apps/marketing`, with source-map uploads and the in-product feedback widget.
 
+## Unreleased — Asking mid-meeting, and the parts of the job the app was missing
+
+### The in-meeting copilot now knows more than the last few minutes
+
+Asking a question during a meeting was grounded in exactly one thing:
+
+```ts
+getContext: () => [{ source: "Live transcript", text: segments.map(s => s.text).join(" ") }]
+```
+
+An unpunctuated, unattributed, untimed wall of text — and nothing else. So it
+could not answer "what did Priya commit to?" (no speakers), "what did we just
+decide?" (no order), or anything at all about what the company already knows,
+which is the entire point of having Contextely connected. Every question needing
+a fact from outside the room got "I don't have that information yet" while the
+fact sat one API call away.
+
+- **The room, properly described.** The transcript reaches the model
+  speaker-labelled and timestamped (`[12:04] Sarah: …`), with a roster of who
+  has spoken and for how long, plus whatever the user has typed into the notes
+  panel. A question about who said what is now answerable at all.
+- **The company, in the same prompt.** Contextely memory, Notion, the org's
+  indexed meetings, this device's own past recordings and the calendar are
+  fetched in parallel and packed alongside the transcript
+  (`apps/desktop/src/lib/meetingContext.ts`).
+- **On a deadline, and honest about it.** Remote sources get 5 seconds — past
+  that the person has stopped waiting or missed what was said while waiting, so
+  the answer goes without them and *names them*: "Answered without Contextely
+  company memory (timed out)." A source that errored is named with its own
+  error, instead of the previous single `catch {}` that made "not connected",
+  "key expired" and "endpoint down" all look identical to "nothing found".
+- **Retrieval instead of truncation.** An hour of speech is ~60k characters and
+  was clipped with `.slice(0, 48000)` — which drops the *end*, the most recent
+  and most relevant part, silently. `selectTranscriptContext`
+  (`packages/core/src/context/transcript.ts`, pure and unit-tested) always keeps
+  the recent tail intact and spends the rest of the budget on earlier passages
+  that bear on the question, marking every elision so the model can see it was
+  not given the whole meeting.
+- **Whole blocks, or none.** `packContext` fits sources to a budget by relevance
+  and reports what it dropped, rather than truncating one concatenated string
+  and losing whichever source happened to sort last.
+- **A prompt written for a live meeting.** Brief by default (the person may be
+  about to speak), told that the transcript is speech-to-text and contains
+  mishearings, and told that "this has not come up yet" is a different and more
+  useful answer than "I don't know".
+- **Every answer shows what it could see.** The source names are rendered under
+  the bubble. "Grounded in the room and the company's memory" and "grounded in
+  the last four minutes of speech" are different claims, and that difference was
+  invisible from the prose.
+- **Past meetings are ranked, not recent.** Ask used the newest twelve meetings
+  regardless of the question, so anything about a meeting from three weeks ago
+  was answered with "I don't have that information" while the answer sat in
+  IndexedDB.
+- **Fixed: a second meeting opened with the first one's conversation in it.**
+  The thread cleared itself on "recording AND the model is still loading" —
+  true only on a cold start, so it stopped working the moment the speech model
+  began staying warm between recordings. The recorder now carries a `takeId`.
+
+### Granola-parity work
+
+Named honestly: this closes most of the gap, not all of it. See the end.
+
+- **Per-line provenance.** Every note line links back to the transcript lines it
+  came from; clicking "from 12:04" opens the transcript there and highlights it.
+  A line the transcript does not support gets **no** citation rather than the
+  least-bad guess — a wrong citation is worse than none, because it looks
+  verified — and the count of unsupported lines is surfaced, since a bullet
+  nothing in the meeting backs is either paraphrasing or a mishearing.
+- **Follow-up emails.** Drafted from the meeting's real notes, editable before
+  sending, opened in whatever mail app the person uses. Two paths, both marked:
+  the on-device model, or a deterministic assembler that produces a genuinely
+  sendable recap offline. Neither invents a recipient, an owner or a date; an
+  action item with no owner stays without one.
+- **Recipes.** User-written note templates alongside the six built-ins, flowing
+  through the identical prompt path. A template that would do nothing is refused
+  at the point of writing rather than discovered after a meeting.
+- **32 spoken languages.** "Other languages" used to mean *let Whisper detect
+  it*, which is the app's worst failure mode: a meeting that opens in English
+  small talk and continues in German is transcribed as an entire meeting of
+  confidently hallucinated English, with no error anywhere. The language is now
+  passed to the decoder. Each is labelled with how well the model actually does
+  on it rather than presented as uniformly supported.
+- **Spaces.** One level deep on purpose. Deleting a space keeps its meetings and
+  moves them back to Unfiled.
+- **People directory.** Entirely derived from who has actually spoken and been
+  named — there is no "add a person", because a hand-maintained directory is
+  wrong within a month. Unnamed voices are counted, not listed as people.
+- **Webhooks.** `meeting.completed` POSTed to a URL you control, HMAC-SHA256
+  signed over `<timestamp>.<body>` in the GitHub/Stripe shape. Notes by default,
+  transcript only on request, and **voice embeddings never**, under any setting.
+  Settings shows the last real delivery rather than "configured".
+- **Calendar auto-start.** Off by default. Only meetings with a join link, only
+  within two minutes of the start, only once, never over a running take, and it
+  fires a notification and opens the meeting room every time — recording that
+  starts without a button press has to announce itself.
+- **SAML single sign-on**, offered only when the backend actually has it on.
+- **`list_people` over MCP**, so Contextely can ingest who's who alongside the
+  meetings.
+
+### Fixed: webhooks would have failed against almost every real receiver
+
+Found by pointing the feature at an actual HTTP server rather than trusting it.
+Ledgeur runs in a webview, so `fetch` obeys the browser's same-origin rules: a
+cross-origin POST with custom headers (which every signed delivery is) triggers
+a CORS preflight, and Zapier catch hooks, n8n and internal CRMs do not answer
+one — they are not called by browsers and have no reason to implement CORS.
+Every delivery would have failed with a bare "Failed to fetch", indistinguishable
+from a typo in the URL. Deliveries now go through the native side
+(`apps/desktop/src-tauri/src/net.rs`), where there is no origin and no preflight.
+
+### Also
+
+- `packages/core/src/text/tokens.ts` — one tokenizer and one relevance function
+  underneath the summariser, the context builder and provenance. They were three
+  private copies; provenance can only link a note back to its transcript line if
+  it scores words the same way the summariser that produced it did.
+- The calendar watcher moved out of the Home screen's schedule card into the
+  Shell. It only ran while Home was on screen, so the "your meeting is starting"
+  prompt depended on which page you were looking at, and auto-start could not
+  have worked there at all.
+
+### Still not Granola
+
+Spaces are personal, not shared; there are no user groups, no org-wide sharing
+of a space, no SSO-provisioned teams, no people *profiles* beyond what was
+spoken, and no recipe sharing between users.
+
 ## Unreleased — Speakers, a real web app, and a price list that is true
 
 ### The recorder, properly this time

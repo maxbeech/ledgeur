@@ -18,8 +18,9 @@
 // transcript does not support has to stay as the user wrote it, not get
 // elaborated into a plausible-sounding sentence nobody said.
 
-import { summarizeTranscript, templateById, templateInstruction, type MeetingNotes } from "@ledgeur/core";
+import { summarizeTranscript, templateInstruction, type MeetingNotes } from "@ledgeur/core";
 import { chatComplete } from "./llm.ts";
+import { templateFor } from "./recipes.ts";
 
 // The on-device model has no cancellation and can legitimately take a while on
 // slower hardware; an unreachable HTTP fallback can hang on connect too. Neither
@@ -111,7 +112,9 @@ export function buildNotesPrompt(
   // template can only add to them. The user's own notes come last, because they
   // outrank the template — a template says what this KIND of meeting is usually
   // about, and the notes say what THIS one actually was.
-  const system = BASE_SYSTEM + templateInstruction(templateById(templateId)) + (notes ? NOTES_SYSTEM : "");
+  // templateFor, not templateById: a recipe the user wrote has to steer the
+  // notes exactly the way a built-in does, through the same prompt.
+  const system = BASE_SYSTEM + templateInstruction(templateFor(templateId)) + (notes ? NOTES_SYSTEM : "");
   return [
     { role: "system", content: system },
     { role: "user", content: user },
