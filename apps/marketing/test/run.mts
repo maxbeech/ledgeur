@@ -138,6 +138,11 @@ ok("every option has a label and a hint a person can act on",
 const recordPanel = readFileSync(new URL("../components/app/RecordPanel.tsx", import.meta.url), "utf8");
 ok("the picker reads the shared list rather than restating it",
   recordPanel.includes("LANG_OPTIONS") && !/const LANGUAGES/.test(recordPanel));
+// LANG_OPTIONS now carries an entry per spoken language as well as per tier, so
+// a picker that renders one card per option is thirty-five radio cards.
+ok("the picker does not render one card per spoken language",
+  /LANG_OPTIONS\.filter\(/.test(recordPanel), "render the three tiers as cards and the languages as a select");
+ok("the spoken-language list is offered somewhere", recordPanel.includes("SPOKEN_LANGUAGES"));
 
 // --- auth callback page ---
 // This page is where every Supabase auth email lands. If its config or copy

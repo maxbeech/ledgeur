@@ -7,7 +7,7 @@ import { formatOffset } from "@ledgeur/core";
 import { Badge, Button, Card, ErrorNote, Kicker } from "@ledgeur/ui/components";
 import type { RecorderState } from "@/lib/useWebRecorder";
 import { Transcript } from "./Transcript";
-import { LANG_OPTIONS } from "@ledgeur/asr";
+import { LANG_OPTIONS, SPOKEN_LANGUAGES } from "@ledgeur/asr";
 
 // The options come from the load plan itself (packages/asr/asr-plan.js, served
 // as /asr-plan.js), so a value this picker offers is always a rung the worker
@@ -38,18 +38,25 @@ export function RecordPanel({
               yourself — an interview, a voice note, a talk — the microphone alone is enough.
             </p>
 
+            {/* Three cards, not one per language. LANG_OPTIONS carries a
+                value for every spoken language too (see asr-plan.js), and
+                rendering all of them here would be thirty-five radio cards.
+                The tier is the choice; which language is a detail of one of
+                them, so it only appears once that tier is picked. */}
             <fieldset className="mt-5">
               <legend className="text-[13px] font-medium text-ink-text">Language</legend>
               <div className="mt-2 grid gap-2 sm:grid-cols-3">
-                {LANG_OPTIONS.map(({ value, label, hint }) => (
+                {LANG_OPTIONS.filter((o) => !o.value.includes(":")).map(({ value, label, hint }) => (
                   <label
                     key={value}
                     className={`cursor-pointer rounded-xl border p-3 transition-colors ${
-                      lang === value ? "border-accent bg-accent-soft" : "border-hairline hover:border-hairline-strong"
+                      (value === "multi" ? lang.startsWith("multi") : lang === value)
+                        ? "border-accent bg-accent-soft" : "border-hairline hover:border-hairline-strong"
                     }`}
                   >
                     <input
-                      type="radio" name="lang" value={value} checked={lang === value}
+                      type="radio" name="lang" value={value}
+                      checked={value === "multi" ? lang.startsWith("multi") : lang === value}
                       onChange={() => setLang(value)} className="sr-only"
                     />
                     <span className="block text-[13.5px] font-medium text-ink-text">{label}</span>
@@ -57,6 +64,28 @@ export function RecordPanel({
                   </label>
                 ))}
               </div>
+              {lang.startsWith("multi") && (
+                <div className="mt-3">
+                  <label htmlFor="spoken-lang" className="block text-[12.5px] text-muted">
+                    Which language? Saying so is more accurate than letting the model work it out —
+                    and it is the only way to stop a meeting that starts in English and continues in
+                    another language coming back as invented English.
+                  </label>
+                  <select
+                    id="spoken-lang"
+                    value={lang}
+                    onChange={(e) => setLang(e.target.value)}
+                    className="mt-1.5 w-full max-w-xs rounded-xl border border-hairline bg-surface px-3 py-2 text-sm text-ink-text outline-none focus:border-accent"
+                  >
+                    <option value="multi">Let the model detect it</option>
+                    {SPOKEN_LANGUAGES.map((l) => (
+                      <option key={l.code} value={`multi:${l.code}`}>
+                        {l.label}{l.tier === "fair" ? " — workable" : ""}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
             </fieldset>
 
             <div className="mt-6 flex flex-wrap gap-3">
