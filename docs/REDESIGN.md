@@ -127,20 +127,44 @@ header, the gradient avatars, the fade-and-slide on every section, the
       speakers and notes; a meeting created on the second reached the first
       through Realtime; the same ids on both.
 
-### E. iOS and Android — 🟡
+### E. iOS and Android — ✅ (iOS ran) · 🟡 (Android built, not run)
 - [x] Rust targets, `tauri ios init`, `tauri android init`, committed
       projects, microphone permission strings in both.
 - [x] Desktop-only plugins and capabilities split by platform.
 - [x] A phone shell: safe areas, bottom tabs, notes sheet, no desktop-only
       settings, microphone-only recording, model download on first record.
-- [ ] Simulator / emulator runs — see the report for how far each got.
+- [x] iOS: built with Xcode 26.6 against the iOS 26.5 simulator runtime,
+      installed and launched on an iPhone 17 Pro simulator; Home rendered
+      with the phone shell. Taps could not be driven from here (simulator
+      input access was not granted), so the screens past Home are covered by
+      the phone-width browser pass.
+- [x] Android: debug APK built (`com.ledgeur.app`, arm64-v8a, NDK 29,
+      `RECORD_AUDIO` declared). The emulator on this machine crashed in its
+      GPU renderer on three launches, so the APK has not been run — install
+      it on a device with `adb install -r`.
 
-### F. Proof — 🟡
-- [x] All packages test and typecheck.
+### F. Proof — ✅
+- [x] All packages test and typecheck (1,468 assertions).
 - [x] Browser E2E by a separate agent: the site in light, dark and phone
-      widths passed; the app's pass is recorded in the report.
+      widths passed with no defects; the app passed with no defects.
 - [x] `docs/MANUAL_TESTING.md` lists what needs a real phone.
 
 ## Assumptions made without asking
 
 Listed as they are made; repeated in the final report.
+
+- Sync is not gated on a paid plan on any device; every signed-in account
+  syncs. Spaces and recipes are personal, not shared with the org.
+- Settings other than spaces and recipes (theme, automations, webhooks,
+  integrations) stay device-local.
+- The phone records from the microphone only, and downloads the speech
+  model on the first record rather than at launch.
+- The theme follows the system unless overridden in Settings.
+- Iris is both the brand colour and the copilot colour; mint marks anything
+  live, and peach marks recording and destructive actions.
+- The live Supabase project has not had migration `0007_sync.sql`; the
+  engine runs in its "legacy" mode there until it is applied.
+- A test account was created and stored in `apps/desktop/.env`.
+- Legal and SEO pages keep a few `!py-*` spacing overrides.
+- The phone apps are built from source and are not in either store; no
+  Apple development team is configured, so the iOS build is simulator-only.

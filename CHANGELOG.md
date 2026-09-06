@@ -43,6 +43,12 @@ ring from the site's.
   capture, the speech model downloaded on the first record rather than at
   launch, and no settings a phone cannot act on. Capabilities split so the
   desktop-only updater is not asked for on a phone. See `docs/MOBILE.md`.
+- **Built and run.** The iOS app compiled with Xcode 26.6 for the iOS 26.5
+  simulator, installed on an iPhone 17 Pro simulator and rendered Home with
+  the phone shell (bottom tabs, pinned composer, safe areas). The Android
+  debug APK (`com.ledgeur.app`, arm64-v8a, `RECORD_AUDIO`) built with NDK 29
+  and Gradle; the Android emulator on this machine crashes in its GPU
+  renderer before booting, so the APK has not been run yet.
 
 ### Sync
 

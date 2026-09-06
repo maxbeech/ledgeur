@@ -73,7 +73,16 @@ phone and stays there unless the meeting is synced.
 
 ## Testing
 
-Nothing here can be verified without a simulator, an emulator or a device.
-`docs/MANUAL_TESTING.md` lists the checks: a recording on the phone appearing
-on the laptop under the same id, a rename on the laptop reaching the phone
-without a refresh, and the microphone permission prompt on first record.
+What has been run so far (2026-09-06): the iOS build installed and launched
+on an iPhone 17 Pro simulator (iOS 26.5 runtime, Xcode 26.6) and rendered
+Home with the phone shell; the Android debug APK built (arm64-v8a, NDK 29)
+but the emulator on the build machine crashed in its GPU renderer before
+booting, so the APK has not been run. Everything that needs a microphone or a
+second device is listed in `docs/MANUAL_TESTING.md`: a recording on the phone
+appearing on the laptop under the same id, a rename on the laptop reaching the
+phone without a refresh, and the microphone permission prompt on first record.
+
+The debug APK lands at
+`apps/desktop/src-tauri/gen/android/app/build/outputs/apk/universal/debug/`
+and installs with `adb install -r <apk>` on any arm64 device with developer
+mode on.

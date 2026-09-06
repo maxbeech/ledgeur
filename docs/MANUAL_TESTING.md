@@ -380,8 +380,14 @@ so they can't be verified headless in CI — verify these by hand once configure
 The iOS and Android projects are generated and committed under
 `apps/desktop/src-tauri/gen/`; see `docs/MOBILE.md` for the toolchain. What was
 verified here: the Xcode and Gradle projects generate, the Rust core compiles
-for the phone targets, and the phone layout (bottom tabs, sheets, safe areas)
-renders in a phone-sized browser window. What needs a real phone or simulator:
+for the phone targets, the phone layout (bottom tabs, sheets, safe areas)
+renders in a phone-sized browser window, the iOS build installs and launches
+on an iPhone 17 Pro simulator (Home rendered with the phone shell; taps could
+not be driven because simulator input access was not granted to the agent),
+and the Android debug APK builds (`com.ledgeur.app`, arm64-v8a, microphone
+permission declared). The Android emulator on this machine crashes in its GPU
+renderer before booting, so the APK has not been run. What needs a real phone,
+simulator or emulator:
 
 14. **First record on a phone.** Tap Record → Start. The OS asks for the
     microphone once, with the app's own wording. The speech model downloads
