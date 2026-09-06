@@ -158,8 +158,9 @@ export function useFileImport() {
         noteMarkdown: notesToMarkdown(title, startedAt.slice(0, 10), notes, transcript, ""),
         wordCount: notes.wordCount,
         synced: false,
+        updatedAt: new Date().toISOString(),
       };
-      await saveMeeting(meeting);
+      await saveMeeting(meeting, "none");
       log.info("imported", { id, segments: segments.length, speakers: diarized.speakers.length });
 
       setState({ ...IDLE, warning: diarized.warning ?? "", name: file.name });

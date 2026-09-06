@@ -16,7 +16,7 @@ import {
   hostedClientConfig, stdioClientConfig, hostedEndpoint,
   type AccessTokenMeta,
 } from "@ledgeur/mcp";
-import { Badge, Button, Card, ErrorNote } from "@ledgeur/ui/components";
+import { Avatar, Badge, Button, Card, ErrorNote, Label, Notice } from "@ledgeur/ui/components";
 import { getSupabase } from "@/lib/supabase";
 import { useSession } from "@/lib/useSession";
 import { SITE, SUPABASE, TEAM_PRICE_USD } from "@/lib/site";
@@ -111,13 +111,13 @@ export default function AccountPanel() {
     window.location.href = "/";
   }, []);
 
-  if (loading) return <Card className="p-7 text-[14px] text-muted">Checking your session…</Card>;
+  if (loading) return <Card className="p-7 text-base text-muted">Checking your session</Card>;
 
   if (!available) {
     return (
       <Card raised className="p-7">
-        <h2 className="ldg-display text-[20px]">Accounts are not available here</h2>
-        <p className="mt-3 text-[14.5px] leading-relaxed text-muted">
+        <h2 className="text-xl font-semibold text-ink-text">Accounts are not available here</h2>
+        <p className="mt-3 text-base leading-relaxed text-muted">
           This deployment has no backend configured. Ledgeur still works entirely on your device.
         </p>
       </Card>
@@ -127,12 +127,12 @@ export default function AccountPanel() {
   if (!session) {
     return (
       <Card raised className="p-7">
-        <h2 className="ldg-display text-[20px]">You are not signed in</h2>
-        <p className="mt-3 text-[14.5px] leading-relaxed text-muted">
+        <h2 className="text-xl font-semibold text-ink-text">You are not signed in</h2>
+        <p className="mt-3 text-base leading-relaxed text-muted">
           Sign in to see your plan, manage billing and generate agent access tokens.
         </p>
-        <Link href="/signin?next=/account" className="mt-5 inline-block font-medium text-accent-strong hover:underline">
-          Sign in →
+        <Link href="/signin?next=/account" className="mt-5 inline-block font-medium text-brand-strong hover:underline">
+          Sign in
         </Link>
       </Card>
     );
@@ -143,40 +143,42 @@ export default function AccountPanel() {
   return (
     <div className="space-y-6">
       {justPaid && !paid && !loadingWorkspace && (
-        <Card className="border-warn/30 bg-warn-soft p-5 text-[14px] text-warn">
+        <Notice tone="warn">
           Your payment went through. The workspace has not switched over yet — that happens when
           Stripe notifies us, usually within a few seconds. This page is re-checking. If it is still
           saying Free in a minute, email us and we will fix it by hand.
-        </Card>
+        </Notice>
       )}
 
       {/* ------------------------------------------------------------ plan */}
       <Card raised className="p-6">
         <div className="flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <div className="ldg-kicker">Signed in as</div>
-            <p className="mt-1.5 text-[15px] text-ink-text">{session.user.email}</p>
-            {workspace && <p className="mt-1 text-[13px] text-faint">Workspace: {workspace.name}</p>}
+          <div className="flex items-center gap-3">
+            <Avatar name={session.user.email ?? "You"} size="lg" />
+            <div>
+              <p className="text-md font-semibold text-ink-text">{session.user.email}</p>
+              {workspace && <p className="mt-0.5 text-sm text-faint">Workspace: {workspace.name}</p>}
+            </div>
           </div>
           {loadingWorkspace
-            ? <Badge tone="neutral">Checking…</Badge>
+            ? <Badge>Checking</Badge>
             : <Badge tone={paid ? "accent" : "neutral"}>{paid ? "Team plan — active" : "Free plan"}</Badge>}
         </div>
 
         <div className="mt-6 border-t border-hairline pt-5">
           {paid ? (
             <>
-              <p className="text-[14px] leading-relaxed text-muted">
+              <p className="text-base leading-relaxed text-muted">
                 Sync, the shared library and agent access are on. Change your card, download invoices
                 or cancel from the billing portal — no email required.
               </p>
-              <Button tone="secondary" onClick={openPortal} disabled={portalBusy} className="mt-4">
-                {portalBusy ? "Opening…" : "Manage billing"}
+              <Button tone="secondary" onClick={openPortal} disabled={portalBusy} className="mt-4 rounded-full">
+                {portalBusy ? "Opening" : "Manage billing"}
               </Button>
             </>
           ) : (
             <>
-              <p className="text-[14px] leading-relaxed text-muted">
+              <p className="text-base leading-relaxed text-muted">
                 Everything on your device already works and always will. The Team plan adds sync
                 across devices, a shared library and agent access, for ${TEAM_PRICE_USD} per person
                 per month after a 14-day trial.
@@ -193,46 +195,46 @@ export default function AccountPanel() {
       <Card raised className="p-6">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h2 className="ldg-display text-[19px] text-ink-text">Agent access</h2>
-            <p className="mt-1 text-[13.5px] text-muted">
+            <h2 className="text-xl font-semibold text-ink-text">Agent access</h2>
+            <p className="mt-1 text-sm text-muted">
               A token lets Claude, ChatGPT or Cursor read your meetings over MCP.
             </p>
           </div>
-          <Button onClick={issue} disabled={issuing} tone={paid ? "primary" : "secondary"} size="sm">
-            {issuing ? "Generating…" : "Generate a token"}
+          <Button onClick={issue} disabled={issuing} tone={paid ? "primary" : "secondary"} size="sm" className="rounded-full">
+            {issuing ? "Generating" : "Generate a token"}
           </Button>
         </div>
 
         {freshToken && (
-          <div className="mt-5 rounded-xl border border-accent/30 bg-accent-soft p-4">
-            <p className="text-[13px] font-medium text-accent-strong">
+          <div className="mt-5 rounded-xl bg-accent-soft p-4">
+            <p className="text-sm font-semibold text-accent-strong">
               Copy this now — it is shown once and never again.
             </p>
-            <code className="mt-2 block overflow-x-auto rounded-lg bg-ink px-3 py-2.5 font-mono text-[12px] text-on-ink">
+            <code className="mt-2 block overflow-x-auto rounded-lg bg-ink px-3 py-2.5 font-mono text-sm text-on-ink">
               {freshToken}
             </code>
-            <p className="mt-3 text-[12.5px] text-accent-strong">
+            <p className="mt-3 text-sm text-accent-strong">
               We store only a hash of it, so we genuinely cannot show it to you again. Lose it and
               you generate another and revoke this one.
             </p>
 
             <details className="mt-4">
-              <summary className="cursor-pointer text-[13px] font-medium text-accent-strong">
+              <summary className="cursor-pointer text-sm font-semibold text-accent-strong">
                 Configuration for your MCP client
               </summary>
               <div className="mt-3 space-y-4">
                 <div>
-                  <div className="ldg-kicker">Hosted — no process to run</div>
-                  <p className="mt-1 text-[12.5px] text-muted">
+                  <Label>Hosted — no process to run</Label>
+                  <p className="mt-1 text-sm text-muted">
                     Endpoint: <code className="font-mono">{hostedEndpoint(SITE.url)}</code>
                   </p>
-                  <pre className="mt-2 overflow-x-auto rounded-lg bg-ink px-3 py-2.5 font-mono text-[11.5px] text-on-ink">
+                  <pre className="mt-2 overflow-x-auto rounded-lg bg-ink px-3 py-2.5 font-mono text-xs text-on-ink">
                     {hostedClientConfig(SITE.url, freshToken)}
                   </pre>
                 </div>
                 <div>
-                  <div className="ldg-kicker">Or run the server yourself</div>
-                  <pre className="mt-2 overflow-x-auto rounded-lg bg-ink px-3 py-2.5 font-mono text-[11.5px] text-on-ink">
+                  <Label>Or run the server yourself</Label>
+                  <pre className="mt-2 overflow-x-auto rounded-lg bg-ink px-3 py-2.5 font-mono text-xs text-on-ink">
                     {stdioClientConfig({ supabaseUrl: SUPABASE.url, anonKey: SUPABASE.anonKey, token: freshToken })}
                   </pre>
                 </div>
@@ -246,8 +248,8 @@ export default function AccountPanel() {
             {tokens.map((t) => (
               <li key={t.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
                 <div>
-                  <div className="text-[14px] text-ink-text">{t.name}</div>
-                  <div className="text-[12px] text-faint">
+                  <div className="text-base text-ink-text">{t.name}</div>
+                  <div className="text-xs text-faint">
                     Created {new Date(t.created_at).toLocaleDateString()}
                     {t.last_used_at ? ` · last used ${new Date(t.last_used_at).toLocaleDateString()}` : " · never used"}
                   </div>
@@ -261,17 +263,17 @@ export default function AccountPanel() {
         )}
 
         {tokens.length === 0 && !freshToken && (
-          <p className="mt-5 border-t border-hairline pt-4 text-[13.5px] text-faint">
-            No tokens yet. <Link href="/agents" className="text-accent-strong hover:underline">How agent access works →</Link>
+          <p className="mt-5 border-t border-hairline pt-4 text-sm text-faint">
+            No tokens yet. <Link href="/agents" className="font-medium text-brand-strong hover:underline">How agent access works</Link>
           </p>
         )}
       </Card>
 
       {error && <ErrorNote>{error}</ErrorNote>}
 
-      <div className="flex justify-between border-t border-hairline pt-6 text-[13.5px]">
-        <Link href="/app" className="font-medium text-accent-strong hover:underline">Open the app →</Link>
-        <button onClick={signOut} className="text-muted hover:text-ink-text">Sign out</button>
+      <div className="flex justify-between border-t border-hairline pt-6 text-sm">
+        <Link href="/app" className="font-medium text-brand-strong hover:underline">Open the app</Link>
+        <button onClick={signOut} className="font-medium text-muted hover:text-ink-text">Sign out</button>
       </div>
     </div>
   );

@@ -47,12 +47,12 @@ export default function Privacy() {
         <Card className="divide-y divide-hairline">
           {DATA_FACTS.map((fact) => (
             <div key={fact.claim} className="px-5 py-4">
-              <p className="text-[14.5px] font-medium text-ink-text">{fact.claim}</p>
-              <p className="mt-1.5 text-[13.5px] leading-relaxed text-muted">{fact.because}</p>
+              <p className="text-md font-medium text-ink-text">{fact.claim}</p>
+              <p className="mt-1.5 text-sm leading-relaxed text-muted">{fact.because}</p>
             </div>
           ))}
         </Card>
-        <p className="mt-4 text-[13px] text-faint">
+        <p className="mt-4 text-sm text-faint">
           All of this is checkable: the source is{" "}
           <a href={SITE.repo} target="_blank" rel="noreferrer" className="text-accent-strong hover:underline">
             public

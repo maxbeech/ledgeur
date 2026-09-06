@@ -1,7 +1,17 @@
 // Local-first meeting cache (IndexedDB). Holds the user's real recordings on the
-// device so the app works fully offline; the sync layer (Supabase, cloud-primary)
-// mirrors these upstream once auth + backend are configured. No dummy data —
-// entries exist only after a real recording/import.
+// device so the app works fully offline; the sync engine (sync.ts) mirrors
+// these to and from the cloud once an account is signed in. No dummy data —
+// entries exist only after a real recording, an import, or a pull.
+//
+// ── What "saving" means now ─────────────────────────────────────────────────
+// Every edit a person makes stamps `updatedAt` with this device's clock and
+// marks the meeting dirty, so the engine knows what to push and the other
+// devices know which edit is later. The engine itself writes with intent
+// "none": what it writes is already the cloud's truth, not a new edit.
+//
+// Deleting a synced meeting leaves a tombstone (the row minus its transcript,
+// with `deletedAt` set) until the engine has told the cloud; without that, the
+// other device would push the meeting straight back.
 
 export interface LocalSegment {
   id: string;
@@ -46,8 +56,8 @@ export interface ChatMessage {
  *  "who is this?" would only be answerable while the audio was still in memory,
  *  which is the one moment nobody is thinking about it.
  *
- *  It is never synced. `toSyncPayload` in @ledgeur/core drops it, and a test
- *  asserts no payload can carry one. */
+ *  It is never synced. The engine strips it, and a test asserts no payload can
+ *  carry one. */
 export interface LocalSpeaker {
   /** Matches `LocalSegment.speakerLabel` at the time the meeting was saved. */
   label: string;
@@ -58,6 +68,9 @@ export interface LocalSpeaker {
   embedding?: number[];
   speakingSeconds: number;
 }
+
+/** What the engine still has to send: nothing, the metadata, or everything. */
+export type Dirty = "meta" | "full";
 
 export interface LocalMeeting {
   id: string;
@@ -78,10 +91,11 @@ export interface LocalMeeting {
   /** Notes the user typed during the meeting (kept verbatim in the export). */
   manualNotes?: string;
   /** Copilot/user/suggestion thread — persisted only when the user opts in
-   *  (Settings → "Save copilot chat with the meeting"). */
+   *  (Settings → "Save copilot chat with the meeting"). Never synced. */
   messages?: ChatMessage[];
   noteMarkdown: string;
   wordCount: number;
+  /** True once the cloud has this meeting under this id. */
   synced: boolean;
   /** The space this meeting is filed in (see folders.ts). Absent = unfiled,
    *  which is the correct state for most meetings and the default. */
@@ -89,6 +103,18 @@ export interface LocalMeeting {
   /** Which note template wrote the notes, kept so the meeting can say so and
    *  so notes can be regenerated the same way. */
   templateId?: string;
+  /** When this device last edited it — the stamp the cloud compares. */
+  updatedAt?: string;
+  /** A tombstone: deleted here, not yet told to the cloud. */
+  deletedAt?: string;
+  /** When the engine last agreed with the cloud about this meeting. */
+  syncedAt?: string;
+  /** Edits the cloud has not seen yet. Absent = in step. */
+  dirty?: Dirty;
+  /** Who recorded it, once known. A meeting someone else shared is read-only
+   *  here — edits would be refused by the database anyway. */
+  ownerId?: string;
+  orgId?: string;
 }
 
 const DB_NAME = "ledgeur";
@@ -122,21 +148,77 @@ function tx<T>(mode: IDBTransactionMode, run: (s: IDBObjectStore) => IDBRequest<
   );
 }
 
-export async function saveMeeting(m: LocalMeeting): Promise<void> {
-  await tx("readwrite", (s) => s.put(m));
+/* ---------------------------------------------------------------- change bus */
+// Screens subscribe so a pull, a rename or a delete shows up without a reload.
+const listeners = new Set<() => void>();
+function notify(): void {
+  for (const l of listeners) l();
+}
+export function subscribeMeetings(cb: () => void): () => void {
+  listeners.add(cb);
+  return () => listeners.delete(cb);
+}
+
+/** What a save means for sync: a person's edit ("meta" for title, notes,
+ *  filing; "full" when the transcript or speakers changed) or the engine
+ *  writing what the cloud already has ("none"). */
+export type SaveIntent = Dirty | "none";
+
+const rank: Record<Dirty, number> = { meta: 1, full: 2 };
+
+export async function saveMeeting(m: LocalMeeting, intent: SaveIntent = "meta"): Promise<void> {
+  let next = m;
+  if (intent !== "none") {
+    const dirty: Dirty = m.dirty && rank[m.dirty] > rank[intent] ? m.dirty : intent;
+    next = { ...m, updatedAt: new Date().toISOString(), dirty };
+  }
+  await tx("readwrite", (s) => s.put(next));
+  notify();
 }
 
 export async function getMeeting(id: string): Promise<LocalMeeting | undefined> {
-  return tx<LocalMeeting | undefined>("readonly", (s) => s.get(id) as IDBRequest<LocalMeeting | undefined>);
+  const m = await tx<LocalMeeting | undefined>("readonly", (s) => s.get(id) as IDBRequest<LocalMeeting | undefined>);
+  return m && !m.deletedAt ? m : undefined;
 }
 
+/** Every meeting on this device that has not been deleted, newest first. */
 export async function listMeetings(): Promise<LocalMeeting[]> {
+  const all = await listMeetingRecords();
+  return all.filter((m) => !m.deletedAt);
+}
+
+/** Everything in the store, tombstones included — the engine's view. */
+export async function listMeetingRecords(): Promise<LocalMeeting[]> {
   const all = await tx<LocalMeeting[]>("readonly", (s) => s.getAll() as IDBRequest<LocalMeeting[]>);
   return all.sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
 }
 
+/**
+ * Delete a meeting here.
+ *
+ * A meeting the cloud knows about becomes a tombstone until the engine has
+ * passed the deletion on; one it never knew about simply goes.
+ */
 export async function deleteMeeting(id: string): Promise<void> {
+  const m = await tx<LocalMeeting | undefined>("readonly", (s) => s.get(id) as IDBRequest<LocalMeeting | undefined>);
+  if (!m) return;
+  if (m.synced) {
+    const now = new Date().toISOString();
+    const tombstone: LocalMeeting = {
+      ...m, segments: [], speakers: undefined, messages: undefined, noteMarkdown: "",
+      deletedAt: now, updatedAt: now, dirty: "meta",
+    };
+    await tx("readwrite", (s) => s.put(tombstone));
+  } else {
+    await tx("readwrite", (s) => s.delete(id) as IDBRequest<undefined>);
+  }
+  notify();
+}
+
+/** Remove a record outright — the engine, once the cloud has agreed. */
+export async function purgeMeeting(id: string): Promise<void> {
   await tx("readwrite", (s) => s.delete(id) as IDBRequest<undefined>);
+  notify();
 }
 
 /** All open action items across meetings — powers the Tasks screen locally. */

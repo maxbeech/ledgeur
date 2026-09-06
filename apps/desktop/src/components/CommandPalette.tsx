@@ -1,10 +1,11 @@
-// ⌘K command palette: navigate, start recording, ask the brain, and jump to any
-// meeting by title. Real data only — meeting entries come from the live cache.
+// ⌘K: go somewhere, start recording, ask a question, or jump to any meeting
+// by title. Real data only — meeting entries come from the live cache.
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { CircleDot, Sparkles, CalendarClock, CornerDownLeft } from "lucide-react";
+import { Sparkles, CalendarClock, CornerDownLeft, Search, Settings2 } from "lucide-react";
 import { cn, relativeTime } from "@ledgeur/ui";
 import { NAV } from "./Sidebar.tsx";
+import { RecordDot } from "./RecordDot.tsx";
 import { useMeetings } from "../lib/useMeetings.ts";
 
 interface Item { id: string; label: string; hint?: string; icon: React.ReactNode; run: () => void }
@@ -24,8 +25,9 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
   const items = useMemo<Item[]>(() => {
     const go = (to: string) => () => { nav(to); onClose(); };
     const base: Item[] = [
-      { id: "record", label: "Start recording", hint: "New meeting", icon: <CircleDot className="h-4 w-4 text-danger" />, run: go("/record") },
+      { id: "record", label: "Start recording", hint: "New meeting", icon: <RecordDot className="mx-[3px]" />, run: go("/record") },
       ...NAV.map((n) => ({ id: n.to, label: `Go to ${n.label}`, icon: <n.icon className="h-4 w-4 text-muted" />, run: go(n.to) })),
+      { id: "/integrations", label: "Go to Settings", icon: <Settings2 className="h-4 w-4 text-muted" />, run: go("/integrations") },
     ];
     const meetings: Item[] = (cards ?? []).slice(0, 40).map((c) => ({
       id: `m-${c.id}`,
@@ -37,12 +39,12 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
     const all = [...base, ...meetings];
     const needle = q.trim().toLowerCase();
     const filtered = needle ? all.filter((i) => i.label.toLowerCase().includes(needle)) : all.slice(0, 9);
-    // Free-text always gets an "ask the brain" escape hatch.
+    // Free text always gets an "ask" escape hatch.
     if (needle) {
       filtered.push({
         id: "ask",
-        label: `Ask the brain: “${q.trim()}”`,
-        icon: <Sparkles className="h-4 w-4 text-glow" />,
+        label: `Ask: “${q.trim()}”`,
+        icon: <Sparkles className="h-4 w-4 text-brand-strong" />,
         run: () => { nav(`/ask?q=${encodeURIComponent(q.trim())}`); onClose(); },
       });
     }
@@ -70,20 +72,23 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
   if (!open) return null;
 
   return (
-    <div className="ldg-fade-in fixed inset-0 z-50 flex items-start justify-center bg-ink/35 px-4 pt-[14vh] backdrop-blur-[2px]" onMouseDown={onClose} role="dialog" aria-modal="true" aria-label="Quick actions">
+    <div className="ldg-fade-in fixed inset-0 z-50 flex items-start justify-center bg-ink-text/30 px-4 pt-[14vh] backdrop-blur-[2px]" onMouseDown={onClose} role="dialog" aria-modal="true" aria-label="Quick actions">
       <div
-        className="ldg-palette-in w-full max-w-lg overflow-hidden rounded-2xl border border-hairline bg-surface shadow-[var(--shadow-palette)]"
+        className="ldg-pop-in w-full max-w-lg overflow-hidden rounded-2xl border border-hairline bg-surface shadow-[var(--shadow-palette)]"
         onMouseDown={(e) => e.stopPropagation()}
       >
-        <input
-          ref={inputRef}
-          name="palette-search"
-          value={q}
-          onChange={(e) => { setQ(e.target.value); setSel(0); }}
-          placeholder="Search meetings, or type a question…"
-          className="w-full border-b border-hairline bg-transparent px-5 py-4 text-[15px] outline-none placeholder:text-faint"
-          aria-label="Search"
-        />
+        <div className="flex items-center gap-3 border-b border-hairline px-4">
+          <Search className="h-4 w-4 shrink-0 text-faint" />
+          <input
+            ref={inputRef}
+            name="palette-search"
+            value={q}
+            onChange={(e) => { setQ(e.target.value); setSel(0); }}
+            placeholder="Search meetings, or type a question"
+            className="h-14 w-full bg-transparent text-md outline-none placeholder:text-faint"
+            aria-label="Search"
+          />
+        </div>
         <div ref={listRef} className="max-h-[46vh] overflow-y-auto p-2">
           {items.length === 0 && <div className="px-4 py-8 text-center text-sm text-muted">Nothing matches.</div>}
           {items.map((it, i) => (
@@ -92,13 +97,13 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
               onClick={it.run}
               onMouseMove={() => setSel(i)}
               className={cn(
-                "flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm",
+                "flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-base",
                 i === sel ? "bg-surface-muted text-ink-text" : "text-ink-text/80",
               )}
             >
               {it.icon}
               <span className="min-w-0 flex-1 truncate">{it.label}</span>
-              {it.hint && <span className="font-mono text-[10.5px] text-faint">{it.hint}</span>}
+              {it.hint && <span className="text-xs text-faint">{it.hint}</span>}
               {i === sel && <CornerDownLeft className="h-3.5 w-3.5 text-faint" />}
             </button>
           ))}

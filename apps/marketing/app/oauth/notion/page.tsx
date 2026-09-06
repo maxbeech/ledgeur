@@ -17,23 +17,23 @@ export default async function NotionCallback({
   const { code, error } = await searchParams;
   return (
     <main className="mx-auto max-w-xl px-5 py-20 text-center">
-      <h1 className="ldg-display text-[26px] leading-tight text-ink-text">Connect Notion to Ledgeur</h1>
+      <h1 className="ldg-display text-3xl leading-tight text-ink-text">Connect Notion to Ledgeur</h1>
       {error ? (
         <ErrorNote className="mt-6 text-left">
           Notion returned an error: {error}. Try connecting again from the app.
         </ErrorNote>
       ) : code ? (
         <>
-          <p className="mt-4 text-[15px] leading-relaxed text-muted">
+          <p className="mt-4 text-md leading-relaxed text-muted">
             Copy this code and paste it into Ledgeur (Integrations → Notion → Finish):
           </p>
-          <code className="mt-5 block break-all rounded-xl bg-ink px-4 py-3 font-mono text-[13px] text-on-ink">
+          <code className="mt-5 block break-all rounded-xl bg-ink px-4 py-3 font-mono text-sm text-on-ink">
             {code}
           </code>
-          <p className="mt-4 text-[12.5px] text-faint">You can close this tab once the app confirms the connection.</p>
+          <p className="mt-4 text-xs text-faint">You can close this tab once the app confirms the connection.</p>
         </>
       ) : (
-        <p className="mt-6 text-[15px] leading-relaxed text-muted">No authorization code was provided. Start the connection from the app.</p>
+        <p className="mt-6 text-md leading-relaxed text-muted">No authorization code was provided. Start the connection from the app.</p>
       )}
     </main>
   );

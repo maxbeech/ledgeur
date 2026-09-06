@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Calendar, Check } from "lucide-react";
-import { Button, Card, Chip, Spinner } from "../ui.tsx";
+import { Button, Card, Badge, Spinner, ErrorNote } from "../ui.tsx";
 import { hasBackend } from "../../lib/config.ts";
 import { useSession, signInWith } from "../../lib/session.ts";
 import { useTodayEvents } from "../../lib/useCalendar.ts";
@@ -30,20 +30,20 @@ export function GoogleCalendarCard() {
 
   return (
     <Card className="flex items-start gap-3 p-4">
-      <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-surface-muted text-ink-text"><Calendar className="h-5 w-5" /></span>
+      <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-brand-soft text-brand-strong"><Calendar className="h-5 w-5" /></span>
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
-          <span className="text-sm font-semibold text-ink-text">Google Calendar</span>
-          {connected ? <Chip tone="accent"><Check className="h-3 w-3" /> connected</Chip> : <Chip tone="accent">first to ship</Chip>}
+          <span className="text-base font-semibold text-ink-text">Google Calendar</span>
+          {connected && <Badge tone="accent"><Check className="h-3 w-3" /> Connected</Badge>}
         </div>
         <p className="mt-0.5 text-xs leading-relaxed text-muted">See meetings, get one-click record prompts, and ground Ask in your schedule.</p>
 
         {!hasBackend ? (
-          <div className="mt-3"><Button variant="outline" disabled title="Configure Supabase to enable">Backend required</Button></div>
+          <div className="mt-3"><Button tone="secondary" disabled title="Configure Supabase to enable">Backend required</Button></div>
         ) : !session ? (
           <div className="mt-3 space-y-2">
-            <Button variant="outline" onClick={() => void connect()} disabled={busy}>{busy ? <Spinner /> : "Connect Google Calendar"}</Button>
-            {err && <div className="text-xs text-danger">{err}</div>}
+            <Button tone="secondary" onClick={() => void connect()} disabled={busy}>{busy ? <Spinner /> : "Connect Google Calendar"}</Button>
+            {err && <ErrorNote className="mt-3">{err}</ErrorNote>}
           </div>
         ) : !connected ? (
           <div className="mt-3 text-xs text-muted">Signed in with {provider ?? "another provider"}. Sign out to connect Google Calendar instead.</div>

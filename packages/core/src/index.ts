@@ -9,6 +9,7 @@ export * from "./library/index.ts";
 export * from "./supabase/client.ts";
 export * from "./data/repository.ts";
 export * from "./data/rows.ts";
+export * from "./data/merge.ts";
 export * from "./integrations/notion.ts";
 export * from "./rag/chunk.ts";
 export * from "./calendar/schedule.ts";

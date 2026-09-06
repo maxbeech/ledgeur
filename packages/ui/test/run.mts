@@ -1,23 +1,23 @@
 // @ledgeur/ui test suite — the design system's own guardrails.
 //
-// Two things are asserted here that no amount of care would otherwise keep
+// Three things are asserted here that no amount of care would otherwise keep
 // true:
 //
-//  1. tokens.ts and theme.css describe the SAME palette. They must both exist
-//     (TypeScript reads one, CSS reads the other) and they drift silently —
-//     a colour changed in one place looks fine until a canvas visualiser and
-//     the page around it disagree.
-//  2. Every colour meant for text clears WCAG AA. The previous palette shipped
-//     a `faint` at 2.86:1, which is unreadable and was never noticed because
-//     nobody re-measured after picking it.
+//  1. tokens.css is exactly what tokens.ts generates. TypeScript reads one and
+//     Tailwind reads the other; before the CSS was generated, the desktop app
+//     kept a hand copy whose secondary text colour had drifted to 2.86:1.
+//  2. Every colour meant for text clears WCAG AA on every surface it is ever
+//     placed on — in BOTH modes. A dark palette that was "an inversion" would
+//     fail this in a dozen places.
+//  3. Every pastel family reads as text on its own tint, because that is how
+//     every badge, chip, avatar and speaker mark is built.
 
 import { readFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
-import { dirname, join } from "node:path";
-import { COLORS, FONTS, SPEAKER_COLORS, speakerColor, confidenceTier, RADII, MOTION } from "../src/tokens.ts";
-
-const HERE = dirname(fileURLToPath(import.meta.url));
-const css = readFileSync(join(HERE, "../src/theme.css"), "utf8");
+import {
+  LIGHT, DARK, COLORS, DARK_COLORS, PASTEL_NAMES, SPEAKER_COLORS, SPEAKER_ORDER, speakerColor, speakerIndex,
+  pastelFor, confidenceTier, FONTS, TYPE_SCALE, RADII, type Palette,
+} from "../src/tokens.ts";
+import { renderThemeCss, TOKENS_CSS_PATH } from "../build-theme.mts";
 
 let pass = 0, fail = 0;
 const ok = (name: string, cond: boolean, detail = "") => {
@@ -25,57 +25,26 @@ const ok = (name: string, cond: boolean, detail = "") => {
   else { fail++; console.error(`  FAIL ${name} ${detail}`); }
 };
 
-/** The value of an `@theme` custom property. */
-function cssVar(name: string): string | null {
-  const m = new RegExp(`--${name}:\\s*([^;]+);`).exec(css);
-  return m ? m[1].trim() : null;
+// ---------- the generated stylesheet is current ----------
+const committed = readFileSync(TOKENS_CSS_PATH, "utf8");
+ok("tokens.css matches tokens.ts (run `pnpm --filter @ledgeur/ui build:theme`)", committed === renderThemeCss());
+ok("the generated file says it is generated", committed.startsWith("/* GENERATED"));
+ok("the theme is declared inline so utilities follow the mode", committed.includes("@theme inline"));
+ok("dark mode follows the system", committed.includes("prefers-color-scheme: dark"));
+ok("dark mode can be forced", committed.includes('[data-theme="dark"]'));
+ok("light mode can be forced over a dark system", committed.includes(':root:not([data-theme="light"])'));
+for (const k of Object.keys(COLORS)) {
+  ok(`--color-${k} is a utility token`, committed.includes(`--color-${k}: var(--ldg-${k});`));
 }
+ok("the type scale is in the theme", Object.keys(TYPE_SCALE).every((k) => committed.includes(`--text-${k}: ${TYPE_SCALE[k as keyof typeof TYPE_SCALE]}px;`)));
+ok("the radii are in the theme", Object.keys(RADII).every((k) => committed.includes(`--radius-${k}:`)));
+ok("the sans face is in the theme", committed.includes(`--font-sans: ${FONTS.sans};`));
+ok("both palettes have the same keys",
+  JSON.stringify(Object.keys(COLORS)) === JSON.stringify(Object.keys(DARK_COLORS)));
 
-// ---------- tokens.ts and theme.css agree ----------
-// Each TS token paired with the CSS custom property that must match it.
-const MIRRORED: [keyof typeof COLORS, string][] = [
-  ["paper", "color-paper"],
-  ["surface", "color-surface"],
-  ["surfaceMuted", "color-surface-muted"],
-  ["surfaceSunken", "color-surface-sunken"],
-  ["ink", "color-ink"],
-  ["inkSoft", "color-ink-soft"],
-  ["inkRaised", "color-ink-raised"],
-  ["accent", "color-accent"],
-  ["accentStrong", "color-accent-strong"],
-  ["accentSoft", "color-accent-soft"],
-  ["glow", "color-glow"],
-  ["glowStrong", "color-glow-strong"],
-  ["glowSoft", "color-glow-soft"],
-  ["danger", "color-danger"],
-  ["dangerSoft", "color-danger-soft"],
-  ["dangerOnInk", "color-danger-on-ink"],
-  ["warn", "color-warn"],
-  ["warnSoft", "color-warn-soft"],
-  ["warnOnInk", "color-warn-on-ink"],
-  ["text", "color-ink-text"],
-  ["textMuted", "color-muted"],
-  ["textFaint", "color-faint"],
-  ["textOnInk", "color-on-ink"],
-  ["textOnInkMuted", "color-on-ink-muted"],
-  ["border", "color-hairline"],
-  ["borderStrong", "color-hairline-strong"],
-];
-
-for (const [token, variable] of MIRRORED) {
-  ok(`${token} matches --${variable}`,
-    COLORS[token].toLowerCase() === (cssVar(variable) ?? "").toLowerCase(),
-    `ts=${COLORS[token]} css=${cssVar(variable)}`);
-}
-ok("every colour token is mirrored in CSS", MIRRORED.length === Object.keys(COLORS).length,
-  `${MIRRORED.length} mirrored vs ${Object.keys(COLORS).length} tokens — add the new one to this test`);
-
-for (const [key, variable] of [["display", "font-display"], ["sans", "font-sans"], ["mono", "font-mono"]] as const) {
-  ok(`font ${key} matches --${variable}`, FONTS[key] === cssVar(variable), `ts=${FONTS[key]} css=${cssVar(variable)}`);
-}
-ok("the settle easing matches", MOTION.settle === cssVar("ease-settle"));
-ok("the swift easing matches", MOTION.swift === cssVar("ease-swift"));
-ok("the xl radius matches", RADII.xl === cssVar("radius-xl"));
+const theme = readFileSync(new URL("../src/theme.css", import.meta.url), "utf8");
+ok("theme.css imports the generated tokens rather than restating them", theme.includes('@import "./tokens.css"'));
+ok("theme.css declares no colours of its own", !/#[0-9a-f]{6}\b/i.test(theme.replace(/\/\*[\s\S]*?\*\//g, "")));
 
 // ---------- contrast ----------
 function channel(c: number): number {
@@ -92,44 +61,47 @@ function contrast(a: string, b: string): number {
   return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05);
 }
 const AA = 4.5;
+const AA_LARGE = 3;
 
-// Text colours, on both surfaces they are ever placed on.
-for (const token of ["text", "textMuted", "textFaint"] as const) {
-  for (const bg of ["paper", "surface", "surfaceMuted", "surfaceSunken"] as const) {
-    ok(`${token} on ${bg} clears AA`, contrast(COLORS[token], COLORS[bg]) >= AA,
-      `${contrast(COLORS[token], COLORS[bg]).toFixed(2)}:1`);
+function checkPalette(mode: string, p: Palette) {
+  // Text colours, on every surface they are ever placed on.
+  for (const token of ["text", "textMuted", "textFaint"] as const) {
+    for (const bg of ["paper", "surface", "surfaceMuted", "surfaceSunken"] as const) {
+      ok(`${mode}: ${token} on ${bg} clears AA`, contrast(p[token], p[bg]) >= AA, `${contrast(p[token], p[bg]).toFixed(2)}:1`);
+    }
   }
-}
-// The dark chrome needs its own danger and warn tones: the paper ones are
-// 2.55:1 and 2.2:1 on ink, which is why the sidebar was using raw Tailwind reds.
-for (const token of ["textOnInk", "textOnInkMuted", "dangerOnInk", "warnOnInk"] as const) {
-  for (const bg of ["ink", "inkSoft", "inkRaised"] as const) {
-    ok(`${token} on ${bg} clears AA`, contrast(COLORS[token], COLORS[bg]) >= AA,
-      `${contrast(COLORS[token], COLORS[bg]).toFixed(2)}:1`);
+  // The solid button and the wordmark tile.
+  for (const token of ["textOnInk", "textOnInkMuted"] as const) {
+    for (const bg of ["ink", "inkSoft", "inkRaised"] as const) {
+      ok(`${mode}: ${token} on ${bg} clears AA`, contrast(p[token], p[bg]) >= AA, `${contrast(p[token], p[bg]).toFixed(2)}:1`);
+    }
   }
-}
+  ok(`${mode}: the primary button clears AA`, contrast(p.textOnInk, p.ink) >= AA);
+  ok(`${mode}: the danger button clears AA`, contrast(p.onDanger, p.dangerFill) >= AA, `${contrast(p.onDanger, p.dangerFill).toFixed(2)}:1`);
+  ok(`${mode}: white on the brand tile clears AA for large text`, contrast("#ffffff", p.iris.base) >= AA_LARGE, `${contrast("#ffffff", p.iris.base).toFixed(2)}:1`);
 
-// The "strong" variants exist precisely so coloured text has a legal option.
-for (const token of ["accentStrong", "glowStrong", "danger", "warn"] as const) {
-  ok(`${token} is legible as text on paper`, contrast(COLORS[token], COLORS.paper) >= AA,
-    `${contrast(COLORS[token], COLORS.paper).toFixed(2)}:1`);
+  // Every pastel family: the strong tone is text on white, on the ground, and
+  // on its own tint; ordinary text also reads on the tint (notices).
+  for (const name of PASTEL_NAMES) {
+    const t = p[name];
+    ok(`${mode}: ${name}.strong on surface clears AA`, contrast(t.strong, p.surface) >= AA, `${contrast(t.strong, p.surface).toFixed(2)}:1`);
+    ok(`${mode}: ${name}.strong on paper clears AA`, contrast(t.strong, p.paper) >= AA, `${contrast(t.strong, p.paper).toFixed(2)}:1`);
+    ok(`${mode}: ${name}.strong on ${name}.soft clears AA`, contrast(t.strong, t.soft) >= AA, `${contrast(t.strong, t.soft).toFixed(2)}:1`);
+    ok(`${mode}: text on ${name}.soft clears AA`, contrast(p.text, t.soft) >= AA, `${contrast(p.text, t.soft).toFixed(2)}:1`);
+    ok(`${mode}: ${name}.base is visible as a fill on surface`, contrast(t.base, p.surface) >= 1.6, `${contrast(t.base, p.surface).toFixed(2)}:1`);
+  }
+  ok(`${mode}: hairlines are visible`, contrast(p.border, p.surface) >= 1.08);
+  ok(`${mode}: the six families are distinct`, new Set(PASTEL_NAMES.map((n) => p[n].strong)).size === PASTEL_NAMES.length);
 }
-// White on a filled button.
-ok("white text on the primary button clears AA", contrast("#ffffff", COLORS.accentStrong) >= AA,
-  `${contrast("#ffffff", COLORS.accentStrong).toFixed(2)}:1`);
-ok("white text on a destructive button clears AA", contrast("#ffffff", COLORS.danger) >= AA,
-  `${contrast("#ffffff", COLORS.danger).toFixed(2)}:1`);
-
-// Soft tints are backgrounds for their strong sibling — that pairing must read.
-for (const [fg, bg] of [["accentStrong", "accentSoft"], ["glowStrong", "glowSoft"], ["danger", "dangerSoft"], ["warn", "warnSoft"]] as const) {
-  ok(`${fg} on ${bg} clears AA`, contrast(COLORS[fg], COLORS[bg]) >= AA,
-    `${contrast(COLORS[fg], COLORS[bg]).toFixed(2)}:1`);
-}
+checkPalette("light", LIGHT);
+checkPalette("dark", DARK);
 
 // ---------- speaker colours ----------
+ok("speakers use six families", SPEAKER_COLORS.length === 6);
+ok("the copilot's family is not the first speaker colour", SPEAKER_ORDER[0] !== "iris",
+  "a speaker who looked like the copilot would read as the machine talking");
 for (const c of SPEAKER_COLORS) {
-  ok(`speaker colour ${c.name} is legible on its own tint`, contrast(c.fg, c.bg) >= AA,
-    `${contrast(c.fg, c.bg).toFixed(2)}:1`);
+  ok(`speaker colour ${c.name} is legible on its own tint`, contrast(c.fg, c.bg) >= AA, `${contrast(c.fg, c.bg).toFixed(2)}:1`);
 }
 ok("speaker colours are distinct", new Set(SPEAKER_COLORS.map((c) => c.fg)).size === SPEAKER_COLORS.length);
 ok("Speaker 1 is the first colour", speakerColor("Speaker 1").name === SPEAKER_COLORS[0].name);
@@ -137,9 +109,13 @@ ok("Speaker 2 differs from Speaker 1", speakerColor("Speaker 2").name !== speake
 ok("speaker colours cycle past the palette length",
   speakerColor(`Speaker ${SPEAKER_COLORS.length + 1}`).name === SPEAKER_COLORS[0].name);
 ok("a named speaker gets a stable colour", speakerColor("Priya").name === speakerColor("Priya").name);
-ok("a named speaker still gets a real colour",
-  SPEAKER_COLORS.some((c) => c.name === speakerColor("Priya").name));
+ok("a named speaker still gets a real colour", SPEAKER_COLORS.some((c) => c.name === speakerColor("Priya").name));
 ok("an empty label does not crash", typeof speakerColor("").name === "string");
+ok("the CSS index and the TS colour agree", speakerColor("Speaker 3").name === SPEAKER_ORDER[speakerIndex("Speaker 3")]);
+ok("an avatar and a speaker mark for the same name share a family", pastelFor("Priya") === speakerColor("Priya").name);
+for (let i = 0; i < 6; i++) {
+  ok(`theme.css styles speaker family ${i}`, theme.includes(`.ldg-speaker-${i}`));
+}
 
 // ---------- confidence tiers ----------
 ok("high confidence is high", confidenceTier(0.9) === "high");
@@ -149,10 +125,25 @@ ok("low confidence is low", confidenceTier(0.2) === "low");
 ok("no confidence is unknown", confidenceTier(null) === "unknown" && confidenceTier(undefined) === "unknown");
 
 // ---------- the stylesheet's own promises ----------
-ok("reduced motion is honoured", css.includes("prefers-reduced-motion"));
-ok("there is one focus-visible ring for the whole system", css.includes(":focus-visible"));
-ok("a skip link exists for keyboard users", css.includes(".ldg-skip"));
-ok("the display face is applied by a class, not ad hoc", css.includes(".ldg-display"));
+ok("reduced motion is honoured", theme.includes("prefers-reduced-motion"));
+ok("there is one focus-visible ring for the whole system", theme.includes(":focus-visible"));
+ok("a skip link exists for keyboard users", theme.includes(".ldg-skip"));
+ok("display type is a weight of the one family, applied by a class", theme.includes(".ldg-display") && !/Fraunces|Georgia|Iowan/.test(FONTS.sans));
+ok("section labels are sentence case, not stamps", theme.includes(".ldg-label") && !theme.includes("text-transform: uppercase"));
+ok("nothing rises on its own but the arrival", !theme.includes("ldg-stagger"));
+ok("there is no paper grain any more", !theme.includes("ldg-grain"));
+
+// ---------- the primitives ----------
+const primitives = readFileSync(new URL("../src/components/primitives.tsx", import.meta.url), "utf8");
+ok("primitives are hook-free so they work as server components", !/\buse(State|Effect|Ref|Memo|Callback)\(/.test(primitives));
+for (const name of ["Button", "LinkButton", "IconButton", "Card", "Label", "Display", "Badge", "SpeakerChip", "Avatar",
+  "Input", "Select", "Textarea", "Field", "Toggle", "Segmented", "Spinner", "ProgressBar", "Notice", "EmptyState", "ErrorNote", "Rule", "Logo"]) {
+  ok(`primitives export ${name}`, new RegExp(`export function ${name}\\b`).test(primitives));
+}
+ok("an icon button demands a label", /label: string/.test(primitives));
+ok("the speaker mark is coloured by family index, not an inline hex", primitives.includes("ldg-speaker-${speakerIndex(label)}"));
+ok("no primitive hardcodes a raw palette colour",
+  !/\b(?:text|bg|border|ring|from|to)-(?:stone|emerald|amber|slate|gray|zinc|neutral|red|green|blue|indigo|teal|orange|yellow|lime|cyan|violet|purple|fuchsia|pink)-\d{2,3}\b/.test(primitives));
 
 console.log(`\n${pass} passed, ${fail} failed`);
 if (fail > 0) process.exit(1);

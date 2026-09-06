@@ -20,8 +20,8 @@ export function DropZone({
   const [depth, setDepth] = useState(0);
   useEffect(() => { setOver(depth > 0); }, [depth]);
 
-  const carriesFiles = (e: DragEvent) =>
-    Array.from(e.dataTransfer?.types ?? []).includes("Files");
+  const carriesFiles = useCallback((e: DragEvent) =>
+    Array.from(e.dataTransfer?.types ?? []).includes("Files"), []);
 
   useEffect(() => {
     if (disabled) return;
@@ -45,19 +45,19 @@ export function DropZone({
       window.removeEventListener("dragleave", onLeave);
       window.removeEventListener("drop", onDrop);
     };
-  }, [onFile, disabled]);
+  }, [onFile, disabled, carriesFiles]);
 
   return (
     <>
       {children}
       {over && !disabled && (
         <div
-          className="ldg-fade-in fixed inset-0 z-50 grid place-items-center bg-ink/70 p-6 backdrop-blur-sm"
+          className="ldg-fade-in fixed inset-0 z-50 grid place-items-center bg-ink-text/50 p-6 backdrop-blur-sm"
           aria-hidden
         >
-          <div className="rounded-2xl border-2 border-dashed border-paper/60 px-10 py-12 text-center">
-            <p className="ldg-display text-[26px] text-on-ink">Drop it anywhere</p>
-            <p className="mt-2 text-[14px] text-on-ink-muted">
+          <div className="rounded-3xl border-2 border-dashed border-brand bg-surface px-10 py-12 text-center shadow-[var(--shadow-palette)]">
+            <p className="ldg-display text-2xl text-ink-text">Drop it anywhere</p>
+            <p className="mt-2 text-base text-muted">
               Audio or video. It is transcribed on this device, exactly like a live meeting.
             </p>
           </div>

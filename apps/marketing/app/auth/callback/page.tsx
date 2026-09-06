@@ -127,13 +127,13 @@ export default function AuthCallbackPage() {
       <Link href="/" aria-label={`${SITE.name} home`}><Wordmark /></Link>
 
       {view.kind === "loading" && (
-        <p className="mt-8 text-[15px] text-muted">Checking your link…</p>
+        <p className="mt-8 text-md text-muted">Checking your link…</p>
       )}
 
       {view.kind === "confirmed" && (
         <>
-          <h1 className="ldg-display mt-8 text-[30px] leading-tight text-ink-text">Email confirmed</h1>
-          <p className="mt-3 text-[15px] leading-relaxed text-muted">
+          <h1 className="ldg-display mt-8 text-3xl leading-tight text-ink-text">Email confirmed</h1>
+          <p className="mt-3 text-md leading-relaxed text-muted">
             Your {SITE.name} account is ready. Open the app and sign in with your email and password.
           </p>
           <Actions />
@@ -142,41 +142,41 @@ export default function AuthCallbackPage() {
 
       {view.kind === "done" && (
         <>
-          <h1 className="ldg-display mt-8 text-[30px] leading-tight text-ink-text">{view.title}</h1>
-          <p className="mt-3 text-[15px] leading-relaxed text-muted">{view.detail}</p>
+          <h1 className="ldg-display mt-8 text-3xl leading-tight text-ink-text">{view.title}</h1>
+          <p className="mt-3 text-md leading-relaxed text-muted">{view.detail}</p>
           <Actions />
         </>
       )}
 
       {view.kind === "error" && (
         <>
-          <h1 className="ldg-display mt-8 text-[30px] leading-tight text-ink-text">{view.title}</h1>
-          <p className="mt-3 text-[15px] leading-relaxed text-muted">{view.detail}</p>
+          <h1 className="ldg-display mt-8 text-3xl leading-tight text-ink-text">{view.title}</h1>
+          <p className="mt-3 text-md leading-relaxed text-muted">{view.detail}</p>
           <Actions />
         </>
       )}
 
       {view.kind === "recovery" && (
         <>
-          <h1 className="ldg-display mt-8 text-[30px] leading-tight text-ink-text">Choose a new password</h1>
-          <p className="mt-3 text-[15px] leading-relaxed text-muted">
+          <h1 className="ldg-display mt-8 text-3xl leading-tight text-ink-text">Choose a new password</h1>
+          <p className="mt-3 text-md leading-relaxed text-muted">
             Set a new password for your {SITE.name} account, then sign in with it in the app.
           </p>
           <form onSubmit={submitPassword} noValidate className="mt-6 space-y-3">
             <label className="block">
-              <span className="text-[13.5px] font-medium text-ink-text">New password</span>
+              <span className="text-sm font-medium text-ink-text">New password</span>
               <input
                 type="password" value={password} onChange={(e) => setPassword(e.target.value)}
                 autoComplete="new-password" disabled={busy}
-                className="mt-1.5 w-full rounded-xl border border-hairline-strong bg-paper px-3.5 py-2.5 text-[14.5px] text-ink-text outline-none transition-colors focus:border-accent disabled:opacity-60"
+                className="mt-1.5 w-full rounded-xl border border-hairline-strong bg-paper px-3.5 py-2.5 text-md text-ink-text outline-none transition-colors focus:border-accent disabled:opacity-60"
               />
             </label>
             <label className="block">
-              <span className="text-[13.5px] font-medium text-ink-text">Confirm new password</span>
+              <span className="text-sm font-medium text-ink-text">Confirm new password</span>
               <input
                 type="password" value={confirm} onChange={(e) => setConfirm(e.target.value)}
                 autoComplete="new-password" disabled={busy}
-                className="mt-1.5 w-full rounded-xl border border-hairline-strong bg-paper px-3.5 py-2.5 text-[14.5px] text-ink-text outline-none transition-colors focus:border-accent disabled:opacity-60"
+                className="mt-1.5 w-full rounded-xl border border-hairline-strong bg-paper px-3.5 py-2.5 text-md text-ink-text outline-none transition-colors focus:border-accent disabled:opacity-60"
               />
             </label>
             <Button type="submit" size="lg" disabled={busy} className="w-full">

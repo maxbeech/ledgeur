@@ -1,5 +1,5 @@
-// The live meeting conversation: transcript lines, copilot answers, your
-// questions and proactive suggestions, all as one auto-scrolling chat thread.
+// A conversation: transcript lines, copilot answers, your questions and
+// proactive suggestions, as one auto-scrolling thread.
 import { useEffect, useRef } from "react";
 import type { ThreadItem } from "../../lib/thread.ts";
 import { ThreadBubble } from "./ThreadBubble.tsx";
@@ -21,7 +21,7 @@ export function ThreadView({
   const atBottom = useRef(true);
   const scroller = useRef<HTMLDivElement>(null);
 
-  // Auto-scroll to the newest bubble only when the user is already near the end.
+  // Auto-scroll to the newest entry only when the reader is already near the end.
   useEffect(() => {
     if (atBottom.current) endRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [items.length, busy]);
@@ -37,23 +37,19 @@ export function ThreadView({
       <div className="flex h-full flex-col items-center justify-center gap-3 px-6 text-center">
         {live && <div className="ldg-shimmer h-px w-40" />}
         <p className="max-w-sm text-sm leading-relaxed text-muted">
-          {emptyHint ?? (live ? "Listening… what's said appears here, and you can ask the copilot anything." : "No conversation yet.")}
+          {emptyHint ?? (live ? "Listening. What is said appears here, and you can ask the copilot anything." : "No conversation yet.")}
         </p>
       </div>
     );
   }
 
   return (
-    <div ref={scroller} onScroll={onScroll} className="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 py-4">
-      {items.map((item) => (
-        <div key={item.id} className="ldg-rise">
-          <ThreadBubble item={item} onQuote={onQuote} />
-        </div>
-      ))}
+    <div ref={scroller} onScroll={onScroll} className="min-h-0 flex-1 space-y-5 overflow-y-auto px-4 py-5 sm:px-6">
+      {items.map((item) => <ThreadBubble key={item.id} item={item} onQuote={onQuote} />)}
       {busy && (
-        <div className="flex items-center gap-2 pl-1">
+        <div className="flex items-center gap-3 pl-10">
           <div className="ldg-shimmer h-px w-24" />
-          <span className="font-mono text-[10px] uppercase tracking-wider text-glow-strong">Consulting the record…</span>
+          <span className="text-xs font-medium text-brand-strong">Reading the record</span>
         </div>
       )}
       <div ref={endRef} />

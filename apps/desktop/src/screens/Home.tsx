@@ -1,127 +1,113 @@
-// Home — the reading room. A dated greeting, the ask bar (the brain's front
-// door), today's calendar with one-click record, and the latest entries in the
-// record. All real data with explicit empty states.
-import { useState } from "react";
+// Home: a greeting, the way to start, today's calendar, and the latest
+// meetings. All real data with explicit empty states.
 import { useNavigate } from "react-router-dom";
-import { Sparkles, CircleDot, ArrowUpRight, Clock } from "lucide-react";
+import { ArrowUpRight, Clock, Upload } from "lucide-react";
 import { relativeTime } from "@ledgeur/ui";
 import { Page } from "../components/PageHeader.tsx";
-import { Button, Card, Chip, EmptyState, Kicker, SectionHeader } from "../components/ui.tsx";
+import { Badge, Button, Card, EmptyState, SectionHeader } from "../components/ui.tsx";
 import { TodaySchedule } from "../components/TodaySchedule.tsx";
+import { RecordDot } from "../components/RecordDot.tsx";
 import { useMeetings } from "../lib/useMeetings.ts";
 import { useTasks } from "../lib/useTasks.ts";
+import { useRecorderCtx } from "../lib/useRecorderCtx.ts";
+import { useSession } from "../lib/session.ts";
+
+function greeting(now: Date, name: string | null): string {
+  const h = now.getHours();
+  const time = h < 5 ? "Good evening" : h < 12 ? "Good morning" : h < 18 ? "Good afternoon" : "Good evening";
+  return name ? `${time}, ${name}` : time;
+}
 
 export function Home() {
   const nav = useNavigate();
-  const [q, setQ] = useState("");
   const { cards } = useMeetings();
   const { tasks } = useTasks();
+  const { state } = useRecorderCtx();
+  const { session } = useSession();
   const now = new Date();
-  const recent = (cards ?? []).slice(0, 5);
+  const recent = (cards ?? []).slice(0, 6);
   const openTasks = (tasks ?? []).filter((t) => !t.done).length;
-  const ask = () => { if (q.trim()) nav(`/ask?q=${encodeURIComponent(q.trim())}`); };
+  const recording = state.status === "recording";
+  const firstName = session?.user?.user_metadata?.full_name?.split(" ")[0] ?? null;
 
   return (
     <Page>
-      <div className="ldg-stagger">
-        <header className="mb-7">
-          <Kicker className="mb-2">
-            {now.toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" })}
-          </Kicker>
-          <h1 className="ldg-display text-[34px] leading-tight text-ink-text">The record is open.</h1>
-        </header>
+      <header className="mb-6">
+        <h1 className="ldg-display text-3xl leading-tight text-ink-text">{greeting(now, firstName)}</h1>
+        <p className="mt-1.5 text-base text-muted">
+          {now.toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" })}
+          {cards && cards.length > 0 && <> · {cards.length} meeting{cards.length === 1 ? "" : "s"} on record</>}
+          {tasks && openTasks > 0 && <> · {openTasks} open task{openTasks === 1 ? "" : "s"}</>}
+        </p>
+      </header>
 
-        {/* Ask anything — the brain's front door. Gold = the brain. */}
-        <div className="mb-8 flex items-center gap-3 rounded-2xl border border-glow/30 bg-surface px-5 py-4 shadow-[var(--shadow-card)] transition-shadow focus-within:shadow-[var(--shadow-float)]">
-          <Sparkles className="h-5 w-5 shrink-0 text-glow-strong" />
-          <input
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            onKeyDown={(e) => { if (e.key === "Enter") ask(); }}
-            placeholder="Ask anything across your meetings, notes and connected tools…"
-            className="ldg-prose min-w-0 flex-1 bg-transparent text-[15px] outline-none placeholder:text-faint"
-            aria-label="Ask your knowledge base" name="home-ask"
-          />
-          <Button variant="gold" size="sm" onClick={ask} disabled={!q.trim()}>Ask</Button>
+      {/* The one thing this screen is for. */}
+      <Card raised className="mb-8 flex flex-wrap items-center justify-between gap-4 p-5">
+        <div className="flex min-w-0 items-center gap-4">
+          <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-danger-soft">
+            <RecordDot live={recording} className="h-4 w-4" />
+          </span>
+          <div className="min-w-0">
+            <div className="text-lg font-semibold text-ink-text">{recording ? "A meeting is being recorded" : "Record a meeting"}</div>
+            <p className="text-sm text-muted">
+              {recording ? "Transcribing on this device as it happens." : "Transcribed on this device as it happens. Nothing leaves the machine."}
+            </p>
+          </div>
         </div>
-
-        {/* Quiet ledger row: counts + record CTA. */}
-        <div className="mb-9 grid grid-cols-2 gap-3 sm:grid-cols-3">
-          <StatTile label="Meetings on record" value={cards === null ? "—" : String(cards.length)} onClick={() => nav("/meetings")} />
-          <StatTile label="Open action items" value={tasks === null ? "—" : String(openTasks)} onClick={() => nav("/tasks")} />
-          <button
-            onClick={() => nav("/record")}
-            className="group col-span-2 flex items-center justify-between rounded-2xl bg-ink p-5 text-left shadow-[var(--shadow-card)] transition-all duration-200 ease-[var(--ease-settle)] hover:-translate-y-0.5 hover:shadow-[var(--shadow-float)] sm:col-span-1"
-          >
-            <span>
-              <span className="ldg-display block text-[19px] text-on-ink">Record</span>
-              <span className="block text-xs text-on-ink-muted">Start a new entry</span>
-            </span>
-            <span className="flex h-10 w-10 items-center justify-center rounded-full bg-danger/90 text-white transition-transform duration-200 group-hover:scale-105">
-              <CircleDot className="h-5 w-5" />
-            </span>
-          </button>
-        </div>
-
-        <section className="mb-9">
-          <SectionHeader title="Today" />
-          <TodaySchedule />
-        </section>
-
-        <section>
-          <SectionHeader
-            title="Recent entries"
-            action={recent.length > 0 ? (
-              <button onClick={() => nav("/meetings")} className="text-xs font-medium text-accent-strong hover:underline">
-                Open the library
-              </button>
-            ) : undefined}
-          />
-          {recent.length === 0 ? (
-            <Card>
-              <EmptyState
-                icon={<Clock className="h-5 w-5" />}
-                title="Nothing on record yet"
-                body="Record your first meeting and it becomes searchable knowledge — summaries, decisions and action items included."
-                action={<Button variant="accent" onClick={() => nav("/record")}><CircleDot className="h-4 w-4" /> Record a meeting</Button>}
-              />
-            </Card>
-          ) : (
-            <Card className="divide-y divide-hairline">
-              {recent.map((m) => (
-                <button
-                  key={`${m.source}-${m.id}`}
-                  onClick={() => nav(`/meetings/${m.id}`)}
-                  className="group flex w-full items-center justify-between gap-4 px-5 py-3.5 text-left transition-colors hover:bg-surface-muted/50"
-                >
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className="truncate text-sm font-medium text-ink-text">{m.title}</span>
-                      {m.source === "local" && <Chip tone="warn">local</Chip>}
-                    </div>
-                    <div className="mt-0.5 font-mono text-[10.5px] text-faint">
-                      {relativeTime(m.createdAt, now)} · {m.wordCount} words · {m.actionItemCount} tasks
-                    </div>
-                  </div>
-                  <ArrowUpRight className="h-4 w-4 shrink-0 text-faint transition-transform duration-150 group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:text-ink-text" />
-                </button>
-              ))}
-            </Card>
+        <div className="flex gap-2">
+          {!recording && (
+            <Button tone="secondary" onClick={() => nav("/record#import")}>
+              <Upload className="h-4 w-4" /> Import a recording
+            </Button>
           )}
-        </section>
-      </div>
-    </Page>
-  );
-}
+          <Button onClick={() => nav("/record")}>{recording ? "Open the meeting" : "Start recording"}</Button>
+        </div>
+      </Card>
 
-function StatTile({ label, value, onClick }: { label: string; value: string; onClick: () => void }) {
-  return (
-    <button
-      onClick={onClick}
-      className="rounded-2xl border border-hairline bg-surface p-5 text-left shadow-[var(--shadow-card)] transition-all duration-200 ease-[var(--ease-settle)] hover:-translate-y-0.5 hover:shadow-[var(--shadow-float)]"
-    >
-      <span className="ldg-display block text-[26px] tabular-nums text-ink-text">{value}</span>
-      <span className="mt-0.5 block text-xs text-muted">{label}</span>
-    </button>
+      <section className="mb-8">
+        <SectionHeader title="Today" />
+        <TodaySchedule />
+      </section>
+
+      <section>
+        <SectionHeader
+          title="Recent meetings"
+          action={recent.length > 0 ? (
+            <Button size="sm" tone="ghost" onClick={() => nav("/meetings")}>Open the library</Button>
+          ) : undefined}
+        />
+        {recent.length === 0 ? (
+          <Card>
+            <EmptyState
+              icon={<Clock className="h-5 w-5" />}
+              title="Nothing on record yet"
+              body="Record your first meeting and it becomes searchable — summary, decisions and action items included."
+              action={<Button onClick={() => nav("/record")}><RecordDot /> Record a meeting</Button>}
+            />
+          </Card>
+        ) : (
+          <Card className="divide-y divide-hairline">
+            {recent.map((m) => (
+              <button
+                key={`${m.source}-${m.id}`}
+                onClick={() => nav(`/meetings/${m.id}`)}
+                className="group flex w-full items-center justify-between gap-4 px-4 py-3 text-left transition-colors hover:bg-surface-muted"
+              >
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="truncate text-base font-medium text-ink-text">{m.title}</span>
+                    {m.source === "local" && <Badge tone="warn">On this device</Badge>}
+                  </div>
+                  <div className="mt-0.5 text-xs text-faint">
+                    {relativeTime(m.createdAt, now)} · {m.wordCount} words · {m.actionItemCount} task{m.actionItemCount === 1 ? "" : "s"}
+                  </div>
+                </div>
+                <ArrowUpRight className="h-4 w-4 shrink-0 text-faint transition-colors group-hover:text-ink-text" />
+              </button>
+            ))}
+          </Card>
+        )}
+      </section>
+    </Page>
   );
 }

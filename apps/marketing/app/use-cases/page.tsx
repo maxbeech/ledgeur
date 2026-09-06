@@ -28,8 +28,8 @@ export default function UseCasesIndex() {
           {USE_CASES.map((useCase) => (
             <Link key={useCase.slug} href={`/use-cases/${useCase.slug}`} className="group block">
               <Card className="h-full p-5 transition-colors group-hover:border-accent">
-                <h2 className="ldg-display text-[16px] text-ink-text">{useCase.name}</h2>
-                <p className="mt-1.5 text-[13.5px] leading-relaxed text-muted">{useCase.headline}</p>
+                <h2 className="ldg-display text-md text-ink-text">{useCase.name}</h2>
+                <p className="mt-1.5 text-sm leading-relaxed text-muted">{useCase.headline}</p>
               </Card>
             </Link>
           ))}

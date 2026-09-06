@@ -15,11 +15,13 @@ Nothing goes in the price list unless it ships. See
 [`apps/marketing/lib/plans.ts`](apps/marketing/lib/plans.ts), which carries that
 rule and a test that enforces it.
 
-> Previously a browser-only meeting recorder — now a cross-platform product
-> (macOS · Windows · iOS · Android) built on Tauri 2 + Supabase, wearing the
-> **"Library of Record"** design language (Fraunces · Schibsted Grotesk ·
-> Spline Sans Mono, bundled offline). See
-> [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) and [`docs/ROADMAP.md`](docs/ROADMAP.md).
+> One app for macOS, Windows, iOS and Android, built on Tauri 2 + Supabase,
+> on one design system (`packages/ui`: Plus Jakarta Sans, a neutral canvas,
+> six pastel families, light and dark — every colour pairing measured). The
+> phone app is the same code as the desktop app and syncs with it under the
+> same meeting ids. See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md),
+> [`docs/MOBILE.md`](docs/MOBILE.md), [`docs/REDESIGN.md`](docs/REDESIGN.md)
+> and [`docs/ROADMAP.md`](docs/ROADMAP.md).
 
 The Vercel marketing app sends errors, low-volume performance traces, source maps, and user feedback to Sentry; no telemetry runs if `NEXT_PUBLIC_SENTRY_DSN` is absent.
 
@@ -48,8 +50,12 @@ pnpm desktop:dev             # http://localhost:1420
 # The app (native window with the Rust core)
 pnpm --filter @ledgeur/desktop tauri:dev
 
-# iOS (requires Xcode)
+# iOS (requires Xcode) and Android (requires the SDK, NDK and JDK 17) — see docs/MOBILE.md
 pnpm --filter @ledgeur/desktop ios:dev
+pnpm --filter @ledgeur/desktop android:dev
+
+# Regenerate the design tokens' CSS after editing packages/ui/src/tokens.ts
+pnpm --filter @ledgeur/ui build:theme
 
 # The marketing site
 pnpm marketing:dev
@@ -127,6 +133,16 @@ time. Every answer shows the sources it was grounded in. The same pass added
 per-line provenance from notes back to the transcript, follow-up email drafts,
 user-written note recipes, 32 spoken languages, spaces, a derived people
 directory, signed outbound webhooks, calendar auto-start and SAML SSO.
+
+The 2026-09-06 **redesign, phone and sync pass** replaced the design system
+outright — one sans family, a neutral canvas with six pastel families, light
+and dark, a generated token sheet the two apps cannot drift from — and
+rebuilt every screen of the app and every page of the site on it. The same
+pass generated the iOS and Android projects (the phone is the same app with a
+phone shell) and replaced one-shot, one-way sync with an engine that pushes
+every edit, pulls every change, honours deletions, and listens for the other
+device over Realtime. See [`docs/REDESIGN.md`](docs/REDESIGN.md) and
+[`docs/MOBILE.md`](docs/MOBILE.md).
 
 Earlier: editorial design system, ⌘K palette, mobile tab bar, recordings that
 survive navigation. See [`docs/ROADMAP.md`](docs/ROADMAP.md) for what's next,

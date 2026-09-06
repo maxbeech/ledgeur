@@ -19,7 +19,7 @@ import {
   authErrorMessage, hasNoAuthMethod, NO_AUTH, parseAuthSettings, signUpNextStep,
   validateCredentials, MIN_PASSWORD_LENGTH, type AuthCapabilities,
 } from "@ledgeur/core";
-import { Button, Card, ErrorNote } from "@ledgeur/ui/components";
+import { Button, Card, ErrorNote, Field, Input, Notice } from "@ledgeur/ui/components";
 import { getSupabase, hasBackend } from "@/lib/supabase";
 import { SITE, SUPABASE } from "@/lib/site";
 
@@ -114,14 +114,14 @@ export default function SignInForm() {
   if (caps && hasNoAuthMethod(caps)) {
     return (
       <Card raised className="p-7">
-        <h2 className="ldg-display text-[20px] text-ink-text">Accounts are not available here</h2>
-        <p className="mt-3 text-[14.5px] leading-relaxed text-muted">
+        <h2 className="text-xl font-semibold text-ink-text">Accounts are not available here</h2>
+        <p className="mt-3 text-base leading-relaxed text-muted">
           {capsFailed
             ? "We could not reach the account server, so we cannot show you a sign-in form that would work. Check your connection and reload."
             : "This deployment has no sign-in method configured. Ledgeur still records, transcribes and stores meetings entirely on your device."}
         </p>
-        <Link href="/app" className="mt-5 inline-block text-[14px] font-medium text-accent-strong hover:underline">
-          Use Ledgeur without an account →
+        <Link href="/app" className="mt-5 inline-block text-base font-medium text-brand-strong hover:underline">
+          Use Ledgeur without an account
         </Link>
       </Card>
     );
@@ -130,47 +130,41 @@ export default function SignInForm() {
   const title = mode === "signin" ? "Sign in" : mode === "signup" ? "Create an account" : "Reset your password";
 
   return (
-    <Card raised className="p-7">
-      <h2 className="ldg-display text-[22px] text-ink-text">{title}</h2>
+    <Card raised className="p-6 sm:p-7">
       {mode === "signup" && caps && !caps.signupsAllowed && (
-        <p className="mt-3 text-[14px] text-warn">New accounts are disabled on this workspace.</p>
+        <Notice tone="warn" className="mb-4">New accounts are disabled on this workspace.</Notice>
       )}
 
-      <form onSubmit={submit} noValidate className="mt-6 space-y-4">
-        <Field
-          label="Email" type="email" value={email} onChange={setEmail}
-          autoComplete="email" disabled={busy}
-        />
+      <form onSubmit={submit} noValidate className="space-y-4">
+        <Field label="Email" htmlFor="field-email">
+          <Input id="field-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" disabled={busy} />
+        </Field>
         {mode !== "reset" && (
-          <Field
-            label="Password" type="password" value={password} onChange={setPassword}
-            autoComplete={mode === "signup" ? "new-password" : "current-password"}
-            disabled={busy}
-            hint={mode === "signup" ? `At least ${MIN_PASSWORD_LENGTH} characters.` : undefined}
-          />
+          <Field label="Password" htmlFor="field-password" hint={mode === "signup" ? `At least ${MIN_PASSWORD_LENGTH} characters.` : undefined}>
+            <Input
+              id="field-password" type="password" value={password} onChange={(e) => setPassword(e.target.value)}
+              autoComplete={mode === "signup" ? "new-password" : "current-password"} disabled={busy}
+            />
+          </Field>
         )}
 
-        <Button type="submit" size="lg" disabled={busy} className="w-full">
-          {busy ? "Working…" : title}
+        <Button type="submit" size="lg" disabled={busy} className="w-full rounded-full">
+          {busy ? "Working" : title}
         </Button>
 
         {error && <ErrorNote>{error}</ErrorNote>}
-        {notice && (
-          <p role="status" className="rounded-xl border border-accent/25 bg-accent-soft px-4 py-3 text-[14px] text-accent-strong">
-            {notice}
-          </p>
-        )}
+        {notice && <Notice tone="accent">{notice}</Notice>}
       </form>
 
-      <div className="mt-6 flex flex-wrap gap-x-5 gap-y-2 border-t border-hairline pt-5 text-[13.5px]">
+      <div className="mt-6 flex flex-wrap gap-x-5 gap-y-2 border-t border-hairline pt-5 text-sm">
         {mode !== "signin" && <Switch onClick={() => { setMode("signin"); setError(""); setNotice(""); }}>Sign in instead</Switch>}
         {mode !== "signup" && <Switch onClick={() => { setMode("signup"); setError(""); setNotice(""); }}>Create an account</Switch>}
         {mode !== "reset" && <Switch onClick={() => { setMode("reset"); setError(""); setNotice(""); }}>Forgot your password?</Switch>}
       </div>
 
-      <p className="mt-5 text-[12.5px] leading-relaxed text-faint">
+      <p className="mt-5 text-xs leading-relaxed text-faint">
         Signing in syncs the meetings you choose to sync. Your voice prints are never uploaded —
-        they stay in this browser, on this device.
+        they stay on this device.
       </p>
     </Card>
   );
@@ -178,29 +172,8 @@ export default function SignInForm() {
 
 function Switch({ children, onClick }: { children: React.ReactNode; onClick: () => void }) {
   return (
-    <button type="button" onClick={onClick} className="font-medium text-accent-strong hover:underline">
+    <button type="button" onClick={onClick} className="font-medium text-brand-strong hover:underline">
       {children}
     </button>
-  );
-}
-
-function Field({
-  label, type, value, onChange, autoComplete, disabled, hint,
-}: {
-  label: string; type: string; value: string; onChange: (v: string) => void;
-  autoComplete?: string; disabled?: boolean; hint?: string;
-}) {
-  const id = `field-${label.toLowerCase()}`;
-  return (
-    <div>
-      <label htmlFor={id} className="block text-[13.5px] font-medium text-ink-text">{label}</label>
-      <input
-        id={id} type={type} value={value} onChange={(e) => onChange(e.target.value)}
-        autoComplete={autoComplete} disabled={disabled}
-        aria-describedby={hint ? `${id}-hint` : undefined}
-        className="mt-1.5 w-full rounded-xl border border-hairline-strong bg-paper px-3.5 py-2.5 text-[14.5px] text-ink-text outline-none transition-colors focus:border-accent disabled:opacity-60"
-      />
-      {hint && <p id={`${id}-hint`} className="mt-1.5 text-[12.5px] text-faint">{hint}</p>}
-    </div>
   );
 }

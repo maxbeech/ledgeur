@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Server, Copy, Check } from "lucide-react";
 import type { Session } from "@supabase/supabase-js";
-import { Button, Card, Chip, Spinner } from "../ui.tsx";
+import { Button, Card, Badge, Spinner, ErrorNote } from "../ui.tsx";
 import { generateMcpConfig, type McpConfigResult } from "../../lib/mcp.ts";
 import { openExternal } from "../../lib/runtime.ts";
 import { upgradeUrl } from "../../lib/links.ts";
@@ -36,11 +36,11 @@ export function McpAccessCard({ session }: { session: Session | null }) {
   return (
     <Card className="p-5">
       <div className="flex items-start gap-3">
-        <Server className="mt-0.5 h-5 w-5 text-glow" />
+        <Server className="mt-0.5 h-5 w-5 text-brand" />
         <div className="flex-1">
           <div className="flex items-center gap-2">
-            <span className="text-sm font-medium text-ink-text">Agent access</span>
-            <Chip tone="warn">Paid</Chip>
+            <span className="text-base font-semibold text-ink-text">Agent access</span>
+            <Badge tone="warn">Paid</Badge>
           </div>
           <p className="mt-0.5 max-w-xl text-xs leading-relaxed text-muted">
             The app is free. Letting an agent read your meetings is the paid tier: connect Claude,
@@ -49,7 +49,7 @@ export function McpAccessCard({ session }: { session: Session | null }) {
           </p>
           <div className="mt-3">
             <Button
-              variant="outline"
+              tone="secondary"
               onClick={generate}
               disabled={busy || !session}
               title={session ? undefined : "Sign in to generate a token"}
@@ -65,18 +65,18 @@ export function McpAccessCard({ session }: { session: Session | null }) {
             </div>
           )}
 
-          {error && <div className="mt-3 text-xs text-danger">{error}</div>}
+          {error && <ErrorNote className="mt-3">{error}</ErrorNote>}
 
           {result?.paid && result.token && (
             <div className="mt-4 space-y-4">
               <div className="rounded-xl border border-accent/30 bg-accent-soft p-3">
-                <div className="text-[11px] font-medium text-accent-strong">
+                <div className="text-2xs font-medium text-accent-strong">
                   Copy this now — it is shown once and never again.
                 </div>
-                <code className="mt-1.5 block overflow-x-auto rounded-lg bg-ink px-2.5 py-2 font-mono text-[11px] text-on-ink">
+                <code className="mt-1.5 block overflow-x-auto rounded-lg bg-ink px-2.5 py-2 font-mono text-2xs text-on-ink">
                   {result.token}
                 </code>
-                <p className="mt-1.5 text-[11px] text-accent-strong">
+                <p className="mt-1.5 text-2xs text-accent-strong">
                   Only a hash of it is stored, so we cannot show it to you again. Revoke it any time
                   from your account page.
                 </p>
@@ -111,14 +111,14 @@ function ConfigBlock({
     <div>
       <div className="mb-1 flex items-center justify-between gap-3">
         <div>
-          <span className="text-xs font-medium text-ink-text">{title}</span>
-          <p className="text-[11px] text-muted">{hint}</p>
+          <span className="text-base font-medium text-ink-text">{title}</span>
+          <p className="text-2xs text-muted">{hint}</p>
         </div>
         <button onClick={onCopy} className="inline-flex shrink-0 items-center gap-1 text-xs text-accent-strong">
           {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />} {copied ? "Copied" : "Copy"}
         </button>
       </div>
-      <pre className="max-h-52 overflow-auto rounded-xl bg-ink p-3 text-[11px] leading-relaxed text-on-ink">{config}</pre>
+      <pre className="max-h-52 overflow-auto rounded-xl bg-ink p-3 text-2xs leading-relaxed text-on-ink">{config}</pre>
     </div>
   );
 }

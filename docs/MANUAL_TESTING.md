@@ -375,9 +375,37 @@ so they can't be verified headless in CI — verify these by hand once configure
     returns a config; paste it into Claude/Cursor and confirm the tools list/query
     meetings under your RLS.
 
-## Mobile / other platforms (task #12)
-14. iOS: `tauri ios init` then `tauri ios dev` (Xcode). Android: NDK + `tauri android`.
-    Windows: `tauri build` on Windows.
+## The phone app and sync (2026-09-06)
+
+The iOS and Android projects are generated and committed under
+`apps/desktop/src-tauri/gen/`; see `docs/MOBILE.md` for the toolchain. What was
+verified here: the Xcode and Gradle projects generate, the Rust core compiles
+for the phone targets, and the phone layout (bottom tabs, sheets, safe areas)
+renders in a phone-sized browser window. What needs a real phone or simulator:
+
+14. **First record on a phone.** Tap Record → Start. The OS asks for the
+    microphone once, with the app's own wording. The speech model downloads
+    now (not at launch) with a visible progress line, and the transcript
+    starts once it is ready. Stop → the meeting opens with notes.
+15. **A phone recording reaches the laptop.** Signed in on both, record on the
+    phone. Within seconds of Stop, the laptop's library shows the meeting
+    (Realtime), with the same id in both URLs, the transcript, speakers and
+    notes intact, and no duplicate.
+16. **An edit travels both ways.** On the laptop, rename Speaker 2 to a name
+    and file the meeting in a space. On the phone, without refreshing: the
+    name appears on every line, and the space appears in Library's filter row.
+    Then edit the title on the phone and watch it change on the laptop.
+17. **A deletion travels.** Delete the meeting on one device; it disappears
+    from the other and does not come back after "Sync now".
+18. **Offline.** Turn the phone's radio off. Library, search, Ask (with the
+    local meetings) and reading a meeting all work. Record a meeting; turn the
+    radio on; it syncs on its own.
+19. **Settings → Sync** shows "In step", the last sync time, and a "Live"
+    badge while the Realtime channel is subscribed. Against a backend without
+    migration 0007 it shows "Limited" and names the migration.
+20. **Dark mode.** Settings → Appearance → Dark, and System with the OS in dark
+    mode. Every screen, including the live room and the composer, is legible.
+21. Windows: `tauri build` on a Windows host (unchanged, still untested).
 
 ## Error tracking (Sentry)
 15. With `VITE_SENTRY_DSN`/`SENTRY_DSN` set in `apps/desktop/.env`, throw a test

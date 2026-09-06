@@ -1,0 +1,227 @@
+/* GENERATED from src/tokens.ts by build-theme.mts — do not edit by hand. */
+
+:root {
+  color-scheme: light;
+  --ldg-paper: #f7f7f8;
+  --ldg-surface: #ffffff;
+  --ldg-surface-muted: #f2f2f4;
+  --ldg-surface-sunken: #e8e8ec;
+  --ldg-ink: #17181c;
+  --ldg-ink-soft: #26272d;
+  --ldg-ink-raised: #34363e;
+  --ldg-ink-text: #141417;
+  --ldg-muted: #5d6069;
+  --ldg-faint: #62656e;
+  --ldg-on-ink: #ffffff;
+  --ldg-on-ink-muted: #b4b7c1;
+  --ldg-hairline: #e9e9ee;
+  --ldg-hairline-strong: #d9dae1;
+  --ldg-on-danger: #ffffff;
+  --ldg-danger-fill: #b5401e;
+  --ldg-iris: #8b83f5;
+  --ldg-iris-soft: #ebe9ff;
+  --ldg-iris-strong: #4d45c4;
+  --ldg-mint: #4fcf9f;
+  --ldg-mint-soft: #dcf5ea;
+  --ldg-mint-strong: #137a50;
+  --ldg-peach: #ff8a65;
+  --ldg-peach-soft: #ffe7de;
+  --ldg-peach-strong: #b5401e;
+  --ldg-butter: #e5b229;
+  --ldg-butter-soft: #fff1c6;
+  --ldg-butter-strong: #7a5300;
+  --ldg-sky: #63b4f5;
+  --ldg-sky-soft: #ddeefe;
+  --ldg-sky-strong: #1b5f9f;
+  --ldg-rose: #f47ca7;
+  --ldg-rose-soft: #ffe2ec;
+  --ldg-rose-strong: #b0295c;
+  --ldg-brand: #8b83f5;
+  --ldg-brand-soft: #ebe9ff;
+  --ldg-brand-strong: #4d45c4;
+  --ldg-accent: #4fcf9f;
+  --ldg-accent-soft: #dcf5ea;
+  --ldg-accent-strong: #137a50;
+  --ldg-danger: #b5401e;
+  --ldg-danger-soft: #ffe7de;
+  --ldg-warn: #7a5300;
+  --ldg-warn-soft: #fff1c6;
+}
+
+/* Dark follows the system unless the page has chosen. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --ldg-paper: #171717;
+    --ldg-surface: #212121;
+    --ldg-surface-muted: #2a2a2a;
+    --ldg-surface-sunken: #343434;
+    --ldg-ink: #ececec;
+    --ldg-ink-soft: #e0e0e0;
+    --ldg-ink-raised: #d4d4d4;
+    --ldg-ink-text: #ececec;
+    --ldg-muted: #b0b0b5;
+    --ldg-faint: #a1a1a8;
+    --ldg-on-ink: #141417;
+    --ldg-on-ink-muted: #4c4c52;
+    --ldg-hairline: #303030;
+    --ldg-hairline-strong: #3f3f44;
+    --ldg-on-danger: #1a0d08;
+    --ldg-danger-fill: #ff8a65;
+    --ldg-iris: #8b83f5;
+    --ldg-iris-soft: #2b2a4a;
+    --ldg-iris-strong: #b9b3ff;
+    --ldg-mint: #4fcf9f;
+    --ldg-mint-soft: #1f3a30;
+    --ldg-mint-strong: #7fe3bc;
+    --ldg-peach: #ff8a65;
+    --ldg-peach-soft: #452a22;
+    --ldg-peach-strong: #ffa88c;
+    --ldg-butter: #f5c542;
+    --ldg-butter-soft: #3f3620;
+    --ldg-butter-strong: #f6d271;
+    --ldg-sky: #63b4f5;
+    --ldg-sky-soft: #1f3346;
+    --ldg-sky-strong: #9ed0fa;
+    --ldg-rose: #f47ca7;
+    --ldg-rose-soft: #45252f;
+    --ldg-rose-strong: #ffa3c4;
+    --ldg-brand: #8b83f5;
+    --ldg-brand-soft: #2b2a4a;
+    --ldg-brand-strong: #b9b3ff;
+    --ldg-accent: #4fcf9f;
+    --ldg-accent-soft: #1f3a30;
+    --ldg-accent-strong: #7fe3bc;
+    --ldg-danger: #ffa88c;
+    --ldg-danger-soft: #452a22;
+    --ldg-warn: #f6d271;
+    --ldg-warn-soft: #3f3620;
+  }
+}
+[data-theme="dark"] {
+  color-scheme: dark;
+  --ldg-paper: #171717;
+  --ldg-surface: #212121;
+  --ldg-surface-muted: #2a2a2a;
+  --ldg-surface-sunken: #343434;
+  --ldg-ink: #ececec;
+  --ldg-ink-soft: #e0e0e0;
+  --ldg-ink-raised: #d4d4d4;
+  --ldg-ink-text: #ececec;
+  --ldg-muted: #b0b0b5;
+  --ldg-faint: #a1a1a8;
+  --ldg-on-ink: #141417;
+  --ldg-on-ink-muted: #4c4c52;
+  --ldg-hairline: #303030;
+  --ldg-hairline-strong: #3f3f44;
+  --ldg-on-danger: #1a0d08;
+  --ldg-danger-fill: #ff8a65;
+  --ldg-iris: #8b83f5;
+  --ldg-iris-soft: #2b2a4a;
+  --ldg-iris-strong: #b9b3ff;
+  --ldg-mint: #4fcf9f;
+  --ldg-mint-soft: #1f3a30;
+  --ldg-mint-strong: #7fe3bc;
+  --ldg-peach: #ff8a65;
+  --ldg-peach-soft: #452a22;
+  --ldg-peach-strong: #ffa88c;
+  --ldg-butter: #f5c542;
+  --ldg-butter-soft: #3f3620;
+  --ldg-butter-strong: #f6d271;
+  --ldg-sky: #63b4f5;
+  --ldg-sky-soft: #1f3346;
+  --ldg-sky-strong: #9ed0fa;
+  --ldg-rose: #f47ca7;
+  --ldg-rose-soft: #45252f;
+  --ldg-rose-strong: #ffa3c4;
+  --ldg-brand: #8b83f5;
+  --ldg-brand-soft: #2b2a4a;
+  --ldg-brand-strong: #b9b3ff;
+  --ldg-accent: #4fcf9f;
+  --ldg-accent-soft: #1f3a30;
+  --ldg-accent-strong: #7fe3bc;
+  --ldg-danger: #ffa88c;
+  --ldg-danger-soft: #452a22;
+  --ldg-warn: #f6d271;
+  --ldg-warn-soft: #3f3620;
+}
+
+/* Tailwind reads the tokens from here. `inline` makes every utility point at
+   the runtime variable, which is what lets the same class change with the mode. */
+@theme inline {
+  --color-paper: var(--ldg-paper);
+  --color-surface: var(--ldg-surface);
+  --color-surface-muted: var(--ldg-surface-muted);
+  --color-surface-sunken: var(--ldg-surface-sunken);
+  --color-ink: var(--ldg-ink);
+  --color-ink-soft: var(--ldg-ink-soft);
+  --color-ink-raised: var(--ldg-ink-raised);
+  --color-ink-text: var(--ldg-ink-text);
+  --color-muted: var(--ldg-muted);
+  --color-faint: var(--ldg-faint);
+  --color-on-ink: var(--ldg-on-ink);
+  --color-on-ink-muted: var(--ldg-on-ink-muted);
+  --color-hairline: var(--ldg-hairline);
+  --color-hairline-strong: var(--ldg-hairline-strong);
+  --color-on-danger: var(--ldg-on-danger);
+  --color-danger-fill: var(--ldg-danger-fill);
+  --color-iris: var(--ldg-iris);
+  --color-iris-soft: var(--ldg-iris-soft);
+  --color-iris-strong: var(--ldg-iris-strong);
+  --color-mint: var(--ldg-mint);
+  --color-mint-soft: var(--ldg-mint-soft);
+  --color-mint-strong: var(--ldg-mint-strong);
+  --color-peach: var(--ldg-peach);
+  --color-peach-soft: var(--ldg-peach-soft);
+  --color-peach-strong: var(--ldg-peach-strong);
+  --color-butter: var(--ldg-butter);
+  --color-butter-soft: var(--ldg-butter-soft);
+  --color-butter-strong: var(--ldg-butter-strong);
+  --color-sky: var(--ldg-sky);
+  --color-sky-soft: var(--ldg-sky-soft);
+  --color-sky-strong: var(--ldg-sky-strong);
+  --color-rose: var(--ldg-rose);
+  --color-rose-soft: var(--ldg-rose-soft);
+  --color-rose-strong: var(--ldg-rose-strong);
+  --color-brand: var(--ldg-brand);
+  --color-brand-soft: var(--ldg-brand-soft);
+  --color-brand-strong: var(--ldg-brand-strong);
+  --color-accent: var(--ldg-accent);
+  --color-accent-soft: var(--ldg-accent-soft);
+  --color-accent-strong: var(--ldg-accent-strong);
+  --color-danger: var(--ldg-danger);
+  --color-danger-soft: var(--ldg-danger-soft);
+  --color-warn: var(--ldg-warn);
+  --color-warn-soft: var(--ldg-warn-soft);
+
+  --font-sans: "Plus Jakarta Sans Variable", "Avenir Next", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "Spline Sans Mono Variable", "SF Mono", ui-monospace, monospace;
+
+  --text-2xs: 11px;
+  --text-xs: 12px;
+  --text-sm: 13px;
+  --text-base: 14px;
+  --text-md: 15px;
+  --text-lg: 17px;
+  --text-xl: 20px;
+  --text-2xl: 24px;
+  --text-3xl: 30px;
+  --text-4xl: 38px;
+  --text-5xl: 48px;
+  --text-6xl: 60px;
+
+  --radius-sm: 0.5rem;
+  --radius-md: 0.625rem;
+  --radius-lg: 0.75rem;
+  --radius-xl: 1rem;
+  --radius-2xl: 1.5rem;
+  --radius-3xl: 2rem;
+  --radius-pill: 999px;
+
+  --shadow-card: 0 1px 2px rgb(20 20 30 / 0.04), 0 6px 24px -10px rgb(20 20 30 / 0.10);
+  --shadow-float: 0 2px 6px rgb(20 20 30 / 0.06), 0 12px 32px -8px rgb(20 20 30 / 0.16);
+  --shadow-palette: 0 24px 64px -12px rgb(20 20 30 / 0.30);
+
+  --ease-settle: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-swift: cubic-bezier(0.4, 0, 0.2, 1);
+}

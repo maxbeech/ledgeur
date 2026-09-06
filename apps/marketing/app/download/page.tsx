@@ -34,13 +34,13 @@ export default async function Download() {
   return (
     <main>
       <PageHeader
-        kicker={release ? `Version ${release.version}` : "Desktop app"}
+        kicker={release ? `Version ${release.version}` : undefined}
         title="Download Ledgeur"
         lede={
           <>
             The desktop app records system audio as well as your microphone, so it captures the
             whole call rather than half of it. Everything still runs on your machine.{" "}
-            <Link href="/app" className="underline underline-offset-4 hover:text-ink-text">
+            <Link href="/app" className="font-medium text-brand-strong underline underline-offset-4">
               Or use it in the browser
             </Link>{" "}
             with nothing to install.
@@ -48,14 +48,23 @@ export default async function Download() {
         }
       />
 
-      <Section width="narrow">
+      <Section width="narrow" pad="tight">
         {release ? <Available release={release} /> : <NotPublishedYet />}
       </Section>
 
+      <Section width="narrow" pad="tight">
+        <SectionHead
+          title="Your phone, too."
+          lede="The iOS and Android apps are the same app, built from the same code, and they sync with the desktop through your account. They are not in the stores yet — today they are built from source with Xcode or Android Studio."
+        />
+        <div className="mt-6 flex flex-wrap gap-3">
+          <a href={`${SITE.repo}/blob/master/docs/MOBILE.md`} className={buttonClass("secondary", "md", "rounded-full px-5")}>How to build the phone app</a>
+        </div>
+      </Section>
+
       {release && (
-        <Section width="narrow" className="!pt-0">
+        <Section width="narrow" pad="tight">
           <SectionHead
-            kicker="Before you ask"
             title="Yes, it will just open."
             lede="A privacy tool that trips Gatekeeper on first launch is asking a lot of trust it has not earned yet."
           />
@@ -73,7 +82,7 @@ export default async function Download() {
               detail={
                 <>
                   Ledgeur is MIT licensed. The source for this exact release is on{" "}
-                  <a href={release.notesUrl} className="underline underline-offset-4">GitHub</a>, and you can
+                  <a href={release.notesUrl} className="font-medium text-brand-strong underline underline-offset-4">GitHub</a>, and you can
                   build it yourself if you would rather not trust a binary at all.
                 </>
               }
@@ -92,22 +101,22 @@ function Available({ release }: { release: ReleaseInfo }) {
 
   return (
     <>
-      <div className="grid gap-4 sm:grid-cols-2">
+      <div className="grid gap-4 sm:grid-cols-3">
         {PLATFORMS.map((platform) => {
           const assets = assetsFor(release, platform.id);
           return (
-            <Card key={platform.id} className="flex flex-col p-5">
-              <h2 className="ldg-display text-[19px] text-ink-text">{platform.name}</h2>
-              <p className="mt-1 text-[13px] text-muted">{platform.requirement}</p>
+            <Card key={platform.id} raised className="flex flex-col p-5">
+              <h2 className="text-xl font-semibold text-ink-text">{platform.name}</h2>
+              <p className="mt-1 text-sm text-muted">{platform.requirement}</p>
 
               {assets.length > 0 ? (
-                <div className="mt-4 space-y-2">
+                <div className="mt-5 space-y-2">
                   {assets.map((asset) => (
                     <div key={asset.url}>
-                      <LinkButton href={asset.url} tone="primary" size="md" className="w-full justify-center">
+                      <LinkButton href={asset.url} tone="primary" size="md" className="w-full rounded-full">
                         Download for {platform.name}
                       </LinkButton>
-                      <p className="mt-1.5 text-center text-[12.5px] text-muted">
+                      <p className="mt-1.5 text-center text-sm text-muted">
                         {asset.label}
                         {asset.sizeBytes ? ` · ${formatBytes(asset.sizeBytes)}` : ""}
                       </p>
@@ -117,12 +126,12 @@ function Available({ release }: { release: ReleaseInfo }) {
               ) : (
                 // Saying "coming soon" would be a promise with no date behind it.
                 <div className="mt-4 flex flex-1 flex-col justify-end">
-                  <p className="text-[13.5px] leading-relaxed text-muted">
+                  <p className="text-sm leading-relaxed text-muted">
                     Not built yet. The app is cross-platform and{" "}
-                    <a href={SITE.repo} className="underline underline-offset-4">builds from source</a> on{" "}
+                    <a href={SITE.repo} className="font-medium text-brand-strong underline underline-offset-4">builds from source</a> on{" "}
                     {platform.name} today — a signed installer is not published.
                   </p>
-                  <Link href="/app" className={buttonClass("secondary", "sm", "mt-3 w-full justify-center")}>
+                  <Link href="/app" className={buttonClass("secondary", "sm", "mt-3 w-full rounded-full")}>
                     Use it in the browser
                   </Link>
                 </div>
@@ -132,16 +141,12 @@ function Available({ release }: { release: ReleaseInfo }) {
         })}
       </div>
 
-      <p className="mt-6 text-[13px] text-muted">
+      <p className="mt-6 text-sm text-muted">
         Version {release.version}
         {published ? `, released ${published}` : ""} ·{" "}
-        <a href={release.notesUrl} className="underline underline-offset-4 hover:text-ink-text">
-          Release notes
-        </a>{" "}
+        <a href={release.notesUrl} className="font-medium underline underline-offset-4 hover:text-ink-text">Release notes</a>{" "}
         ·{" "}
-        <Link href="/changelog" className="underline underline-offset-4 hover:text-ink-text">
-          What changed
-        </Link>
+        <Link href="/changelog" className="font-medium underline underline-offset-4 hover:text-ink-text">What changed</Link>
       </p>
     </>
   );
@@ -152,34 +157,34 @@ function Available({ release }: { release: ReleaseInfo }) {
 function NotPublishedYet() {
   return (
     <Card className="p-6 sm:p-8">
-      <h2 className="ldg-display text-[22px] text-ink-text">No desktop build published yet</h2>
-      <p className="mt-3 max-w-xl text-[15px] leading-relaxed text-muted">
+      <h2 className="text-2xl font-semibold tracking-[-0.01em] text-ink-text">No desktop build published yet</h2>
+      <p className="mt-3 max-w-xl text-md leading-relaxed text-muted">
         There is no installer to download at the moment. Two things you can do instead — both give
         you the full recorder, transcription and speaker separation.
       </p>
 
       <div className="mt-6 grid gap-4 sm:grid-cols-2">
         <div>
-          <h3 className="text-[14.5px] font-medium text-ink-text">Use it in your browser</h3>
-          <p className="mt-1.5 text-[13.5px] leading-relaxed text-muted">
+          <h3 className="text-base font-semibold text-ink-text">Use it in your browser</h3>
+          <p className="mt-1.5 text-sm leading-relaxed text-muted">
             Nothing to install, and the models still run on your machine. The one thing it cannot do
             is capture system audio as reliably as the desktop app.
           </p>
-          <Link href="/app" className={buttonClass("primary", "sm", "mt-3")}>Open the app</Link>
+          <Link href="/app" className={buttonClass("primary", "sm", "mt-3 rounded-full")}>Open the app</Link>
         </div>
         <div>
-          <h3 className="text-[14.5px] font-medium text-ink-text">Build it from source</h3>
-          <p className="mt-1.5 text-[13.5px] leading-relaxed text-muted">
+          <h3 className="text-base font-semibold text-ink-text">Build it from source</h3>
+          <p className="mt-1.5 text-sm leading-relaxed text-muted">
             Ledgeur is MIT licensed. Clone the repository and run{" "}
-            <code className="rounded bg-surface-muted px-1 py-0.5 text-[12.5px]">pnpm --filter @ledgeur/desktop tauri build</code>.
+            <code className="rounded bg-surface-muted px-1 py-0.5 text-sm">pnpm --filter @ledgeur/desktop tauri build</code>.
           </p>
-          <a href={SITE.repo} className={buttonClass("secondary", "sm", "mt-3")}>View the source</a>
+          <a href={SITE.repo} className={buttonClass("secondary", "sm", "mt-3 rounded-full")}>View the source</a>
         </div>
       </div>
 
-      <p className="mt-6 text-[13px] text-muted">
+      <p className="mt-6 text-sm text-muted">
         Releases are published{" "}
-        <a href={releasesPageUrl()} className="underline underline-offset-4 hover:text-ink-text">on GitHub</a> —
+        <a href={releasesPageUrl()} className="font-medium underline underline-offset-4 hover:text-ink-text">on GitHub</a> —
         watch the repository to hear about the first one.
       </p>
     </Card>
@@ -189,8 +194,8 @@ function NotPublishedYet() {
 function Fact({ claim, detail }: { claim: string; detail: React.ReactNode }) {
   return (
     <div className="px-5 py-4">
-      <p className="text-[14.5px] font-medium text-ink-text">{claim}</p>
-      <p className="mt-1.5 text-[13.5px] leading-relaxed text-muted">{detail}</p>
+      <p className="text-base font-semibold text-ink-text">{claim}</p>
+      <p className="mt-1.5 text-sm leading-relaxed text-muted">{detail}</p>
     </div>
   );
 }

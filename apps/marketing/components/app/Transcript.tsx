@@ -21,7 +21,7 @@ export function Transcript({
 
   if (meeting.segments.length === 0) {
     return (
-      <p className={cn("py-10 text-center text-[14px] text-faint", className)}>
+      <p className={cn("py-10 text-center text-base text-faint", className)}>
         The transcript will appear here as the meeting is recorded.
       </p>
     );
@@ -38,7 +38,7 @@ export function Transcript({
   }
 
   return (
-    <div className={cn("ldg-prose divide-y divide-hairline", className)}>
+    <div className={cn("ldg-prose space-y-4", className)}>
       {meeting.segments.map((segment, i) => {
         const label = speakerLabel(meeting, segment.speaker);
         const speakerRow = meeting.speakers.find((s) => s.speaker === segment.speaker);
@@ -47,8 +47,8 @@ export function Transcript({
         const repeated = i > 0 && meeting.segments[i - 1].speaker === segment.speaker;
 
         return (
-          <div key={`${segment.startMs}-${i}`} className="flex gap-3 py-2.5">
-            <time className="mt-1 w-11 shrink-0 font-mono text-[11px] text-faint tabular-nums">
+          <div key={`${segment.startMs}-${i}`} className="flex gap-3">
+            <time className="ldg-num w-11 shrink-0 pt-1 text-right text-xs text-faint">
               {formatOffset(segment.startMs)}
             </time>
             <div className="min-w-0 flex-1">
@@ -65,10 +65,10 @@ export function Transcript({
                       onKeyDown={(e) => { if (e.key === "Escape") setEditing(null); }}
                       aria-label="Speaker name"
                       placeholder="Who is this?"
-                      className="w-40 rounded-lg border border-hairline-strong bg-paper px-2.5 py-1 text-[13px] outline-none focus:border-accent"
+                      className="h-8 w-40 rounded-full border border-hairline-strong bg-surface px-3 text-sm outline-none focus:border-brand"
                     />
                     <Button type="submit" size="sm">Save</Button>
-                    <button type="button" onClick={() => setEditing(null)} className="text-[12px] text-muted hover:text-ink-text">
+                    <button type="button" onClick={() => setEditing(null)} className="text-xs font-medium text-muted hover:text-ink-text">
                       Cancel
                     </button>
                   </form>
@@ -78,13 +78,13 @@ export function Transcript({
                     onClick={() => editable && segment.speaker != null && beginEdit(segment.speaker)}
                     disabled={!editable || segment.speaker == null}
                     title={editable ? "Click to name this voice — Ledgeur will recognise them next time" : undefined}
-                    className={cn("mb-1.5 block", editable && "cursor-pointer")}
+                    className={cn("mb-1 block", editable && "cursor-pointer")}
                   >
                     <SpeakerChip label={label} confidence={speakerRow?.confidence ?? null} />
                   </button>
                 )
               )}
-              <p className="text-[14.5px] leading-relaxed text-ink-text">{segment.text}</p>
+              <p className="text-ink-text">{segment.text}</p>
             </div>
           </div>
         );

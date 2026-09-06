@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { POSTS } from "@/lib/posts";
 import { SITE } from "@/lib/site";
-import { Card } from "@ledgeur/ui/components";
+import { Card, Display } from "@ledgeur/ui/components";
 import { PageHeader, Section } from "@/components/site/Chrome";
 import { CtaBlock } from "@/components/site/CtaBlock";
 
@@ -18,28 +18,34 @@ export const metadata: Metadata = {
 // which is the cheapest thing this page can be.
 export const revalidate = 604800;
 
+const when = (date: string) => new Date(date).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+
 export default function BlogIndex() {
+  const [lead, ...rest] = POSTS;
   return (
     <main>
       <PageHeader
-        kicker="Guides"
         title="Meetings, transcription, and keeping both private."
         lede="Practical writing about getting a usable record out of a conversation — and about why so much of the software for it sends your audio somewhere else."
       />
-      <Section width="narrow">
-        <div className="grid gap-3.5">
-          {POSTS.map((post) => (
-            <Link key={post.slug} href={`/blog/${post.slug}`} className="group block">
-              <Card className="p-5 transition-colors group-hover:border-accent">
-                <h2 className="ldg-display text-[18px] leading-snug text-ink-text">{post.title}</h2>
-                <p className="mt-1.5 text-[14px] leading-relaxed text-muted">{post.description}</p>
-                <div className="mt-2.5 font-mono text-[11px] text-faint">
-                  <time dateTime={post.date}>
-                    {new Date(post.date).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
-                  </time>
-                  {" · "}{post.readMins} min read
-                </div>
-              </Card>
+      <Section width="narrow" pad="tight">
+        {lead && (
+          <Link href={`/blog/${lead.slug}`} className="group block">
+            <Card raised className="p-7 transition-colors group-hover:border-brand sm:p-9">
+              <div className="text-sm text-faint"><time dateTime={lead.date}>{when(lead.date)}</time> · {lead.readMins} min read</div>
+              <Display level={2} className="mt-3 text-2xl leading-tight sm:text-3xl">{lead.title}</Display>
+              <p className="mt-3 max-w-2xl text-md leading-relaxed text-muted">{lead.description}</p>
+            </Card>
+          </Link>
+        )}
+        <div className="mt-8 divide-y divide-hairline">
+          {rest.map((post) => (
+            <Link key={post.slug} href={`/blog/${post.slug}`} className="group flex flex-col gap-1 py-5 sm:flex-row sm:items-baseline sm:gap-6">
+              <span className="w-32 shrink-0 text-sm text-faint"><time dateTime={post.date}>{when(post.date)}</time></span>
+              <span className="min-w-0">
+                <span className="block text-lg font-semibold leading-snug text-ink-text transition-colors group-hover:text-brand-strong">{post.title}</span>
+                <span className="mt-1 block text-base leading-relaxed text-muted">{post.description}</span>
+              </span>
             </Link>
           ))}
         </div>

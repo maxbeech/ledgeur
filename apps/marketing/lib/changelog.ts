@@ -15,6 +15,19 @@ export interface Release {
 
 export const RELEASES: readonly Release[] = [
   {
+    date: "2026-09-06",
+    title: "A new look, a phone app, and sync that goes both ways",
+    changes: [
+      { kind: "changed", text: "Ledgeur has a new design: one typeface, a clean neutral canvas, and six pastel colours used for meaning — the copilot, live things, recording, warnings, and the people in your meetings. Every screen of the app and every page of this site was rebuilt on it, and it now has a dark mode that follows your system." },
+      { kind: "fixed", text: "The desktop app had been using its own copy of the design and the copy had drifted: its secondary text colour failed the WCAG contrast standard, and it was the colour of every timestamp and hint in the product. There is one design now, shared by everything, with a test that measures every colour pairing in both light and dark." },
+      { kind: "new", text: "Ledgeur on your phone. The iOS and Android apps are the same app as the desktop one — same code, same account — with a layout made for a phone, microphone recording, and the speech model downloaded the first time you record rather than at launch. They are built from source for now, not in the stores yet." },
+      { kind: "fixed", text: "Sync only ever sent a meeting once, the moment it finished, and then never touched it again: renaming a speaker, editing the title, filing it into a space, the notes you typed — none of it reached your other devices, which showed the transcript as it was on the day. Every edit now syncs, deletions carry across, and a meeting keeps the same identity everywhere." },
+      { kind: "new", text: "Spaces and your note recipes now follow your account instead of staying on the device that made them." },
+      { kind: "new", text: "Changes from another device arrive on their own — a meeting recorded on your phone appears on your laptop within seconds, without refreshing." },
+      { kind: "new", text: "Your whole library is kept on each device, so search, reading and asking questions work with the wifi off, and catch up when it is back." },
+    ],
+  },
+  {
     date: "2026-09-05",
     title: "Asking mid-meeting, in 32 languages, with a link back to what was said",
     changes: [

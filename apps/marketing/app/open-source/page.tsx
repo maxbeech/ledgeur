@@ -76,8 +76,8 @@ export default function OpenSource() {
           <div className="mt-8 space-y-8">
             {FAQS.map(([question, answer]) => (
               <div key={question}>
-                <Display level={3} className="text-[17px]">{question}</Display>
-                <p className="mt-2 text-[14.5px] leading-relaxed text-muted">{answer}</p>
+                <Display level={3} className="text-lg">{question}</Display>
+                <p className="mt-2 text-md leading-relaxed text-muted">{answer}</p>
               </div>
             ))}
           </div>

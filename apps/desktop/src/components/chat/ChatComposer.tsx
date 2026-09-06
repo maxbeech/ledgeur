@@ -1,16 +1,17 @@
-// The chat input. Reused as the in-meeting copilot composer and as the app's
-// ever-present bottom input (MainDraw-style). Shows the bubble you're quoting,
-// and — when the on-device model still needs its one-time download — a one-tap
-// "get ready" prompt instead of failing silently (task #1).
+// The composer: a pill with a round send button, the way a chat input reads
+// now. Shows the line you are quoting, and — when the on-device model still
+// needs its one-time download — a one-tap "get ready" prompt instead of
+// failing silently.
 import { useState } from "react";
-import { Send, X, Download, Sparkles } from "lucide-react";
-import { Spinner } from "../ui.tsx";
+import { ArrowUp, X, Download, Sparkles } from "lucide-react";
+import { cn } from "@ledgeur/ui";
+import { Button, Notice, Spinner } from "../ui.tsx";
 import { useCopilot } from "../../lib/useCopilot.ts";
 import type { ChatQuote } from "../../lib/meetingsStore.ts";
 
 export function ChatComposer({
   onSend,
-  placeholder = "Ask the copilot…",
+  placeholder = "Ask the copilot",
   quote,
   onClearQuote,
   busy,
@@ -25,6 +26,7 @@ export function ChatComposer({
 }) {
   const [input, setInput] = useState("");
   const copilot = useCopilot();
+  const canSend = !busy && input.trim().length > 0;
 
   function submit() {
     const q = input.trim();
@@ -35,52 +37,63 @@ export function ChatComposer({
   }
 
   return (
-    <div className="border-t border-hairline bg-surface/85 p-3 backdrop-blur-sm">
+    <div>
       {copilot.needsDownload && (
-        <div className="mb-2 flex items-center gap-2 rounded-xl border border-glow/25 bg-glow-soft/40 px-3 py-2 text-[12.5px] text-ink-text">
-          <Sparkles className="h-4 w-4 shrink-0 text-glow-strong" />
-          {copilot.downloading ? (
-            <span className="flex-1">Getting the copilot ready… {Math.round(copilot.progress)}%</span>
-          ) : (
-            <>
-              <span className="flex-1">The copilot runs privately on your device. Download it once (~1&nbsp;GB) to start.</span>
-              <button
-                onClick={() => void copilot.startDownload()}
-                className="inline-flex items-center gap-1.5 rounded-lg bg-glow-strong px-2.5 py-1 text-[12px] font-medium text-white hover:bg-glow"
-              >
-                <Download className="h-3.5 w-3.5" /> Download
-              </button>
-            </>
+        <Notice
+          tone="brand"
+          className="mb-2"
+          icon={<Sparkles className="h-4 w-4 text-brand-strong" />}
+          action={!copilot.downloading && (
+            <Button size="sm" tone="primary" onClick={() => void copilot.startDownload()}>
+              <Download className="h-3.5 w-3.5" /> Download
+            </Button>
           )}
-        </div>
+        >
+          {copilot.downloading
+            ? <>Getting the copilot ready — {Math.round(copilot.progress)}%</>
+            : <>The copilot runs privately on your device. Download it once (about 1&nbsp;GB) to start.</>}
+        </Notice>
       )}
 
-      {quote && (
-        <div className="mb-2 flex items-start gap-2 rounded-xl border border-hairline bg-surface-muted/50 px-3 py-2">
-          <div className="min-w-0 flex-1 border-l-2 border-glow/50 pl-2">
-            <span className="font-mono text-[10px] uppercase tracking-wider text-faint">{quote.label}</span>
-            <p className="line-clamp-2 text-[12.5px] italic leading-snug text-muted">{quote.text}</p>
+      <div className={cn(
+        "rounded-3xl border border-hairline-strong bg-surface shadow-[var(--shadow-card)] transition-shadow",
+        "focus-within:border-brand focus-within:shadow-[0_0_0_3px_color-mix(in_srgb,var(--color-brand)_18%,transparent)]",
+      )}>
+        {quote && (
+          <div className="flex items-start gap-2 px-4 pt-3">
+            <div className="min-w-0 flex-1 rounded-xl bg-surface-muted px-3 py-2">
+              <span className="text-2xs font-semibold text-faint">{quote.label}</span>
+              <p className="line-clamp-2 text-sm leading-snug text-muted">{quote.text}</p>
+            </div>
+            <button onClick={onClearQuote} className="mt-1 rounded-md p-1 text-faint hover:text-ink-text" aria-label="Clear quote">
+              <X className="h-4 w-4" />
+            </button>
           </div>
-          <button onClick={onClearQuote} className="text-faint hover:text-ink-text" aria-label="Clear quote">
-            <X className="h-3.5 w-3.5" />
+        )}
+        <div className="flex items-end gap-2 py-2 pl-5 pr-2">
+          <textarea
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); submit(); } }}
+            rows={1}
+            autoFocus={autoFocus}
+            placeholder={placeholder}
+            name="copilot-input"
+            aria-label="Message"
+            className="ldg-prose max-h-40 min-h-[28px] flex-1 resize-none bg-transparent py-1.5 text-md leading-6 outline-none placeholder:text-faint"
+          />
+          <button
+            onClick={submit}
+            disabled={!canSend}
+            aria-label="Send"
+            className={cn(
+              "flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition-[background-color,transform] active:scale-95",
+              canSend ? "bg-ink text-on-ink" : "bg-surface-sunken text-faint",
+            )}
+          >
+            {busy ? <Spinner className="h-4 w-4" /> : <ArrowUp className="h-[18px] w-[18px]" strokeWidth={2.5} />}
           </button>
         </div>
-      )}
-
-      <div className="flex items-end gap-2 rounded-xl border border-hairline bg-surface px-3 py-2 focus-within:ring-2 focus-within:ring-glow/30">
-        <textarea
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); submit(); } }}
-          rows={1}
-          autoFocus={autoFocus}
-          placeholder={placeholder}
-          name="copilot-input"
-          className="max-h-32 flex-1 resize-none bg-transparent text-[13.5px] outline-none placeholder:text-faint"
-        />
-        <button onClick={submit} disabled={busy || !input.trim()} className="text-glow-strong disabled:opacity-40" aria-label="Send">
-          {busy ? <Spinner className="h-[17px] w-[17px]" /> : <Send className="h-[17px] w-[17px]" />}
-        </button>
       </div>
     </div>
   );

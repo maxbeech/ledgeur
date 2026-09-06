@@ -9,22 +9,40 @@
 // A meeting's space is stored on the meeting itself (`LocalMeeting.folderId`),
 // not as a membership list here, so a space can be deleted without orphaning
 // anything and a meeting can never be in two places or in none.
+//
+// Spaces follow the account: every edit is stamped, a deleted space leaves a
+// tombstone until the engine has told the cloud, and a space made on the phone
+// appears on the laptop (see sync.ts).
 
 import { useEffect, useState } from "react";
 import { useSyncExternalStore } from "react";
-import { listMeetings, saveMeeting } from "./meetingsStore.ts";
+import { listMeetings, saveMeeting, subscribeMeetings } from "./meetingsStore.ts";
 
 export interface Folder {
   id: string;
   name: string;
-  /** A token name from the theme, so spaces read as part of the app rather
-   *  than as arbitrary colour. */
+  /** One of the design system's pastel families, so spaces read as part of
+   *  the app rather than as arbitrary colour. */
   tone: FolderTone;
   createdAt: string;
+  updatedAt: string;
+  /** A tombstone: deleted here, not yet acknowledged by the cloud. */
+  deletedAt?: string;
 }
 
-export const FOLDER_TONES = ["accent", "glow", "muted", "danger"] as const;
+export const FOLDER_TONES = ["sky", "rose", "mint", "butter", "peach", "iris"] as const;
 export type FolderTone = (typeof FOLDER_TONES)[number];
+
+/** A new space takes the next family along, so the first six are distinct. */
+export function nextFolderTone(existing: readonly { tone: string }[]): FolderTone {
+  return FOLDER_TONES[existing.length % FOLDER_TONES.length];
+}
+
+/** Older stores named tones after the old theme; map them onto a family. */
+export function normaliseTone(tone: unknown): FolderTone {
+  if (typeof tone === "string" && (FOLDER_TONES as readonly string[]).includes(tone)) return tone as FolderTone;
+  return "sky";
+}
 
 const KEY = "ledgeur.folders";
 const uid = () => (crypto?.randomUUID ? crypto.randomUUID() : `f-${Date.now()}-${Math.round(Math.random() * 1e6)}`);
@@ -34,20 +52,25 @@ function load(): Folder[] {
     const raw = typeof localStorage !== "undefined" ? localStorage.getItem(KEY) : null;
     const parsed = raw ? (JSON.parse(raw) as unknown) : null;
     if (!Array.isArray(parsed)) return [];
-    return parsed.filter((f): f is Folder =>
-      Boolean(f) && typeof f === "object"
-      && typeof (f as Folder).id === "string" && typeof (f as Folder).name === "string");
+    return parsed
+      .filter((f): f is Folder =>
+        Boolean(f) && typeof f === "object"
+        && typeof (f as Folder).id === "string" && typeof (f as Folder).name === "string")
+      .map((f) => ({ ...f, tone: normaliseTone(f.tone), updatedAt: f.updatedAt ?? f.createdAt ?? "1970-01-01T00:00:00.000Z" }));
   } catch {
     return [];
   }
 }
 
-let current: Folder[] = load();
+let records: Folder[] = load();
+let live: Folder[] = records.filter((f) => !f.deletedAt);
 const listeners = new Set<() => void>();
 
-function persist() {
+function commit(next: Folder[]) {
+  records = next;
+  live = records.filter((f) => !f.deletedAt);
   try {
-    localStorage.setItem(KEY, JSON.stringify(current));
+    localStorage.setItem(KEY, JSON.stringify(records));
   } catch {
     /* storage unavailable — keep the in-memory value */
   }
@@ -55,26 +78,44 @@ function persist() {
 }
 
 export function getFolders(): Folder[] {
-  return current;
+  return live;
 }
 
-export function createFolder(name: string, tone: FolderTone = "accent"): Folder {
+/** Everything, tombstones included — the engine's view. */
+export function getFolderRecords(): Folder[] {
+  return records;
+}
+
+/** Write what the cloud has, without stamping: it is not a new edit. */
+export function applyRemoteFolders(pulled: readonly Folder[], removed: readonly string[]): void {
+  const byId = new Map(records.map((f) => [f.id, f]));
+  for (const f of pulled) byId.set(f.id, f);
+  for (const id of removed) byId.delete(id);
+  commit([...byId.values()]);
+}
+
+/** A tombstone the cloud has acknowledged can go. */
+export function forgetFolders(ids: readonly string[]): void {
+  if (ids.length === 0) return;
+  commit(records.filter((f) => !ids.includes(f.id)));
+}
+
+export function createFolder(name: string, tone: FolderTone = nextFolderTone(live)): Folder {
   const trimmed = name.trim();
   if (!trimmed) throw new Error("Give the space a name.");
-  if (current.some((f) => f.name.toLowerCase() === trimmed.toLowerCase())) {
+  if (live.some((f) => f.name.toLowerCase() === trimmed.toLowerCase())) {
     throw new Error(`You already have a space called “${trimmed}”.`);
   }
-  const folder: Folder = { id: uid(), name: trimmed, tone, createdAt: new Date().toISOString() };
-  current = [...current, folder];
-  persist();
+  const now = new Date().toISOString();
+  const folder: Folder = { id: uid(), name: trimmed, tone, createdAt: now, updatedAt: now };
+  commit([...records, folder]);
   return folder;
 }
 
 export function renameFolder(id: string, name: string): void {
   const trimmed = name.trim();
   if (!trimmed) throw new Error("Give the space a name.");
-  current = current.map((f) => (f.id === id ? { ...f, name: trimmed } : f));
-  persist();
+  commit(records.map((f) => (f.id === id ? { ...f, name: trimmed, updatedAt: new Date().toISOString() } : f)));
 }
 
 /**
@@ -83,8 +124,8 @@ export function renameFolder(id: string, name: string): void {
  * pointing at a space that no longer exists would be invisible in every filter.
  */
 export async function deleteFolder(id: string): Promise<number> {
-  current = current.filter((f) => f.id !== id);
-  persist();
+  const now = new Date().toISOString();
+  commit(records.map((f) => (f.id === id ? { ...f, deletedAt: now, updatedAt: now } : f)));
   const meetings = await listMeetings();
   const affected = meetings.filter((m) => m.folderId === id);
   for (const m of affected) await saveMeeting({ ...m, folderId: undefined });
@@ -97,7 +138,6 @@ export async function setMeetingFolder(meetingId: string, folderId: string | nul
   const meeting = meetings.find((m) => m.id === meetingId);
   if (!meeting) throw new Error("That meeting is not on this device.");
   await saveMeeting({ ...meeting, folderId: folderId ?? undefined });
-  for (const l of listeners) l();
 }
 
 function subscribe(cb: () => void): () => void {
@@ -110,7 +150,7 @@ export function useFolders(): Folder[] {
 }
 
 export const folderById = (id: string | undefined | null): Folder | undefined =>
-  id ? current.find((f) => f.id === id) : undefined;
+  id ? live.find((f) => f.id === id) : undefined;
 
 /** How many meetings are in each space, plus how many are unfiled. Recomputed
  *  whenever the folder set changes or a meeting moves. */
@@ -118,18 +158,22 @@ export function useFolderCounts(): { byFolder: Record<string, number>; unfiled: 
   const folders = useFolders();
   const [counts, setCounts] = useState<{ byFolder: Record<string, number>; unfiled: number }>({ byFolder: {}, unfiled: 0 });
   useEffect(() => {
-    let live = true;
-    void listMeetings().then((meetings) => {
-      if (!live) return;
-      const byFolder: Record<string, number> = {};
-      let unfiled = 0;
-      for (const m of meetings) {
-        if (m.folderId && folders.some((f) => f.id === m.folderId)) byFolder[m.folderId] = (byFolder[m.folderId] ?? 0) + 1;
-        else unfiled++;
-      }
-      setCounts({ byFolder, unfiled });
-    });
-    return () => { live = false; };
+    let alive = true;
+    const compute = () => {
+      void listMeetings().then((meetings) => {
+        if (!alive) return;
+        const byFolder: Record<string, number> = {};
+        let unfiled = 0;
+        for (const m of meetings) {
+          if (m.folderId && folders.some((f) => f.id === m.folderId)) byFolder[m.folderId] = (byFolder[m.folderId] ?? 0) + 1;
+          else unfiled++;
+        }
+        setCounts({ byFolder, unfiled });
+      });
+    };
+    compute();
+    const off = subscribeMeetings(compute);
+    return () => { alive = false; off(); };
   }, [folders]);
   return counts;
 }

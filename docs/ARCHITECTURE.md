@@ -16,13 +16,20 @@
 3. **Cloud for the brain.** A meeting is only useful company-wide if it's
    searchable by others (with permission). Supabase is the shared source of
    truth; the device holds a fast local cache.
-4. **Premium by default.** The UI/UX is calm, fast and considered. The design
-   language is **"The Library of Record"**: warm paper pages inside dark
-   spruce-ink furniture; Fraunces display serif + Schibsted Grotesk UI +
-   Spline Sans Mono data type (bundled, offline); strict color semantics —
-   emerald = live/you, burnished gold = the brain speaking, madder = recording.
-   Tokens live in `packages/ui/src/tokens.ts` and are mirrored by the app's
-   `theme.css` `@theme` block.
+4. **Premium by default.** The UI/UX is calm, fast and considered. One design
+   system (`packages/ui`) for the app, the phone and the site: Plus Jakarta
+   Sans for everything read or operated (bundled, offline), a neutral canvas,
+   and six pastel families used semantically — iris for the brand and the
+   copilot, mint for live/you/sync, peach for recording and danger, butter for
+   warnings, sky and rose for people. Light and dark, both measured for
+   contrast. `packages/ui/src/tokens.ts` is the single source; `tokens.css`
+   is generated from it (`pnpm --filter @ledgeur/ui build:theme`) and a test
+   fails if the two differ. See `docs/REDESIGN.md`.
+5. **One app, every device.** The phone app is the desktop app — same React
+   code, same Rust core, same account — with a shell that adapts (bottom tabs,
+   microphone-only capture, the model downloaded on first record). Meetings
+   carry the same id on every device, and edits sync both ways. See
+   `docs/MOBILE.md` and "Sync" below.
 
 ## Monorepo layout
 
@@ -103,6 +110,36 @@ Calendar (Google/MS) ──▶ auto-prompt ("Record?") ──▶ Record screen
                                    ▼
                     follow-up email draft · signed webhook (meeting.completed)
 ```
+
+## Sync — the same meeting on every device
+
+`apps/desktop/src/lib/sync.ts` keeps the device's cache (IndexedDB) and the
+account in step; the rules of who wins are pure and tested in
+`packages/core/src/data/merge.ts`.
+
+```
+ record / import / edit ─▶ IndexedDB (stamped updatedAt, dirty) ─┐
+                                                                  ▼
+   push: new meetings (device-supplied uuid), edits (meta / full),  Supabase
+         tombstones, spaces, recipes                                  │
+   pull: every meeting the account can see, changed since last pull ◀┘
+   listen: Realtime on meetings · meeting_notes · action_items · folders · note_templates
+```
+
+- **Ids are the device's.** A meeting is inserted under the uuid it has
+  locally, so the laptop and the phone hold it under one id and an update is
+  an update, not a second copy.
+- **The later edit wins.** Every edit stamps `updatedAt` with the device's
+  clock and the stamp travels unchanged; the comparison is always device
+  against device, never device against server.
+- **Deletions are tombstones** (`deleted_at`) so the other device learns,
+  rather than pushing the meeting straight back from its cache.
+- **What never syncs:** voice prints and the copilot thread. `remoteSpeakers`
+  is the only path from a local speaker to the wire and carries no embedding.
+- **Two backends.** The engine needs `supabase/migrations/0007_sync.sql`.
+  Against a backend without it, it does what the old code could — push each
+  new meeting once, pull the list — and Settings says so ("Limited") with the
+  migration's name, rather than failing quietly.
 
 ## Grounding — what a question is allowed to see
 

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { FileText, Check } from "lucide-react";
-import { Button, Card, Chip, Spinner } from "../ui.tsx";
+import { Button, Card, Badge, Spinner, ErrorNote } from "../ui.tsx";
 import { openExternal } from "../../lib/runtime.ts";
 import { hasBackend } from "../../lib/config.ts";
 import { notionConfigured, notionAuthUrl, completeNotionConnect, isNotionConnected } from "../../lib/notion.ts";
@@ -28,16 +28,16 @@ export function NotionCard({ signedIn }: { signedIn: boolean }) {
 
   return (
     <Card className="flex items-start gap-3 p-4">
-      <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-surface-muted text-ink-text"><FileText className="h-5 w-5" /></span>
+      <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-brand-soft text-brand-strong"><FileText className="h-5 w-5" /></span>
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
-          <span className="text-sm font-semibold text-ink-text">Notion</span>
-          {connected ? <Chip tone="accent"><Check className="h-3 w-3" /> connected</Chip> : <Chip tone="accent">first to ship</Chip>}
+          <span className="text-base font-semibold text-ink-text">Notion</span>
+          {connected && <Badge tone="accent"><Check className="h-3 w-3" /> Connected</Badge>}
         </div>
         <p className="mt-0.5 text-xs leading-relaxed text-muted">Save meeting notes to a Notion database.</p>
 
         {!hasBackend ? (
-          <div className="mt-3"><Button variant="outline" disabled title="Configure Supabase to enable">Backend required</Button></div>
+          <div className="mt-3"><Button tone="secondary" disabled title="Configure Supabase to enable">Backend required</Button></div>
         ) : !signedIn ? (
           <div className="mt-3 text-xs text-muted">Sign in above to connect Notion.</div>
         ) : connected ? (
@@ -47,13 +47,13 @@ export function NotionCard({ signedIn }: { signedIn: boolean }) {
           </label>
         ) : notionConfigured() ? (
           <div className="mt-3 space-y-2">
-            <Button variant="outline" onClick={() => void openExternal(notionAuthUrl())}>Authorize in Notion</Button>
+            <Button tone="secondary" onClick={() => void openExternal(notionAuthUrl())}>Authorize in Notion</Button>
             <div className="flex gap-2">
               <input value={code} onChange={(e) => setCode(e.target.value)} name="notion-code" placeholder="Paste the code Notion gives you"
                 className="flex-1 rounded-lg border border-hairline bg-surface px-3 py-1.5 text-xs outline-none focus:ring-2 focus:ring-accent/40" />
               <Button onClick={connect} disabled={!code.trim() || state.busy}>{state.busy ? <Spinner /> : "Finish"}</Button>
             </div>
-            {state.err && <div className="text-xs text-danger">{state.err}</div>}
+            {state.err && <ErrorNote className="mt-3">{state.err}</ErrorNote>}
           </div>
         ) : (
           <div className="mt-3 text-xs text-muted">Set VITE_NOTION_CLIENT_ID to enable Notion OAuth.</div>

@@ -28,9 +28,9 @@ export default function AlternativesIndex() {
           {COMPETITORS.map((competitor) => (
             <Link key={competitor.slug} href={`/alternatives/${competitor.slug}`} className="group block">
               <Card className="h-full p-5 transition-colors group-hover:border-accent">
-                <h2 className="ldg-display text-[17px] text-ink-text">Ledgeur vs {competitor.name}</h2>
-                <p className="mt-1.5 text-[13.5px] leading-relaxed text-muted">{competitor.what}</p>
-                <span className="mt-3 inline-block text-[13px] font-medium text-accent-strong">Compare →</span>
+                <h2 className="ldg-display text-lg text-ink-text">Ledgeur vs {competitor.name}</h2>
+                <p className="mt-1.5 text-sm leading-relaxed text-muted">{competitor.what}</p>
+                <span className="mt-3 inline-block text-sm font-medium text-accent-strong">Compare →</span>
               </Card>
             </Link>
           ))}

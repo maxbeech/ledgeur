@@ -8,7 +8,7 @@
 import { useState } from "react";
 import { ChefHat, Plus, Trash2, X } from "lucide-react";
 import { NOTE_TEMPLATES, type NoteTemplate } from "@ledgeur/core";
-import { Button, Card, Chip, ErrorNote, Kicker } from "../ui.tsx";
+import { Button, Card, Badge, ErrorNote, Label } from "../ui.tsx";
 import { useRecipes, saveRecipe, deleteRecipe } from "../../lib/recipes.ts";
 
 export function RecipesCard() {
@@ -33,7 +33,7 @@ export function RecipesCard() {
         <div className="min-w-0">
           <div className="mb-1 flex items-center gap-2">
             <ChefHat className="h-4 w-4 text-accent-strong" />
-            <Kicker>Recipes</Kicker>
+            <Label>Recipes</Label>
           </div>
           <p className="text-xs leading-relaxed text-muted">
             Your own note styles, on top of the {NOTE_TEMPLATES.length} built-in ones. A recipe tells the
@@ -43,7 +43,7 @@ export function RecipesCard() {
           </p>
         </div>
         {!editing && (
-          <Button size="sm" variant="outline" onClick={() => { setEditing({ name: "", focus: "", looksFor: [""] }); setError(""); }}>
+          <Button size="sm" tone="secondary" onClick={() => { setEditing({ name: "", focus: "", looksFor: [""] }); setError(""); }}>
             <Plus className="h-4 w-4" /> New recipe
           </Button>
         )}
@@ -55,14 +55,14 @@ export function RecipesCard() {
             <li key={r.id} className="flex items-start gap-3 px-3.5 py-2.5">
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
-                  <span className="truncate text-[13.5px] font-medium text-ink-text">{r.name}</span>
-                  <Chip>{r.looksFor.length} cue{r.looksFor.length === 1 ? "" : "s"}</Chip>
+                  <span className="truncate text-sm font-medium text-ink-text">{r.name}</span>
+                  <Badge>{r.looksFor.length} cue{r.looksFor.length === 1 ? "" : "s"}</Badge>
                 </div>
-                {r.focus && <p className="mt-0.5 truncate text-[11.5px] text-muted">{r.focus}</p>}
+                {r.focus && <p className="mt-0.5 truncate text-xs text-muted">{r.focus}</p>}
               </div>
               <button
                 onClick={() => setEditing({ ...r })}
-                className="shrink-0 text-[11px] font-semibold text-muted underline hover:text-ink-text"
+                className="shrink-0 text-2xs font-semibold text-muted underline hover:text-ink-text"
               >
                 Edit
               </button>
@@ -81,11 +81,11 @@ export function RecipesCard() {
       {editing && (
         <div className="rounded-xl border border-hairline bg-surface-muted/40 p-4">
           <div className="mb-3 flex items-center justify-between">
-            <Kicker>{editing.id ? "Edit recipe" : "New recipe"}</Kicker>
+            <Label>{editing.id ? "Edit recipe" : "New recipe"}</Label>
             <button onClick={() => { setEditing(null); setError(""); }} aria-label="Cancel"><X className="h-4 w-4 text-faint hover:text-ink-text" /></button>
           </div>
 
-          <label htmlFor="rc-name" className="ldg-kicker mb-1.5 block">Name</label>
+          <label htmlFor="rc-name" className="ldg-label mb-1.5 block">Name</label>
           <input
             id="rc-name"
             value={editing.name ?? ""}
@@ -94,7 +94,7 @@ export function RecipesCard() {
             className="mb-3 w-full rounded-lg border border-hairline bg-surface px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-accent/40"
           />
 
-          <label htmlFor="rc-focus" className="ldg-kicker mb-1.5 block">What is this kind of meeting for?</label>
+          <label htmlFor="rc-focus" className="ldg-label mb-1.5 block">What is this kind of meeting for?</label>
           <textarea
             id="rc-focus"
             value={editing.focus ?? ""}
@@ -104,7 +104,7 @@ export function RecipesCard() {
             className="mb-3 w-full resize-y rounded-lg border border-hairline bg-surface px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-accent/40"
           />
 
-          <Kicker className="mb-1.5">Things to look for, most important first</Kicker>
+          <Label className="mb-1.5">Things to look for, most important first</Label>
           <div className="mb-2 space-y-2">
             {(editing.looksFor ?? [""]).map((cue, i) => (
               <div key={i} className="flex items-center gap-2">
@@ -117,7 +117,7 @@ export function RecipesCard() {
                   }}
                   placeholder={i === 0 ? "anything they said is not working for them" : "another cue"}
                   aria-label={`Cue ${i + 1}`}
-                  className="min-w-0 flex-1 rounded-lg border border-hairline bg-surface px-3 py-1.5 text-[13px] outline-none focus:ring-2 focus:ring-accent/40"
+                  className="min-w-0 flex-1 rounded-lg border border-hairline bg-surface px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-accent/40"
                 />
                 <button
                   onClick={() => setEditing({ ...editing, looksFor: (editing.looksFor ?? []).filter((_, j) => j !== i) })}
@@ -131,21 +131,21 @@ export function RecipesCard() {
           </div>
           <button
             onClick={() => setEditing({ ...editing, looksFor: [...(editing.looksFor ?? []), ""] })}
-            className="mb-4 inline-flex items-center gap-1 text-[11.5px] font-semibold text-muted underline hover:text-ink-text"
+            className="mb-4 inline-flex items-center gap-1 text-xs font-semibold text-muted underline hover:text-ink-text"
           >
             <Plus className="h-3 w-3" /> Add another
           </button>
 
           {error && <ErrorNote className="mb-3">{error}</ErrorNote>}
           <div className="flex gap-2">
-            <Button size="sm" variant="accent" onClick={save}>Save recipe</Button>
-            <Button size="sm" variant="ghost" onClick={() => { setEditing(null); setError(""); }}>Cancel</Button>
+            <Button size="sm" tone="primary" onClick={save}>Save recipe</Button>
+            <Button size="sm" tone="ghost" onClick={() => { setEditing(null); setError(""); }}>Cancel</Button>
           </div>
         </div>
       )}
 
       {!editing && recipes.length === 0 && (
-        <p className="text-[11.5px] leading-relaxed text-faint">
+        <p className="text-xs leading-relaxed text-faint">
           Nothing yet. A recipe is worth writing once you notice you keep wanting the same thing out of
           the same kind of call — it takes a minute and applies to every one after it.
         </p>

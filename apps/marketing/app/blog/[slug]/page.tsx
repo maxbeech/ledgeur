@@ -55,7 +55,7 @@ export default async function PostPage({ params }: { params: Promise<{ slug: str
         lede={post.description}
       />
       <Section width="prose">
-        <nav aria-label="Breadcrumb" className="mb-8 text-[13px] text-muted">
+        <nav aria-label="Breadcrumb" className="mb-8 text-sm text-muted">
           <Link href="/blog" className="hover:text-ink-text">Guides</Link>
           <span aria-hidden> › </span>
           <span className="text-faint">{post.title}</span>

@@ -9,7 +9,7 @@ function Row({ title, desc, on, onChange }: { title: string; desc: string; on: b
   return (
     <div className="flex items-start justify-between gap-4 py-3">
       <div className="min-w-0">
-        <div className="text-sm font-medium text-ink-text">{title}</div>
+        <div className="text-base font-semibold text-ink-text">{title}</div>
         <p className="mt-0.5 max-w-md text-xs leading-relaxed text-muted">{desc}</p>
       </div>
       <div className="pt-0.5"><Toggle on={on} onChange={onChange} /></div>
@@ -23,7 +23,7 @@ export function CopilotCard() {
     <Card className="p-5">
       <div className="flex items-center gap-2">
         <MessageSquare className="h-4 w-4 text-accent-strong" />
-        <span className="text-sm font-medium text-ink-text">Meeting copilot</span>
+        <span className="text-base font-semibold text-ink-text">Meeting copilot</span>
       </div>
       <div className="mt-2 divide-y divide-hairline">
         <Row

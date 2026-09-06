@@ -4,11 +4,12 @@
 // everything you can do with it.
 
 import { useCallback, useMemo, useState } from "react";
+import { ArrowLeft, Check, Copy, Download, Trash2 } from "lucide-react";
 import {
   formatOffset, meetingToMarkdown, exportFilename, speakingShare, transcriptWithSpeakers,
   speakerLabel as speakerLabelOf, type LocalMeeting,
 } from "@ledgeur/core";
-import { Badge, Button, Card, ErrorNote, Kicker, SpeakerChip } from "@ledgeur/ui/components";
+import { Badge, Button, Card, ErrorNote, Label, SpeakerChip, Textarea } from "@ledgeur/ui/components";
 import { Transcript } from "./Transcript";
 
 export function MeetingView({
@@ -60,17 +61,17 @@ export function MeetingView({
   return (
     <div className="space-y-5">
       <Card raised className="p-6">
-        <button onClick={onBack} className="text-[13px] text-muted hover:text-ink-text lg:hidden">
-          ← All meetings
+        <button onClick={onBack} className="mb-3 inline-flex items-center gap-1.5 text-sm font-medium text-muted hover:text-ink-text lg:hidden">
+          <ArrowLeft className="h-4 w-4" /> All meetings
         </button>
 
-        <div className="mt-2 flex flex-wrap items-start justify-between gap-4">
+        <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="min-w-0 flex-1">
             {titleDraft === null ? (
               <button
                 onClick={() => setTitleDraft(meeting.title)}
                 title="Rename this meeting"
-                className="ldg-display text-left text-[24px] leading-tight text-ink-text hover:underline"
+                className="ldg-display text-left text-2xl leading-tight text-ink-text hover:underline"
               >
                 {meeting.title}
               </button>
@@ -87,37 +88,35 @@ export function MeetingView({
                   autoFocus value={titleDraft} onChange={(e) => setTitleDraft(e.target.value)}
                   onKeyDown={(e) => { if (e.key === "Escape") setTitleDraft(null); }}
                   aria-label="Meeting title"
-                  className="min-w-0 flex-1 rounded-lg border border-hairline-strong bg-paper px-3 py-1.5 text-[16px] outline-none focus:border-accent"
+                  className="h-10 min-w-0 flex-1 rounded-lg border border-hairline-strong bg-surface px-3 text-lg outline-none focus:border-brand"
                 />
                 <Button type="submit" size="sm">Save</Button>
               </form>
             )}
-            <p className="mt-1.5 text-[13px] text-faint">
+            <p className="mt-1.5 text-sm text-faint">
               {new Date(meeting.startedAt).toLocaleString()} · {formatOffset(meeting.durationSec * 1000)}
               {meeting.source === "import" && meeting.sourceName && ` · imported from ${meeting.sourceName}`}
             </p>
           </div>
-          {meeting.source === "import" && <Badge tone="neutral">Imported</Badge>}
+          {meeting.source === "import" && <Badge>Imported</Badge>}
         </div>
 
         <div className="mt-5 flex flex-wrap gap-2">
-          <Button size="sm" tone="secondary" onClick={() => copy("transcript")}>
-            {copied === "transcript" ? "Copied ✓" : "Copy transcript"}
+          <Button size="sm" tone="secondary" onClick={() => copy("transcript")} className="rounded-full">
+            {copied === "transcript" ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />} {copied === "transcript" ? "Copied" : "Copy transcript"}
           </Button>
-          <Button size="sm" tone="secondary" onClick={() => copy("markdown")}>
-            {copied === "markdown" ? "Copied ✓" : "Copy as Markdown"}
+          <Button size="sm" tone="secondary" onClick={() => copy("markdown")} className="rounded-full">
+            {copied === "markdown" ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />} {copied === "markdown" ? "Copied" : "Copy as Markdown"}
           </Button>
-          <Button size="sm" tone="secondary" onClick={download}>Download .md</Button>
+          <Button size="sm" tone="secondary" onClick={download} className="rounded-full"><Download className="h-4 w-4" /> Download .md</Button>
           {confirmDelete ? (
             <span className="flex items-center gap-2">
-              <Button size="sm" tone="danger" onClick={onDelete}>Delete for good</Button>
-              <button onClick={() => setConfirmDelete(false)} className="text-[12.5px] text-muted hover:text-ink-text">
-                Keep it
-              </button>
+              <Button size="sm" tone="danger" onClick={onDelete} className="rounded-full">Delete for good</Button>
+              <Button size="sm" tone="ghost" onClick={() => setConfirmDelete(false)} className="rounded-full">Keep it</Button>
             </span>
           ) : (
-            <Button size="sm" tone="ghost" onClick={() => setConfirmDelete(true)} className="text-danger">
-              Delete
+            <Button size="sm" tone="ghost" onClick={() => setConfirmDelete(true)} className="rounded-full text-danger">
+              <Trash2 className="h-4 w-4" /> Delete
             </Button>
           )}
         </div>
@@ -127,8 +126,8 @@ export function MeetingView({
 
       {meeting.speakers.length > 0 && (
         <Card raised className="p-6">
-          <Kicker>Who spoke</Kicker>
-          <p className="mt-2 text-[13px] leading-relaxed text-muted">
+          <Label>Who spoke</Label>
+          <p className="mt-2 text-sm leading-relaxed text-muted">
             Click a name in the transcript to say who it is. Ledgeur remembers the voice and
             recognises them next time — on this device only, and never uploaded.
           </p>
@@ -138,9 +137,9 @@ export function MeetingView({
               <li key={s.label} className="flex items-center gap-3">
                 <span className="w-32 shrink-0"><SpeakerChip label={s.label} /></span>
                 <span className="h-2 flex-1 overflow-hidden rounded-full bg-surface-sunken" aria-hidden>
-                  <span className="block h-full rounded-full bg-accent" style={{ width: `${Math.round(s.share * 100)}%` }} />
+                  <span className="block h-full rounded-full bg-brand" style={{ width: `${Math.round(s.share * 100)}%` }} />
                 </span>
-                <span className="w-24 shrink-0 text-right font-mono text-[11.5px] text-faint tabular-nums">
+                <span className="ldg-num w-24 shrink-0 text-right text-xs text-faint">
                   {formatOffset(s.seconds * 1000)} · {Math.round(s.share * 100)}%
                 </span>
               </li>
@@ -152,42 +151,27 @@ export function MeetingView({
               here, not a support ticket. */}
           {meeting.speakers.length > 1 && (
             <div className="mt-5 border-t border-hairline pt-4">
-              <p className="text-[13px] text-muted">
-                Two of these the same person? Fold one into the other.
-              </p>
+              <p className="text-sm text-muted">Two of these the same person? Fold one into the other.</p>
               <div className="mt-2.5 flex flex-wrap items-center gap-2">
                 {mergeFrom === null ? (
                   meeting.speakers.map((s) => (
-                    <button
-                      key={s.speaker}
-                      onClick={() => setMergeFrom(s.speaker)}
-                      className="rounded-full border border-hairline-strong px-3 py-1 text-[12.5px] text-ink-text transition-colors hover:border-accent"
-                    >
+                    <Button key={s.speaker} size="sm" tone="secondary" onClick={() => setMergeFrom(s.speaker)} className="rounded-full">
                       {s.label}
-                    </button>
+                    </Button>
                   ))
                 ) : (
                   <>
-                    <span className="text-[12.5px] text-muted">
-                      Fold <strong className="text-ink-text">{speakerLabelOf(meeting, mergeFrom)}</strong> into:
+                    <span className="text-sm text-muted">
+                      Fold <strong className="font-semibold text-ink-text">{speakerLabelOf(meeting, mergeFrom)}</strong> into:
                     </span>
                     {meeting.speakers
                       .filter((s) => s.speaker !== mergeFrom)
                       .map((s) => (
-                        <button
-                          key={s.speaker}
-                          onClick={() => { onMerge(mergeFrom, s.speaker); setMergeFrom(null); }}
-                          className="rounded-full border border-accent bg-accent-soft px-3 py-1 text-[12.5px] text-accent-strong"
-                        >
+                        <Button key={s.speaker} size="sm" tone="brand" onClick={() => { onMerge(mergeFrom, s.speaker); setMergeFrom(null); }} className="rounded-full">
                           {s.label}
-                        </button>
+                        </Button>
                       ))}
-                    <button
-                      onClick={() => setMergeFrom(null)}
-                      className="text-[12.5px] text-muted hover:text-ink-text"
-                    >
-                      Cancel
-                    </button>
+                    <Button size="sm" tone="ghost" onClick={() => setMergeFrom(null)} className="rounded-full">Cancel</Button>
                   </>
                 )}
               </div>
@@ -198,8 +182,8 @@ export function MeetingView({
 
       {notes && (notes.summary.length > 0 || notes.actionItems.length > 0) && (
         <Card raised className="p-6">
-          <Kicker>Notes</Kicker>
-          <p className="mt-1.5 text-[12px] text-faint">
+          <Label>Notes</Label>
+          <p className="mt-1.5 text-xs text-faint">
             Pulled from what was actually said. Nothing here is invented — if a decision is missing,
             it was not stated plainly enough to extract.
           </p>
@@ -213,22 +197,20 @@ export function MeetingView({
       )}
 
       <Card raised className="p-6">
-        <Kicker>Transcript</Kicker>
-        <Transcript meeting={meeting} onRename={rename} className="mt-3" />
+        <Label>Transcript</Label>
+        <Transcript meeting={meeting} onRename={rename} className="mt-4" />
       </Card>
 
       <Card raised className="p-6">
-        <Kicker>Your own notes</Kicker>
-        <textarea
+        <Label>Your own notes</Label>
+        <Textarea
           value={meeting.manualNotes}
           onChange={(e) => onSave({ ...meeting, manualNotes: e.target.value })}
           placeholder="Anything you want to remember that nobody said out loud."
           aria-label="Your own notes"
-          className="mt-3 h-32 w-full resize-y rounded-xl border border-hairline bg-paper p-3.5 text-[14px] leading-relaxed outline-none focus:border-accent"
+          className="mt-3 h-32"
         />
-        <p className="mt-2 text-[12px] text-faint">
-          Kept verbatim, and included in every export above the generated summary.
-        </p>
+        <p className="mt-2 text-xs text-faint">Kept verbatim, and included in every export above the generated summary.</p>
       </Card>
     </div>
   );
@@ -238,11 +220,11 @@ function NoteSection({ title, items }: { title: string; items: readonly string[]
   if (items.length === 0) return null;
   return (
     <div>
-      <h3 className="text-[13px] font-medium text-ink-text">{title}</h3>
+      <h3 className="text-sm font-semibold text-ink-text">{title}</h3>
       <ul className="mt-2 space-y-1.5">
         {items.map((item) => (
-          <li key={item} className="flex gap-2.5 text-[14px] leading-relaxed text-muted">
-            <span aria-hidden className="mt-[3px] text-accent-strong">·</span>
+          <li key={item} className="flex gap-2.5 text-base leading-relaxed text-muted">
+            <span aria-hidden className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-brand" />
             <span>{item}</span>
           </li>
         ))}

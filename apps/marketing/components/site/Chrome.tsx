@@ -7,85 +7,61 @@
 
 import Link from "next/link";
 import type { ReactNode } from "react";
+import { Menu } from "lucide-react";
 import { cn } from "@ledgeur/ui";
-import { Display, Kicker, buttonClass } from "@ledgeur/ui/components";
+import { Display, Label, Logo, buttonClass } from "@ledgeur/ui/components";
 import { SITE, NAV } from "@/lib/site";
 
 /* ------------------------------------------------------------------- mark */
 
-/** The wordmark. A bookplate: a serif L on spruce, the way a library stamps
- *  ownership into the front of a book. */
-export function Wordmark({ className, inverted = false }: { className?: string; inverted?: boolean }) {
-  return (
-    <span className={cn("inline-flex items-center gap-2.5", className)}>
-      <span
-        aria-hidden
-        className={cn(
-          "grid h-8 w-8 place-items-center rounded-[0.6rem] font-[560] leading-none",
-          "ldg-display text-[17px]",
-          inverted ? "bg-paper text-ink" : "bg-ink text-paper",
-        )}
-      >
-        L
-      </span>
-      <span className={cn("ldg-display text-[19px] tracking-[-0.02em]", inverted ? "text-on-ink" : "text-ink-text")}>
-        Ledgeur
-      </span>
-    </span>
-  );
+/** The wordmark, as the design system draws it. */
+export function Wordmark({ className, size = "md" }: { className?: string; size?: "sm" | "md" | "lg" }) {
+  return <Logo className={className} size={size} />;
 }
 
 /* ----------------------------------------------------------------- header */
 
-const PRIMARY: readonly (readonly [string, string])[] = [
-  ["Download", "/download"],
-  ["Pricing", "/pricing"],
-  ["For agents", "/agents"],
-  ["Blog", "/blog"],
-  ["Alternatives", "/alternatives"],
-];
-
 export function Header() {
   return (
-    <header className="sticky top-0 z-30 border-b border-hairline bg-paper/85 backdrop-blur-md">
-      <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-5 py-3.5">
+    <header className="sticky top-0 z-30 border-b border-hairline bg-surface/85 backdrop-blur-md">
+      <div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-4 px-5">
         <Link href="/" aria-label={`${SITE.name} home`}>
           <Wordmark />
         </Link>
 
-        <nav aria-label="Primary" className="hidden items-center gap-6 text-[13.5px] text-muted md:flex">
-          {PRIMARY.map(([label, href]) => (
-            <Link key={href} href={href} className="transition-colors hover:text-ink-text">
+        <nav aria-label="Primary" className="hidden items-center gap-1 md:flex">
+          {NAV.header.map(([label, href]) => (
+            <Link key={href} href={href} className="rounded-full px-3.5 py-2 text-base font-medium text-muted transition-colors hover:bg-surface-muted hover:text-ink-text">
               {label}
             </Link>
           ))}
         </nav>
 
         <div className="hidden items-center gap-2 md:flex">
-          <Link href="/signin" className={buttonClass("ghost", "sm")}>Sign in</Link>
-          <Link href="/app" className={buttonClass("primary", "sm")}>Open the app</Link>
+          <Link href="/signin" className={buttonClass("ghost", "sm", "rounded-full")}>Sign in</Link>
+          <Link href="/app" className={buttonClass("primary", "sm", "rounded-full px-4")}>Open the app</Link>
         </div>
 
         {/* Mobile: a CSS-only disclosure. No JavaScript to open a menu. */}
         <details className="relative md:hidden">
           <summary
             aria-label="Open menu"
-            className="flex h-9 w-9 cursor-pointer list-none items-center justify-center rounded-lg border border-hairline-strong text-ink-text [&::-webkit-details-marker]:hidden"
+            className="flex h-10 w-10 cursor-pointer list-none items-center justify-center rounded-full text-ink-text hover:bg-surface-muted [&::-webkit-details-marker]:hidden"
           >
-            <span aria-hidden>☰</span>
+            <Menu className="h-5 w-5" aria-hidden />
           </summary>
           <nav
             aria-label="Mobile"
-            className="ldg-fade-in absolute right-0 mt-2 w-56 rounded-xl border border-hairline bg-surface p-2 text-sm shadow-[var(--shadow-float)]"
+            className="ldg-pop-in absolute right-0 mt-2 w-60 rounded-2xl border border-hairline bg-surface p-2 text-base shadow-[var(--shadow-float)]"
           >
-            {PRIMARY.map(([label, href]) => (
-              <Link key={href} href={href} className="block rounded-lg px-3 py-2 text-ink-text hover:bg-surface-muted">
+            {NAV.header.map(([label, href]) => (
+              <Link key={href} href={href} className="block rounded-lg px-3 py-2 font-medium text-ink-text hover:bg-surface-muted">
                 {label}
               </Link>
             ))}
             <hr className="my-1.5 border-hairline" />
-            <Link href="/signin" className="block rounded-lg px-3 py-2 text-ink-text hover:bg-surface-muted">Sign in</Link>
-            <Link href="/app" className={cn(buttonClass("primary", "sm"), "mt-1 w-full")}>Open the app</Link>
+            <Link href="/signin" className="block rounded-lg px-3 py-2 font-medium text-ink-text hover:bg-surface-muted">Sign in</Link>
+            <Link href="/app" className={cn(buttonClass("primary", "md", "rounded-full"), "mt-1.5 w-full")}>Open the app</Link>
           </nav>
         </details>
       </div>
@@ -97,12 +73,12 @@ export function Header() {
 
 export function Footer() {
   return (
-    <footer className="mt-24 border-t border-hairline bg-ink text-on-ink-muted">
+    <footer className="mt-24 border-t border-hairline bg-paper">
       <div className="mx-auto max-w-6xl px-5 py-14">
         <div className="grid gap-10 sm:grid-cols-2 lg:grid-cols-4">
           <div>
-            <Wordmark inverted />
-            <p className="mt-4 max-w-xs text-[13px] leading-relaxed">
+            <Wordmark />
+            <p className="mt-4 max-w-xs text-sm leading-relaxed text-muted">
               {SITE.tagline}. Recording, transcription and speaker separation all run on your
               device. We could not read your meetings if we wanted to.
             </p>
@@ -112,10 +88,10 @@ export function Footer() {
           <FooterColumn title="Company" links={NAV.company} />
         </div>
 
-        <div className="mt-12 flex flex-col gap-3 border-t border-white/10 pt-6 text-[12px] sm:flex-row sm:items-center sm:justify-between">
+        <div className="mt-12 flex flex-col gap-3 border-t border-hairline pt-6 text-xs text-faint sm:flex-row sm:items-center sm:justify-between">
           <p>© {new Date().getFullYear()} {SITE.name}. Open source under the MIT licence.</p>
-          <a href={SITE.repo} target="_blank" rel="noreferrer" className="transition-colors hover:text-on-ink">
-            Read the source on GitHub →
+          <a href={SITE.repo} target="_blank" rel="noreferrer" className="font-medium transition-colors hover:text-ink-text">
+            Read the source on GitHub
           </a>
         </div>
       </div>
@@ -126,11 +102,11 @@ export function Footer() {
 function FooterColumn({ title, links }: { title: string; links: readonly (readonly [string, string])[] }) {
   return (
     <div>
-      <div className="ldg-kicker !text-on-ink-muted">{title}</div>
-      <ul className="mt-3.5 space-y-2 text-[13.5px]">
+      <Label>{title}</Label>
+      <ul className="mt-3.5 space-y-2 text-base">
         {links.map(([label, href]) => (
           <li key={href}>
-            <Link href={href} className="transition-colors hover:text-on-ink">{label}</Link>
+            <Link href={href} className="text-muted transition-colors hover:text-ink-text">{label}</Link>
           </li>
         ))}
       </ul>
@@ -143,24 +119,25 @@ function FooterColumn({ title, links }: { title: string; links: readonly (readon
 /** A page section with consistent rhythm. Every page uses this rather than
  *  choosing its own padding, which is how a site starts to feel assembled. */
 export function Section({
-  children, className, width = "wide",
-}: { children: ReactNode; className?: string; width?: "wide" | "narrow" | "prose" }) {
+  children, className, width = "wide", pad = "normal", tint = false,
+}: { children: ReactNode; className?: string; width?: "wide" | "narrow" | "prose"; pad?: "normal" | "tight" | "none"; tint?: boolean }) {
   const max = width === "prose" ? "max-w-2xl" : width === "narrow" ? "max-w-4xl" : "max-w-6xl";
-  return <section className={cn("mx-auto px-5 py-16 sm:py-20", max, className)}>{children}</section>;
+  const py = pad === "none" ? "" : pad === "tight" ? "py-10 sm:py-14" : "py-16 sm:py-24";
+  const inner = <div className={cn("mx-auto px-5", max, !tint && py, !tint && className)}>{children}</div>;
+  if (!tint) return <section>{inner}</section>;
+  return <section className={cn("bg-paper", py, className)}>{inner}</section>;
 }
 
-/** Kicker + serif heading + a line of standfirst. The site's one heading
- *  pattern, so sections are recognisably siblings. */
+/** Heading + a line of standfirst. The site's one heading pattern, so
+ *  sections are recognisably siblings. */
 export function SectionHead({
   kicker, title, lede, align = "left", className,
 }: { kicker?: string; title: ReactNode; lede?: ReactNode; align?: "left" | "center"; className?: string }) {
   return (
     <div className={cn(align === "center" && "mx-auto max-w-2xl text-center", className)}>
-      {kicker && <Kicker>{kicker}</Kicker>}
-      <Display level={2} className={cn("text-[26px] leading-tight sm:text-[32px]", kicker && "mt-3")}>
-        {title}
-      </Display>
-      {lede && <p className="mt-3.5 text-[15px] leading-relaxed text-muted">{lede}</p>}
+      {kicker && <Label className="mb-3 text-brand-strong">{kicker}</Label>}
+      <Display level={2} className="text-3xl leading-[1.15] sm:text-4xl">{title}</Display>
+      {lede && <p className="mt-4 text-lg leading-relaxed text-muted">{lede}</p>}
     </div>
   );
 }
@@ -170,14 +147,10 @@ export function PageHeader({
   kicker, title, lede,
 }: { kicker?: string; title: string; lede?: ReactNode }) {
   return (
-    <div className="border-b border-hairline ldg-wash">
-      <div className="mx-auto max-w-6xl px-5 pb-12 pt-14 sm:pb-16 sm:pt-20">
-        {kicker && <Kicker>{kicker}</Kicker>}
-        <Display level={1} className={cn("max-w-3xl text-[32px] leading-[1.1] sm:text-[44px]", kicker && "mt-3")}>
-          {title}
-        </Display>
-        {lede && <p className="mt-4 max-w-2xl text-[16px] leading-relaxed text-muted">{lede}</p>}
-      </div>
+    <div className="mx-auto max-w-6xl px-5 pb-6 pt-14 sm:pt-20">
+      {kicker && <Label className="mb-3 text-brand-strong">{kicker}</Label>}
+      <Display level={1} className="max-w-3xl text-4xl leading-[1.1] sm:text-5xl">{title}</Display>
+      {lede && <p className="mt-5 max-w-2xl text-lg leading-relaxed text-muted">{lede}</p>}
     </div>
   );
 }

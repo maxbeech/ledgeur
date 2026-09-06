@@ -48,7 +48,7 @@ export default async function PlatformPage({ params }: { params: Promise<{ slug:
       />
 
       <Section width="narrow">
-        <nav aria-label="Breadcrumb" className="mb-8 text-[13px] text-muted">
+        <nav aria-label="Breadcrumb" className="mb-8 text-sm text-muted">
           <Link href="/transcribe" className="hover:text-ink-text">Transcribe</Link>
           <span aria-hidden> › </span>
           <span className="text-faint">{platform.name}</span>
@@ -58,10 +58,10 @@ export default async function PlatformPage({ params }: { params: Promise<{ slug:
         <ol className="mt-6 space-y-4">
           {platform.tips.map((tip, i) => (
             <li key={tip} className="flex gap-4">
-              <span className="ldg-display grid h-7 w-7 shrink-0 place-items-center rounded-full bg-accent-soft text-[13px] text-accent-strong">
+              <span className="ldg-display grid h-7 w-7 shrink-0 place-items-center rounded-full bg-accent-soft text-sm text-accent-strong">
                 {i + 1}
               </span>
-              <span className="mt-0.5 text-[14.5px] leading-relaxed text-ink-text">{tip}</span>
+              <span className="mt-0.5 text-md leading-relaxed text-ink-text">{tip}</span>
             </li>
           ))}
         </ol>
@@ -71,7 +71,7 @@ export default async function PlatformPage({ params }: { params: Promise<{ slug:
           body="Free, private, with the speakers separated, and no bot in the participant list."
         />
 
-        <p className="mt-8 text-[12px] text-faint">
+        <p className="mt-8 text-xs text-faint">
           Search demand (live Google Ads, US): {platform.demand}.
         </p>
       </Section>

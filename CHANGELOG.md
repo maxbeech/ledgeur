@@ -1,5 +1,71 @@
 # Changelog
 
+## Unreleased (2026-09-06) — The redesign, the phone, and sync that is sync
+
+### One design system, actually shared
+
+The desktop app had been importing a hand copy of the theme rather than the
+shared one, and the copy had drifted: its secondary text colour measured
+**2.86:1** on the page — below WCAG AA — and it was the colour of every
+timestamp, hint and metadata line in the product. Its `.ldg-prose` set no
+typography at all. It had its own `Button`, `Card`, `Chip`, `EmptyState` and
+`ErrorNote`, with a different primary colour, radii, press feedback and focus
+ring from the site's.
+
+- **New system.** Plus Jakarta Sans for everything (display is a weight, not a
+  serif); a neutral canvas; six pastel families — iris, mint, peach, butter,
+  sky, rose — each a soft tint, a fill and a text tone that clears AA on white
+  and on its own tint; a twelve-step type scale; radii on one scale; layered
+  shadows. **Dark mode** follows the system, with an override in Settings.
+- **One source.** `packages/ui/src/tokens.ts` generates `tokens.css`; the
+  test suite regenerates and fails on a stale file. Both apps import the one
+  `theme.css`. 223 contrast and mirroring assertions, both modes.
+- **One primitive set** — Button, IconButton, Card, Label, Badge, SpeakerChip,
+  Avatar, Field/Input/Select/Textarea, Toggle, Segmented, Spinner,
+  ProgressBar, Notice, EmptyState, ErrorNote, Logo — and the app's `ui.tsx`
+  is now a re-export of it.
+- **Every screen rebuilt**: a light sidebar with spaces and recent meetings,
+  the page as a page rather than a window inside a window, a composer pill,
+  the copilot answering in the open beside its mark, transcript lines with
+  pastel speaker marks, real checkboxes on tasks, avatars from the person's
+  family colour. Every page of the site rebuilt likewise; the favicon was still
+  a green "P" in Arial and the install manifest a third palette.
+- **Removed on purpose**: the paper grain, the serif, the all-caps mono
+  labels, the eyebrow on every heading, three copies of a gradient avatar, two
+  spinners, five loading patterns, six one-off notice boxes, and the
+  fade-and-slide on every section.
+
+### The phone app
+
+- iOS and Android projects generated and committed
+  (`apps/desktop/src-tauri/gen/`). The phone is the desktop app with a phone
+  shell: bottom tabs, a notes sheet in the live room, microphone-only
+  capture, the speech model downloaded on the first record rather than at
+  launch, and no settings a phone cannot act on. Capabilities split so the
+  desktop-only updater is not asked for on a phone. See `docs/MOBILE.md`.
+
+### Sync
+
+- A meeting was pushed once, on stop, under a server id the device never
+  learned; nothing ever updated it. A renamed speaker, an edited title, a
+  filed meeting, notes typed during the meeting — none of it reached the
+  cloud. Spaces, recipes and manual notes were not in the database at all.
+- **Now:** meetings keep their device id everywhere; every edit is stamped and
+  pushed; deletions are tombstones the other device honours; spaces and
+  recipes sync; the later edit wins by a rule tested in
+  `packages/core/src/data/merge.ts`; Realtime change events pull the other
+  device's work without a refresh; the whole library is cached locally so
+  search and Ask work offline. `supabase/migrations/0007_sync.sql`.
+- Against a backend that has not had the migration, the engine does what the
+  old one could and **says so** in Settings, naming the migration.
+
+### Also
+- `bg-line`, a border class that did not exist, left three sign-in fields
+  with no border. Two checkboxes read a CSS variable that did not exist and
+  fell back to a hand-typed hex.
+- The site's navigation is read from one list in `lib/site.ts`; the header
+  and footer had drifted apart.
+
 ## 2026-08-26: Marketing observability
 
 - Added Sentry browser, server, edge, and request-error monitoring to `apps/marketing`, with source-map uploads and the in-product feedback widget.

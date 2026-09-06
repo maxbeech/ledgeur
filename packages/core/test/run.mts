@@ -17,6 +17,7 @@ import { runFailureTests } from "./failures.mts";
 import { runSegmenterTests } from "./segmenter.mts";
 import { runContextTests } from "./context.mts";
 import { runGranolaTests } from "./granola.mts";
+import { runMergeTests } from "./merge.mts";
 import type { CalendarEvent } from "../src/domain/entities.ts";
 
 let pass = 0, fail = 0;
@@ -179,6 +180,7 @@ runLibraryTests(ok);
 
 // --- cloud sync mapping ---
 runSyncTests(ok);
+runMergeTests(ok);
 
 // --- note templates ---
 {

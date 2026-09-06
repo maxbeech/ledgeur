@@ -13,6 +13,7 @@ import { useRecorder } from "./useRecorder.ts";
 import { useMeetingThread } from "./useMeetingThread.ts";
 import { gatherMeetingContext, toTranscriptLines } from "./meetingContext.ts";
 import { warmupModels } from "./modelWarmup.ts";
+import { isPhoneOs } from "./platform.ts";
 import type { ChatMessage } from "./meetingsStore.ts";
 
 export type RecorderApi = ReturnType<typeof useRecorder> &
@@ -39,7 +40,10 @@ export function RecorderProvider({ children }: { children: ReactNode }) {
   // RecorderProvider mounts once for the app's whole lifetime (see the header
   // comment above), so this fires exactly once per launch — as early as the
   // model is ever going to be needed.
-  useEffect(() => { warmupModels(); }, []);
+  // A laptop warms the speech model at launch so the first recording starts
+  // instantly. A phone does not: the download is tens of megabytes and the
+  // connection may be metered, so it waits for the first tap on Record.
+  useEffect(() => { if (!isPhoneOs()) warmupModels(); }, []);
 
   const stateRef = useRef(recorder.state);
   stateRef.current = recorder.state;

@@ -2,7 +2,7 @@
   "name": "@ledgeur/desktop",
   "version": "0.2.2",
   "private": true,
-  "description": "Ledgeur cross-platform app (Tauri 2 + Vite + React) \u2014 macOS, Windows, iOS, Android.",
+  "description": "Ledgeur cross-platform app (Tauri 2 + Vite + React) — macOS, Windows, iOS, Android.",
   "license": "MIT",
   "type": "module",
   "scripts": {
@@ -19,13 +19,15 @@
     "tauri:build": "tauri build",
     "tauri:build:ai": "tauri build --features native-ai",
     "ios:dev": "tauri ios dev",
+    "android:dev": "tauri android dev",
     "release:mac": "node scripts/release-macos.mjs"
   },
   "dependencies": {
-    "@fontsource-variable/fraunces": "^5.2.9",
-    "@fontsource-variable/schibsted-grotesk": "^5.2.8",
+    "@fontsource-variable/plus-jakarta-sans": "5.3.0",
     "@fontsource-variable/spline-sans-mono": "^5.2.8",
+    "@ledgeur/asr": "workspace:*",
     "@ledgeur/core": "workspace:*",
+    "@ledgeur/mcp": "workspace:*",
     "@ledgeur/ui": "workspace:*",
     "@sentry/react": "^10.64.0",
     "@supabase/supabase-js": "^2.58.0",
@@ -37,9 +39,7 @@
     "lucide-react": "^0.469.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "react-router-dom": "^7.1.0",
-    "@ledgeur/mcp": "workspace:*",
-    "@ledgeur/asr": "workspace:*"
+    "react-router-dom": "^7.1.0"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.0.0",

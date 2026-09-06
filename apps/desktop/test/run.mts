@@ -11,6 +11,7 @@ import type { LocalSegment, ChatMessage } from "../src/lib/meetingsStore.ts";
 import { renameSpeakerInMeeting } from "../src/lib/renameSpeaker.ts";
 import { runModelWarmupTests } from "./modelWarmup.mts";
 import { runGranolaDesktopTests } from "./granola.mts";
+import { runSyncStoreTests, runPullMappingTests } from "./sync.mts";
 
 let pass = 0, fail = 0;
 const ok = (name: string, cond: boolean, detail = "") => {
@@ -280,6 +281,8 @@ for (const file of surfaces) {
 }
 
 runGranolaDesktopTests(ok);
+runSyncStoreTests(ok);
+runPullMappingTests(ok);
 
 await runModelWarmupTests(ok);
 

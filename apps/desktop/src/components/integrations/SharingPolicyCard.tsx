@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Users } from "lucide-react";
 import type { Session } from "@supabase/supabase-js";
-import { Card, Toggle, Spinner } from "../ui.tsx";
+import { Card, Toggle, Spinner, ErrorNote } from "../ui.tsx";
 import { getSupabase } from "../../lib/supabase.ts";
 import { hasBackend } from "../../lib/config.ts";
 
@@ -44,7 +44,7 @@ export function SharingPolicyCard({ session }: { session: Session | null }) {
         <div className="flex items-start gap-3">
           <Users className="mt-0.5 h-5 w-5 text-accent-strong" />
           <div>
-            <div className="flex items-center gap-2 text-sm font-medium text-ink-text">
+            <div className="flex items-center gap-2 text-base font-semibold text-ink-text">
               Share new meetings with the team by default {saving && <Spinner className="h-3.5 w-3.5" />}
             </div>
             <p className="mt-0.5 max-w-md text-xs leading-relaxed text-muted">
@@ -53,7 +53,7 @@ export function SharingPolicyCard({ session }: { session: Session | null }) {
               {hasBackend && session && !isAdmin && " Only an org admin can change this."}
               {hasBackend && !session && " Sign in as an admin to change this."}
             </p>
-            {error && <p className="mt-1 text-xs text-danger">{error}</p>}
+            {error && <ErrorNote className="mt-2">{error}</ErrorNote>}
           </div>
         </div>
         <Toggle on={visibility === "org"} onChange={toggle} disabled={!hasBackend || !session || !isAdmin || saving} />

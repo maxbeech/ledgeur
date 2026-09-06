@@ -8,7 +8,7 @@
 import { useState } from "react";
 import { Mail, Copy, Check, Sparkles, ExternalLink, RefreshCw } from "lucide-react";
 import { mailtoUrl, type FollowUpEmail } from "@ledgeur/core";
-import { Button, Card, Chip, ErrorNote, Kicker, Spinner } from "../ui.tsx";
+import { Badge, Button, Card, ErrorNote, Field, IconButton, Input, Label, Spinner, Textarea } from "../ui.tsx";
 import { draftFollowUp } from "../../lib/followUp.ts";
 import type { LocalMeeting } from "../../lib/meetingsStore.ts";
 
@@ -42,18 +42,17 @@ export function FollowUpPanel({ meeting }: { meeting: LocalMeeting }) {
 
   if (!draft) {
     return (
-      <Card className="p-6">
+      <Card className="p-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="min-w-0">
-            <div className="mb-1 flex items-center gap-2"><Mail className="h-4 w-4 text-accent-strong" /><Kicker>Follow-up</Kicker></div>
+            <div className="mb-1 flex items-center gap-2"><Mail className="h-4 w-4 text-brand-strong" /><Label>Follow-up email</Label></div>
             <p className="text-sm leading-relaxed text-muted">
               The recap you were going to write — decisions, owners and next steps, from this
-              meeting's own notes. Nothing is invented: an action item with no owner stays
-              without one.
+              meeting's own notes. Nothing is invented: an action item with no owner stays without one.
             </p>
           </div>
-          <Button variant="outline" onClick={() => void generate()} disabled={busy}>
-            {busy ? <Spinner /> : <Sparkles className="h-4 w-4" />} {busy ? "Drafting…" : "Draft the email"}
+          <Button tone="secondary" onClick={() => void generate()} disabled={busy}>
+            {busy ? <Spinner /> : <Sparkles className="h-4 w-4" />} {busy ? "Drafting" : "Draft the email"}
           </Button>
         </div>
         {error && <ErrorNote className="mt-4">{error}</ErrorNote>}
@@ -62,55 +61,41 @@ export function FollowUpPanel({ meeting }: { meeting: LocalMeeting }) {
   }
 
   return (
-    <Card className="p-6">
+    <Card className="p-5">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2">
-          <Mail className="h-4 w-4 text-accent-strong" />
-          <Kicker>Follow-up</Kicker>
+          <Mail className="h-4 w-4 text-brand-strong" />
+          <Label>Follow-up email</Label>
           {/* Which path produced this matters: the local assembler is plainer
               and stricter, and the reader should know which one they're editing. */}
-          <Chip tone={draft.source === "model" ? "accent" : "neutral"}>
+          <Badge tone={draft.source === "model" ? "brand" : "neutral"}>
             {draft.source === "model" ? "written on-device" : "assembled from your notes"}
-          </Chip>
+          </Badge>
         </div>
-        <div className="flex gap-2">
-          <Button size="sm" variant="ghost" onClick={() => void generate()} disabled={busy} title="Draft it again">
+        <div className="flex gap-1.5">
+          <IconButton label="Draft it again" size="sm" onClick={() => void generate()} disabled={busy}>
             {busy ? <Spinner /> : <RefreshCw className="h-4 w-4" />}
-          </Button>
-          <Button size="sm" variant="outline" onClick={() => void copy()}>
+          </IconButton>
+          <Button size="sm" tone="secondary" onClick={() => void copy()}>
             {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />} {copied ? "Copied" : "Copy"}
           </Button>
-          <Button size="sm" variant="accent" onClick={() => { window.location.href = mailtoUrl(draft, to.trim()); }}>
+          <Button size="sm" onClick={() => { window.location.href = mailtoUrl(draft, to.trim()); }}>
             <ExternalLink className="h-4 w-4" /> Open in mail
           </Button>
         </div>
       </div>
 
-      <label htmlFor="fu-to" className="ldg-kicker mb-1.5 block">To (optional)</label>
-      <input
-        id="fu-to"
-        value={to}
-        onChange={(e) => setTo(e.target.value)}
-        placeholder="team@example.com"
-        className="mb-4 w-full rounded-xl border border-hairline bg-surface px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-accent/40"
-      />
-
-      <label htmlFor="fu-subject" className="ldg-kicker mb-1.5 block">Subject</label>
-      <input
-        id="fu-subject"
-        value={draft.subject}
-        onChange={(e) => setDraft({ ...draft, subject: e.target.value })}
-        className="mb-4 w-full rounded-xl border border-hairline bg-surface px-3 py-2 text-sm text-ink-text outline-none focus:ring-2 focus:ring-accent/40"
-      />
-
-      <label htmlFor="fu-body" className="ldg-kicker mb-1.5 block">Body</label>
-      <textarea
-        id="fu-body"
-        value={draft.body}
-        onChange={(e) => setDraft({ ...draft, body: e.target.value })}
-        rows={14}
-        className="w-full resize-y rounded-xl border border-hairline bg-surface px-3 py-2.5 text-[14px] leading-relaxed text-ink-text outline-none focus:ring-2 focus:ring-accent/40"
-      />
+      <div className="space-y-4">
+        <Field label="To (optional)" htmlFor="fu-to">
+          <Input id="fu-to" value={to} onChange={(e) => setTo(e.target.value)} placeholder="team@example.com" />
+        </Field>
+        <Field label="Subject" htmlFor="fu-subject">
+          <Input id="fu-subject" value={draft.subject} onChange={(e) => setDraft({ ...draft, subject: e.target.value })} />
+        </Field>
+        <Field label="Body" htmlFor="fu-body">
+          <Textarea id="fu-body" value={draft.body} onChange={(e) => setDraft({ ...draft, body: e.target.value })} rows={14} />
+        </Field>
+      </div>
       {error && <ErrorNote className="mt-4">{error}</ErrorNote>}
     </Card>
   );

@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { Check } from "lucide-react";
 import { notFound } from "next/navigation";
 import { COMPETITORS, competitorBySlug } from "@/lib/competitors";
 import { VALUE_PROPS, SITE } from "@/lib/site";
@@ -41,23 +42,23 @@ export default async function AlternativePage({ params }: { params: Promise<{ sl
       />
 
       <Section width="narrow">
-        <nav aria-label="Breadcrumb" className="mb-8 text-[13px] text-muted">
+        <nav aria-label="Breadcrumb" className="mb-8 text-sm text-muted">
           <Link href="/alternatives" className="hover:text-ink-text">Alternatives</Link>
           <span aria-hidden> › </span>
           <span className="text-faint">{competitor.name}</span>
         </nav>
 
         <Card className="p-5">
-          <div className="ldg-kicker">How {competitor.name} works today</div>
-          <p className="mt-2 text-[14px] leading-relaxed text-muted">{competitor.model}</p>
+          <div className="ldg-label">How {competitor.name} works today</div>
+          <p className="mt-2 text-base leading-relaxed text-muted">{competitor.model}</p>
         </Card>
 
         <div className="mt-12">
           <SectionHead kicker="The differences" title={`Where Ledgeur differs from ${competitor.name}`} />
           <ul className="mt-6 space-y-3">
             {competitor.diff.map((point) => (
-              <li key={point} className="flex gap-3 text-[14.5px] leading-relaxed text-ink-text">
-                <span aria-hidden className="mt-[3px] text-accent-strong">✓</span>
+              <li key={point} className="flex gap-3 text-md leading-relaxed text-ink-text">
+                <span aria-hidden className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-mint-soft text-mint-strong"><Check className="h-3 w-3" strokeWidth={3} /></span>
                 <span>{point}</span>
               </li>
             ))}
@@ -67,8 +68,8 @@ export default async function AlternativePage({ params }: { params: Promise<{ sl
         <div className="mt-12 grid gap-3.5 sm:grid-cols-2">
           {VALUE_PROPS.map((prop) => (
             <Card key={prop.title} className="p-5">
-              <h3 className="ldg-display text-[16px] text-ink-text">{prop.title}</h3>
-              <p className="mt-1.5 text-[13.5px] leading-relaxed text-muted">{prop.body}</p>
+              <h3 className="ldg-display text-md text-ink-text">{prop.title}</h3>
+              <p className="mt-1.5 text-sm leading-relaxed text-muted">{prop.body}</p>
             </Card>
           ))}
         </div>
@@ -78,7 +79,7 @@ export default async function AlternativePage({ params }: { params: Promise<{ sl
           body="No account, no card, and no bot in your meeting. Open it and record your next call — or drag in one you already have."
         />
 
-        <p className="mt-8 text-[12px] leading-relaxed text-faint">
+        <p className="mt-8 text-xs leading-relaxed text-faint">
           Search demand (live Google Ads, US): {competitor.demand}. The comparison reflects each
           tool&rsquo;s publicly described model at the time of writing, not a judgement about its
           quality — {competitor.name} is good software that made a different architectural choice.

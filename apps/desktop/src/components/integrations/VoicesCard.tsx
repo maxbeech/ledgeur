@@ -8,7 +8,7 @@
 import { useEffect, useRef, useState } from "react";
 import { AudioLines, Mic, Square, Trash2 } from "lucide-react";
 import { resample, WHISPER_SAMPLE_RATE, concatFloat32 } from "@ledgeur/core";
-import { Button, Card, Chip, ErrorNote, Spinner } from "../ui.tsx";
+import { Button, Card, Badge, ErrorNote, Spinner } from "../ui.tsx";
 import { AudioCapture } from "@ledgeur/core/browser";
 import {
   activeEngine, listProfiles, enrollProfile, deleteProfile, type VoiceProfileMeta,
@@ -93,8 +93,8 @@ export function VoicesCard() {
         <AudioLines className="mt-0.5 h-5 w-5 shrink-0 text-accent-strong" />
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
-            <span className="text-sm font-medium text-ink-text">Voice profiles</span>
-            <Chip tone="accent">speaker ID</Chip>
+            <span className="text-base font-semibold text-ink-text">Voice profiles</span>
+            <Badge tone="accent">speaker ID</Badge>
           </div>
           <p className="mt-0.5 max-w-xl text-xs leading-relaxed text-muted">
             Enrol a voice with ~10 seconds of speech and transcripts name that person — with a confidence figure — instead of “Speaker 2”. Voice prints never leave this device.
@@ -113,18 +113,18 @@ export function VoicesCard() {
                   className="w-56 rounded-lg border border-hairline bg-surface px-3 py-1.5 text-xs outline-none focus:ring-2 focus:ring-accent/40"
                 />
                 {recording ? (
-                  <Button size="sm" variant="danger" onClick={() => void finishEnrol()}>
+                  <Button size="sm" tone="danger" onClick={() => void finishEnrol()}>
                     <Square className="h-3.5 w-3.5" fill="currentColor" />
                     Stop · {Math.max(0, TARGET_SECONDS - Math.floor(seconds))}s
                   </Button>
                 ) : (
-                  <Button size="sm" variant="outline" onClick={() => void startEnrol()} disabled={!name.trim() || busy}>
+                  <Button size="sm" tone="secondary" onClick={() => void startEnrol()} disabled={!name.trim() || busy}>
                     {busy ? <Spinner /> : <Mic className="h-3.5 w-3.5" />} {busy ? "Enrolling…" : "Record voice"}
                   </Button>
                 )}
               </div>
               {recording && (
-                <div className="mt-2 flex items-center gap-2 font-mono text-[10.5px] text-danger">
+                <div className="mt-2 flex items-center gap-2 font-mono text-2xs text-danger">
                   <span className="ldg-pulse h-1.5 w-1.5 rounded-full bg-danger" /> Speak naturally — reading a sentence or two works well.
                 </div>
               )}
@@ -133,7 +133,7 @@ export function VoicesCard() {
                   different models and therefore different, incompatible voice
                   prints. Somebody whose profiles "disappeared" after rebuilding
                   with the native engine deserves to know why. */}
-              <p className="mt-2 text-[11px] text-faint">
+              <p className="mt-2 text-2xs text-faint">
                 {engine === "native"
                   ? "Recognised by the native engine. These prints are stored on this machine and are separate from the ones the webview engine makes."
                   : "Recognised by the speaker models in the webview. These prints are stored in this app's local storage; a build with the native engine uses its own, and will not see them."}
@@ -144,8 +144,8 @@ export function VoicesCard() {
                   {(profiles ?? []).map((p) => (
                     <li key={p.id} className="flex items-center justify-between gap-3 py-2">
                       <div className="min-w-0">
-                        <div className="truncate text-[13px] font-medium text-ink-text">{p.name}</div>
-                        <div className="font-mono text-[10px] text-faint">
+                        <div className="truncate text-sm font-medium text-ink-text">{p.name}</div>
+                        <div className="font-mono text-2xs text-faint">
                           enrolled {p.created_at ? new Date(p.created_at * 1000).toLocaleDateString() : "—"}
                         </div>
                       </div>

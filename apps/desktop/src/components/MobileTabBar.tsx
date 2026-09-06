@@ -1,14 +1,16 @@
-// Bottom tab bar for phone-sized windows (iOS/Android shells). The Record tab
-// sits centre in a raised circle; while recording it pulses with the elapsed time.
+// The phone's bottom tabs. Five, evenly spaced, icon over label, sitting
+// above the home indicator. Record is the middle one and carries the
+// recording dot while a take is live.
 import { NavLink } from "react-router-dom";
-import { House, CircleDot, Library, Sparkles, Settings2 } from "lucide-react";
-import { cn, formatElapsed } from "@ledgeur/ui";
+import { House, Library, Mic, Sparkles, Settings2 } from "lucide-react";
+import { cn } from "@ledgeur/ui";
 import { useRecorderCtx } from "../lib/useRecorderCtx.ts";
+import { RecordDot } from "./RecordDot.tsx";
 
-const SIDE = [
+const TABS = [
   { to: "/", label: "Home", icon: House, end: true },
   { to: "/meetings", label: "Library", icon: Library },
-  null, // centre slot: Record
+  { to: "/record", label: "Record", icon: Mic },
   { to: "/ask", label: "Ask", icon: Sparkles },
   { to: "/integrations", label: "Settings", icon: Settings2 },
 ] as const;
@@ -19,43 +21,32 @@ export function MobileTabBar() {
 
   return (
     <nav
-      aria-label="Mobile"
-      className="fixed inset-x-0 bottom-0 z-40 flex items-end justify-around border-t border-hairline bg-surface/95 px-2 pb-[max(env(safe-area-inset-bottom),8px)] pt-2 backdrop-blur md:hidden"
+      aria-label="Tabs"
+      className="ldg-safe-bottom flex shrink-0 items-stretch justify-around border-t border-hairline bg-surface px-1 pt-1.5"
     >
-      {SIDE.map((item) =>
-        item ? (
-          <NavLink
-            key={item.to}
-            to={item.to}
-            end={"end" in item ? item.end : false}
-            className={({ isActive }) =>
-              cn(
-                "flex w-16 flex-col items-center gap-0.5 rounded-lg py-1 text-[10px] font-medium transition-colors",
-                isActive ? "text-ink" : "text-faint hover:text-muted",
-              )
-            }
-          >
-            <item.icon className="h-[19px] w-[19px]" strokeWidth={2} />
-            {item.label}
-          </NavLink>
-        ) : (
-          <NavLink
-            key="record"
-            to="/record"
-            aria-label="Record"
-            className="relative -top-3 flex h-14 w-14 flex-col items-center justify-center rounded-full bg-ink text-on-ink shadow-[var(--shadow-float)] transition-transform active:scale-95"
-          >
-            {recording ? (
-              <>
-                <span className="ldg-pulse h-2.5 w-2.5 rounded-full bg-danger-on-ink" />
-                <span className="mt-0.5 font-mono text-[9px] text-on-ink-muted">{formatElapsed(state.elapsed)}</span>
-              </>
-            ) : (
-              <CircleDot className="h-6 w-6 text-danger-on-ink" strokeWidth={2} />
-            )}
-          </NavLink>
-        ),
-      )}
+      {TABS.map((item) => (
+        <NavLink
+          key={item.to}
+          to={item.to}
+          end={"end" in item ? item.end : false}
+          className={({ isActive }) =>
+            cn(
+              "relative flex w-16 flex-col items-center gap-1 rounded-lg pb-2 pt-1 text-2xs font-semibold transition-colors",
+              isActive ? "text-ink-text" : "text-faint active:text-muted",
+            )
+          }
+        >
+          {({ isActive }) => (
+            <>
+              <span className={cn("flex h-7 w-11 items-center justify-center rounded-full transition-colors", isActive && "bg-surface-sunken")}>
+                <item.icon className="h-[20px] w-[20px]" strokeWidth={2} />
+              </span>
+              {item.label}
+              {item.to === "/record" && recording && <RecordDot live className="absolute right-3 top-1 h-2 w-2" />}
+            </>
+          )}
+        </NavLink>
+      ))}
     </nav>
   );
 }

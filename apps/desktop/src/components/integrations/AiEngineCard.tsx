@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Cpu, Check, Download, AlertCircle, MessageSquare } from "lucide-react";
-import { Button, Card, Chip, Spinner } from "../ui.tsx";
+import { Button, Card, Badge, Spinner, ErrorNote } from "../ui.tsx";
 import { isTauri } from "../../lib/runtime.ts";
 import { aiStatus, downloadModels, type NativeAiStatus } from "../../lib/nativeAI.ts";
 import { llmStatus, downloadLlmModel, type LlmStatus } from "../../lib/llm.ts";
@@ -56,10 +56,10 @@ export function AiEngineCard() {
         <Cpu className="mt-0.5 h-5 w-5 text-accent-strong" />
         <div className="flex-1">
           <div className="flex items-center gap-2">
-            <span className="text-sm font-medium text-ink-text">On-device AI engine</span>
+            <span className="text-base font-semibold text-ink-text">On-device AI engine</span>
             {status && status !== "loading" && (status.compiled
-              ? <Chip tone="accent">Native</Chip>
-              : <Chip>Webview (transformers.js)</Chip>)}
+              ? <Badge tone="accent">Native</Badge>
+              : <Badge>Webview (transformers.js)</Badge>)}
           </div>
           <p className="mt-0.5 max-w-xl text-xs leading-relaxed text-muted">
             Real-time transcription (whisper.cpp) and speaker diarization with confidence (sherpa-onnx) run fully on your device.
@@ -96,7 +96,7 @@ export function AiEngineCard() {
                       <div className="h-1.5 w-full overflow-hidden rounded-full bg-surface-muted">
                         <div className="h-full rounded-full bg-accent-strong transition-all" style={{ width: `${Math.max(3, llm.progress)}%` }} />
                       </div>
-                      <div className="font-mono text-[10.5px] text-muted">Downloading… {Math.round(llm.progress)}%</div>
+                      <div className="font-mono text-2xs text-muted">Downloading… {Math.round(llm.progress)}%</div>
                     </div>
                   ) : (
                     <div className="pt-2">
@@ -114,7 +114,7 @@ export function AiEngineCard() {
               This build was compiled without the native engine. Rebuild with <code className="mx-1">--features native-ai</code> (see docs/NATIVE_AI.md); the webview model is used meanwhile.
             </div>
           )}
-          {err && <div className="mt-2 text-xs text-danger">{err}</div>}
+          {err && <ErrorNote className="mt-3">{err}</ErrorNote>}
         </div>
       </div>
     </Card>

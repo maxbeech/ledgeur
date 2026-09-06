@@ -29,8 +29,8 @@ export default function Security() {
         <Card className="mt-7 divide-y divide-hairline">
           {DATA_FACTS.map((fact) => (
             <div key={fact.claim} className="px-5 py-4">
-              <p className="text-[14.5px] font-medium text-ink-text">{fact.claim}</p>
-              <p className="mt-1.5 text-[13.5px] leading-relaxed text-muted">{fact.because}</p>
+              <p className="text-md font-medium text-ink-text">{fact.claim}</p>
+              <p className="mt-1.5 text-sm leading-relaxed text-muted">{fact.because}</p>
             </div>
           ))}
         </Card>

@@ -1,5 +1,6 @@
 import { Component, type ReactNode } from "react";
 import { AlertTriangle } from "lucide-react";
+import { Button } from "@ledgeur/ui/components";
 import { createLogger } from "../../lib/logger.ts";
 
 const log = createLogger("app-error-boundary");
@@ -24,15 +25,12 @@ export class AppErrorBoundary extends Component<{ children: ReactNode }, State> 
     if (!this.state.error) return this.props.children;
     return (
       <div className="flex h-screen w-screen flex-col items-center justify-center gap-3 bg-surface p-6 text-center">
-        <AlertTriangle className="h-8 w-8 text-muted" strokeWidth={2} />
-        <p className="font-mono text-sm text-ink">Something went wrong.</p>
-        <p className="max-w-md text-xs text-muted">{this.state.error.message}</p>
-        <button
-          className="mt-2 rounded-lg border border-hairline bg-surface-muted/40 px-3 py-1.5 font-mono text-[11px] uppercase tracking-[0.1em] text-ink hover:bg-surface-muted"
-          onClick={() => window.location.reload()}
-        >
-          Reload
-        </button>
+        <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-danger-soft text-danger">
+          <AlertTriangle className="h-5 w-5" strokeWidth={2} />
+        </span>
+        <p className="text-lg font-semibold text-ink-text">Something went wrong.</p>
+        <p className="max-w-md text-sm text-muted">{this.state.error.message}</p>
+        <Button tone="secondary" className="mt-2" onClick={() => window.location.reload()}>Reload</Button>
       </div>
     );
   }

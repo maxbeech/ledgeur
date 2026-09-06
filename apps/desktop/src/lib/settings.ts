@@ -55,6 +55,8 @@ export interface Settings {
   senderName: string;
   /** Follow-up email register. */
   followUpTone: "warm" | "neutral" | "brief";
+  /** Light, dark, or follow the system (the default — see lib/theme.ts). */
+  theme: "system" | "light" | "dark";
 }
 
 const DEFAULTS: Settings = {
@@ -70,6 +72,7 @@ const DEFAULTS: Settings = {
   webhookIncludeTranscript: false,
   senderName: "",
   followUpTone: "neutral",
+  theme: "system",
 };
 
 const KEY = "ledgeur.settings";
@@ -154,6 +157,9 @@ function subscribe(cb: () => void): () => void {
   listeners.add(cb);
   return () => listeners.delete(cb);
 }
+
+/** Subscribe outside React (the theme watcher). */
+export const subscribeSettings = subscribe;
 
 /** Subscribe a component to the whole settings object. */
 export function useSettings(): Settings {

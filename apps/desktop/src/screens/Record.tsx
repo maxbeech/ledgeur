@@ -1,28 +1,33 @@
-// Record: pre-flight composer → live meeting (LiveMeeting) → saved confirmation.
-// Recorder state lives at app level, so an in-flight recording is picked up
-// again whenever the user returns to this screen.
+// Record: pre-flight → the live room (LiveMeeting) → saved. Recorder state
+// lives at app level, so an in-flight recording is picked up again whenever
+// the person returns to this screen.
 import { useEffect, useRef, useState } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
-import { CircleDot, Mic, MonitorSpeaker, Info, CheckCircle2, Upload } from "lucide-react";
+import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
+import { Mic, MonitorSpeaker, CheckCircle2, Upload, Info } from "lucide-react";
 import { LANG_OPTIONS, SPOKEN_LANGUAGES } from "@ledgeur/asr";
+import { cn } from "@ledgeur/ui";
 import { Page, PageHeader } from "../components/PageHeader.tsx";
-import { Button, Card, ErrorNote } from "../components/ui.tsx";
+import { Button, Card, ErrorNote, Field, ProgressBar, Select } from "../components/ui.tsx";
 import { LiveMeeting } from "../components/recorder/LiveMeeting.tsx";
+import { RecordDot } from "../components/RecordDot.tsx";
 import { useRecorderCtx } from "../lib/useRecorderCtx.ts";
 import { finalizeMeeting } from "../lib/afterMeeting.ts";
 import { useFileImport, IMPORT_ACCEPT } from "../lib/useFileImport.ts";
 import { isSystemAudioTapAvailable } from "../lib/systemAudioTap.ts";
 import { useSetting, setSetting, hasChosenSystemAudio } from "../lib/settings.ts";
 import { usePickableTemplates, templateFor } from "../lib/recipes.ts";
+import { useDevice } from "../lib/platform.ts";
 
 export function Record() {
   const nav = useNavigate();
   const [params] = useSearchParams();
+  const { hash } = useLocation();
+  const { phone } = useDevice();
   const { state, start, stop, reset, title, setTitle } = useRecorderCtx();
   const [mic, setMic] = useState(true);
-  // Both of these are persisted preferences rather than component state: the
-  // model warmed at app launch has to be the one the next recording asks for,
-  // or "warming up" achieves nothing and the recording pays a full reload.
+  // Persisted preferences rather than component state: the model warmed at
+  // app launch has to be the one the next recording asks for, or "warming up"
+  // achieves nothing and the recording pays a full reload.
   const system = useSetting("captureSystemAudio");
   const lang = useSetting("transcriptionLang");
   const setSystem = (v: boolean) => setSetting("captureSystemAudio", v);
@@ -31,21 +36,22 @@ export function Record() {
   const setTemplate = (v: string) => setSetting("noteTemplate", v);
   // With the native Core Audio tap (macOS 14.2+) there is no picker, no video
   // and no screen-recording indicator — just a one-time OS permission — so
-  // capturing the other side of the call is the sensible default for a meeting
-  // recorder. Where the tap isn't available the only route is getDisplayMedia's
-  // screen-share picker, which is far too heavy to turn on for someone.
+  // capturing the other side of the call is the sensible default. Where the
+  // tap isn't available the only route is the screen-share picker, which is
+  // far too heavy to turn on for someone. A phone has neither: it hears the
+  // room through its microphone.
   const [systemTapAvailable, setSystemTapAvailable] = useState(false);
   useEffect(() => {
+    if (phone) return;
     void isSystemAudioTapAvailable().then((available) => {
       setSystemTapAvailable(available);
       if (available && !hasChosenSystemAudio()) setSetting("captureSystemAudio", true, "default");
     });
-  }, []);
-  // Built-ins plus whatever the user has written (see recipes.ts) — one list,
-  // so a recipe is picked exactly the way a built-in is.
+  }, [phone]);
   const templates = usePickableTemplates();
   const importer = useFileImport();
   const fileInput = useRef<HTMLInputElement>(null);
+  const importRef = useRef<HTMLDivElement>(null);
   const [dragging, setDragging] = useState(false);
 
   // A calendar prompt can pre-fill the title (?title=…), but never mid-take.
@@ -54,6 +60,11 @@ export function Record() {
     if (paramTitle && state.status === "idle") setTitle(paramTitle);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [paramTitle]);
+
+  // Home's "Import a recording" lands here with #import.
+  useEffect(() => {
+    if (hash === "#import") importRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+  }, [hash]);
 
   if (state.status === "recording" || state.status === "processing") {
     return (
@@ -66,51 +77,56 @@ export function Record() {
   if (state.status === "complete") {
     return (
       <Page>
-        <Card className="ldg-rise mx-auto mt-10 flex max-w-md flex-col items-center gap-4 p-10 text-center">
-          <CheckCircle2 className="h-10 w-10 text-accent-strong" />
+        <Card raised className="mx-auto mt-10 flex max-w-md flex-col items-center gap-4 p-8 text-center">
+          <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-accent-soft text-accent-strong">
+            <CheckCircle2 className="h-6 w-6" />
+          </span>
           <div>
-            <div className="ldg-display text-[20px] text-ink-text">The record is written</div>
-            <div className="mt-1 text-sm text-muted">Summary, decisions and action items were generated on-device{state.notes.trim() ? " — with your notes woven in" : ""}.</div>
+            <div className="text-xl font-semibold text-ink-text">Saved</div>
+            <p className="mt-1 text-sm text-muted">Summary, decisions and action items were written on this device{state.notes.trim() ? ", with your notes woven in" : ""}.</p>
           </div>
-          <div className="flex gap-3">
-            <Button onClick={() => state.meetingId && nav(`/meetings/${state.meetingId}`)}>Open meeting</Button>
-            <Button variant="outline" onClick={() => { reset(); setTitle(""); }}>New recording</Button>
+          <div className="flex gap-2">
+            <Button onClick={() => state.meetingId && nav(`/meetings/${state.meetingId}`)}>Open the meeting</Button>
+            <Button tone="secondary" onClick={() => { reset(); setTitle(""); }}>Record another</Button>
           </div>
         </Card>
       </Page>
     );
   }
 
+  const usesSystem = !phone && system;
+
   return (
     <Page>
       <PageHeader
-        kicker="New entry"
-        title="Record a meeting"
-        subtitle="Transcribed on your device as it happens. No bot joins the call; nothing leaves the machine."
+        title="Record"
+        subtitle="Transcribed on this device as it happens. No bot joins the call; nothing leaves the machine."
       />
-      <div className="ldg-stagger mx-auto max-w-2xl">
-        <Card className="p-6 sm:p-8">
-          <label htmlFor="rec-title" className="ldg-kicker mb-2 block">Title</label>
+      <div className="mx-auto max-w-2xl space-y-4">
+        <Card raised className="p-5 sm:p-7">
           <input
             id="rec-title"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
-            placeholder="e.g. Weekly product sync"
-            className="ldg-display mb-7 w-full border-b border-hairline bg-transparent pb-2 text-[22px] text-ink-text outline-none transition-colors placeholder:text-faint/60 focus:border-ink/40"
+            placeholder="What is this meeting?"
+            aria-label="Meeting title"
+            className="ldg-display mb-6 w-full bg-transparent text-2xl text-ink-text outline-none placeholder:text-faint"
           />
 
-          <div className="mb-6 grid gap-3 sm:grid-cols-2">
-            <SourceToggle icon={<Mic className="h-4 w-4" />} label="Microphone" hint="Your voice" on={mic} onChange={setMic} />
-            <SourceToggle
-              icon={<MonitorSpeaker className="h-4 w-4" />}
-              label="System audio"
-              hint={systemTapAvailable ? "Everyone else on the call" : "Needs screen-recording permission"}
-              on={system}
-              onChange={setSystem}
-            />
+          <div className={cn("mb-5 grid gap-3", !phone && "sm:grid-cols-2")}>
+            <SourceToggle icon={<Mic className="h-4 w-4" />} label="Microphone" hint={phone ? "The room, through this phone" : "Your voice"} on={mic} onChange={setMic} />
+            {!phone && (
+              <SourceToggle
+                icon={<MonitorSpeaker className="h-4 w-4" />}
+                label="System audio"
+                hint={systemTapAvailable ? "Everyone else on the call" : "Needs screen-recording permission"}
+                on={system}
+                onChange={setSystem}
+              />
+            )}
           </div>
-          {system && (
-            <p className="-mt-4 mb-6 text-[11.5px] leading-relaxed text-faint">
+          {usesSystem && (
+            <p className="-mt-3 mb-5 text-xs leading-relaxed text-faint">
               {systemTapAvailable
                 ? "Captured straight from Core Audio: a one-time audio-only permission the first time, then no picker, " +
                   "no screen sharing and no recording indicator. Your screen is never read."
@@ -119,19 +135,11 @@ export function Record() {
             </p>
           )}
 
-          <div className="mb-7 grid gap-4 sm:grid-cols-2">
-            <div>
-              <label htmlFor="rec-lang" className="ldg-kicker mb-2 block">Language</label>
-              {/* Grouped rather than one flat list of thirty-odd: English and
-                  "detect it" are what almost everyone wants, and burying them
-                  in an alphabetical run of languages would be worse than not
-                  offering the languages at all. */}
-              <select
-                id="rec-lang"
-                value={lang}
-                onChange={(e) => setLang(e.target.value)}
-                className="w-full rounded-xl border border-hairline bg-surface px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-accent/40"
-              >
+          <div className="mb-6 grid gap-4 sm:grid-cols-2">
+            {/* Grouped rather than one flat list of thirty-odd: English and
+                "detect it" are what almost everyone wants. */}
+            <Field label="Language" htmlFor="rec-lang" hint={langHint(lang)}>
+              <Select id="rec-lang" value={lang} onChange={(e) => setLang(e.target.value)}>
                 <optgroup label="English">
                   {LANG_OPTIONS.filter((o) => o.value.startsWith("en")).map((o) => (
                     <option key={o.value} value={o.value}>{o.label}</option>
@@ -147,49 +155,34 @@ export function Record() {
                     </option>
                   ))}
                 </optgroup>
-              </select>
-              <p className="mt-1.5 text-[11.5px] leading-relaxed text-faint">
-                {langHint(lang)}
-              </p>
-            </div>
-            {/* What the notes should pay attention to. A sales call and a 1:1
-                produce very different notes from the same transcript, and which
-                one you wanted cannot be recovered afterwards. */}
-            <div>
-              <label htmlFor="rec-template" className="ldg-kicker mb-2 block">Notes style</label>
-              <select
-                id="rec-template"
-                value={template}
-                onChange={(e) => setTemplate(e.target.value)}
-                className="w-full rounded-xl border border-hairline bg-surface px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-accent/40"
-              >
-                {templates.map((t) => (
-                  <option key={t.id} value={t.id}>{t.name}</option>
-                ))}
-              </select>
-              <p className="mt-1.5 text-[11.5px] leading-relaxed text-faint">
-                {templateFor(template).description}
-              </p>
-            </div>
+              </Select>
+            </Field>
+            {/* A sales call and a 1:1 produce very different notes from the
+                same transcript, and which one you wanted cannot be recovered
+                afterwards. */}
+            <Field label="Notes style" htmlFor="rec-template" hint={templateFor(template).description}>
+              <Select id="rec-template" value={template} onChange={(e) => setTemplate(e.target.value)}>
+                {templates.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+              </Select>
+            </Field>
           </div>
 
-          <Button variant="accent" size="lg" onClick={() => void start({ mic, system, lang, template })} disabled={!mic && !system} className="w-full">
-            <CircleDot className="h-4 w-4" /> Start recording
+          <Button size="lg" onClick={() => void start({ mic, system: usesSystem, lang, template })} disabled={!mic && !usesSystem} className="w-full">
+            <RecordDot /> Start recording
           </Button>
 
           {state.error && <ErrorNote className="mt-4">{state.error}</ErrorNote>}
 
-          <div className="mt-6 flex items-start gap-2 text-[12px] leading-relaxed text-faint">
+          <div className="mt-5 flex items-start gap-2 text-xs leading-relaxed text-faint">
             <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-            Who-said-what is worked out on this device either way — by the native engine when it is
-            built, and otherwise by the speaker models in the webview. Name a voice once and it is
-            recognised in every meeting after that.
+            Who said what is worked out on this device. Name a voice once and it is recognised in every meeting after that.
           </div>
         </Card>
+
         {/* Importing a recording you already have. A dropped file goes through
             the same pipeline as a live meeting and lands in the same library. */}
         <div
-          className="mt-4"
+          ref={importRef}
           onDragOver={(e) => {
             if (!Array.from(e.dataTransfer.types).includes("Files")) return;
             e.preventDefault();
@@ -203,58 +196,53 @@ export function Record() {
             if (file) void importer.importFile(file, lang).then((id) => { if (id) nav(`/meetings/${id}`); });
           }}
         >
-        <Card className={`p-5 transition-colors ${dragging ? "border-accent bg-accent-soft/40" : ""}`}>
-          <input
-            ref={fileInput}
-            type="file"
-            accept={IMPORT_ACCEPT}
-            className="sr-only"
-            onChange={(e) => {
-              const file = e.target.files?.[0];
-              e.target.value = "";
-              if (file) void importer.importFile(file, lang).then((id) => { if (id) nav(`/meetings/${id}`); });
-            }}
-          />
+          <Card className={cn("border-dashed p-5 transition-colors", dragging ? "border-brand bg-brand-soft/40" : "border-hairline-strong")}>
+            <input
+              ref={fileInput}
+              type="file"
+              accept={IMPORT_ACCEPT}
+              className="sr-only"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                e.target.value = "";
+                if (file) void importer.importFile(file, lang).then((id) => { if (id) nav(`/meetings/${id}`); });
+              }}
+            />
 
-          {importer.state.busy ? (
-            <>
-              <div className="flex items-center gap-3">
-                <span className="ldg-pulse h-2 w-2 shrink-0 rounded-full bg-glow" />
-                <div className="min-w-0">
-                  <div className="truncate text-sm text-ink-text">{importer.state.name}</div>
-                  <div className="text-xs text-muted">{importer.state.step}</div>
+            {importer.state.busy ? (
+              <>
+                <div className="flex items-center gap-3">
+                  <span className="ldg-pulse h-2 w-2 shrink-0 rounded-full bg-brand" />
+                  <div className="min-w-0">
+                    <div className="truncate text-base font-medium text-ink-text">{importer.state.name}</div>
+                    <div className="text-xs text-muted">{importer.state.step}</div>
+                  </div>
                 </div>
-              </div>
-              {importer.state.progress > 0 && importer.state.progress < 100 && (
-                <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-surface-sunken">
-                  <div className="h-full bg-accent transition-[width]" style={{ width: `${importer.state.progress}%` }} />
+                {importer.state.progress > 0 && importer.state.progress < 100 && (
+                  <ProgressBar value={importer.state.progress} className="mt-3" />
+                )}
+              </>
+            ) : (
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <div className="text-base font-semibold text-ink-text">Already have a recording?</div>
+                  <p className="mt-1 text-sm leading-relaxed text-muted">
+                    {phone ? "Choose a file — a voice memo, a call export, an interview." : "Drop it here — a voice memo, a Zoom export, an old interview."} It is transcribed and its
+                    speakers separated exactly like a live meeting.
+                  </p>
                 </div>
-              )}
-            </>
-          ) : (
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <div className="ldg-kicker">Already have a recording?</div>
-                <p className="mt-1.5 text-xs leading-relaxed text-muted">
-                  Drop it here — a voice memo, a Zoom export, an old interview. It is transcribed and
-                  its speakers separated exactly like a live meeting.
-                </p>
+                <Button tone="secondary" onClick={() => fileInput.current?.click()}>
+                  <Upload className="h-4 w-4" /> Choose a file
+                </Button>
               </div>
-              <Button variant="outline" onClick={() => fileInput.current?.click()}>
-                <Upload className="h-4 w-4" /> Choose a file
-              </Button>
-            </div>
-          )}
+            )}
 
-          {importer.state.error && (
-            <ErrorNote className="mt-4">
-              {importer.state.error}
-              <button onClick={importer.dismiss} className="mt-2 block text-xs font-semibold underline">
-                Dismiss
-              </button>
-            </ErrorNote>
-          )}
-        </Card>
+            {importer.state.error && (
+              <ErrorNote className="mt-4" onRetry={<Button size="sm" tone="secondary" onClick={importer.dismiss}>Dismiss</Button>}>
+                {importer.state.error}
+              </ErrorNote>
+            )}
+          </Card>
         </div>
       </div>
     </Page>
@@ -278,7 +266,7 @@ function langHint(lang: string): string {
       : `The multilingual model, told to expect ${spoken.label}. Workable, but check names and numbers — this is one of the harder languages for it.`;
   }
   if (lang === "multi") {
-    return "The model works out the language from the first half-minute. If you know it, pick it below — a meeting that starts in one language and continues in another is the case this gets wrong.";
+    return "The model works out the language from the first half-minute. If you know it, pick it — a meeting that starts in one language and continues in another is the case this gets wrong.";
   }
   return LANG_OPTIONS.find((o) => o.value === lang)?.hint ?? "";
 }
@@ -289,11 +277,14 @@ function SourceToggle({ icon, label, hint, on, onChange }: { icon: React.ReactNo
       type="button"
       onClick={() => onChange(!on)}
       aria-pressed={on}
-      className={`flex items-center gap-3 rounded-xl border px-4 py-3 text-left transition-all duration-150 ${on ? "border-accent/50 bg-accent-soft/50" : "border-hairline bg-surface hover:bg-surface-muted/60"}`}
+      className={cn(
+        "flex items-center gap-3 rounded-xl border px-4 py-3 text-left transition-colors duration-150",
+        on ? "border-brand bg-brand-soft/50" : "border-hairline-strong bg-surface hover:bg-surface-muted",
+      )}
     >
-      <span className={`flex h-9 w-9 items-center justify-center rounded-lg transition-colors ${on ? "bg-accent-strong text-white" : "bg-surface-muted text-muted"}`}>{icon}</span>
+      <span className={cn("flex h-9 w-9 items-center justify-center rounded-lg transition-colors", on ? "bg-brand text-white" : "bg-surface-muted text-muted")}>{icon}</span>
       <span>
-        <span className="block text-sm font-medium text-ink-text">{label}</span>
+        <span className="block text-base font-semibold text-ink-text">{label}</span>
         <span className="block text-xs text-muted">{hint}</span>
       </span>
     </button>

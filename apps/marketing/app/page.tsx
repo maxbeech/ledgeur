@@ -1,214 +1,194 @@
 import Link from "next/link";
-import { Badge, Card, Display, Kicker, buttonClass } from "@ledgeur/ui/components";
-import { SITE, VALUE_PROPS, COMPARISON, TEAM_PRICE_USD } from "@/lib/site";
+import { ShieldCheck, Fingerprint, UserX, Infinity as InfinityIcon, type LucideIcon } from "lucide-react";
+import { Badge, Card, Display, Label, buttonClass } from "@ledgeur/ui/components";
+import { cn } from "@ledgeur/ui";
+import { SITE, VALUE_PROPS, TEAM_PRICE_USD } from "@/lib/site";
 import { COMPETITORS } from "@/lib/competitors";
 import { USE_CASES } from "@/lib/usecases";
 import { PLATFORMS } from "@/lib/platforms";
 import { Section, SectionHead } from "@/components/site/Chrome";
 import { TranscriptPreview } from "@/components/site/TranscriptPreview";
+import { ComparisonTable } from "@/components/site/ComparisonTable";
 
 // Fully static. Nothing on this page is personalised or time-sensitive, so it
 // is prerendered once at build and served from the edge cache — the cheapest
 // and fastest thing Vercel can do with it.
 export const dynamic = "force-static";
 
+/** Each value prop gets its own pastel family — the four are different
+ *  kinds of promise, and the colour says so before the words do. */
+const PROP_STYLE: readonly { icon: LucideIcon; tile: string }[] = [
+  { icon: ShieldCheck, tile: "bg-mint-soft text-mint-strong" },
+  { icon: Fingerprint, tile: "bg-sky-soft text-sky-strong" },
+  { icon: UserX, tile: "bg-rose-soft text-rose-strong" },
+  { icon: InfinityIcon, tile: "bg-butter-soft text-butter-strong" },
+];
+
+const STEPS = [
+  ["Capture", "Share the meeting tab with its audio, or just your microphone. Or drag in a recording you already have — a voice memo, a Zoom export, an old interview. It is treated exactly like a live meeting."],
+  ["Transcribe on your device", "Whisper runs in the browser through WebGPU, or the CPU if there is no WebGPU. The first run downloads the model once; after that it is cached and works with the wifi off."],
+  ["Read it, and act", "Speakers separated, timestamps on every line, a summary with the decisions and action items pulled out. Edit it, export it, search it later."],
+] as const;
+
 export default function Home() {
   return (
     <main>
       {/* ------------------------------------------------------------ hero */}
-      <section className="ldg-wash border-b border-hairline">
-        <div className="mx-auto grid max-w-6xl gap-14 px-5 pb-16 pt-16 lg:grid-cols-[1.05fr_1fr] lg:items-center lg:gap-12 lg:pb-24 lg:pt-24">
-          <div className="ldg-stagger">
-            <Badge tone="accent">Open source · MIT · nothing is uploaded</Badge>
-            <Display level={1} className="mt-5 text-[38px] leading-[1.06] sm:text-[52px]">
-              Every meeting, on the record.
-              <br />
-              <span className="text-accent-strong">None of it on our servers.</span>
-            </Display>
-            <p className="mt-5 max-w-xl text-[16.5px] leading-relaxed text-muted">
-              Ledgeur transcribes your meetings and works out who said what — the speech model and
-              the speaker model both run inside your browser. Name a voice once and it is recognised
-              in every meeting after that. No bot joins the call. No minutes to buy.
-            </p>
-            <div className="mt-8 flex flex-wrap items-center gap-3">
-              <Link href="/app" className={buttonClass("primary", "lg")}>Open Ledgeur — free</Link>
-              <a href={SITE.repo} target="_blank" rel="noreferrer" className={buttonClass("secondary", "lg")}>
-                Read the source
-              </a>
-            </div>
-            <p className="mt-4 text-[13px] text-faint">
-              No sign-up needed to record. An account only adds sync and agent access.
-            </p>
-          </div>
-
-          <TranscriptPreview className="ldg-rise" />
+      <section className="mx-auto max-w-6xl px-5 pb-8 pt-16 text-center sm:pt-24">
+        <Badge tone="brand">Open source · nothing is uploaded</Badge>
+        <Display level={1} className="mx-auto mt-6 max-w-4xl text-4xl leading-[1.05] sm:text-6xl">
+          Every meeting, on the record. None of it on our servers.
+        </Display>
+        <p className="mx-auto mt-6 max-w-2xl text-lg leading-relaxed text-muted">
+          Ledgeur transcribes your meetings and works out who said what — the speech model and
+          the speaker model both run on your machine. Name a voice once and it is recognised
+          in every meeting after that. No bot joins the call. No minutes to buy.
+        </p>
+        <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
+          <Link href="/app" className={buttonClass("primary", "lg", "rounded-full px-7")}>Open Ledgeur — free</Link>
+          <Link href="/download" className={buttonClass("secondary", "lg", "rounded-full px-7")}>Download for Mac</Link>
         </div>
+        <p className="mt-4 text-sm text-faint">
+          No sign-up needed to record. An account only adds sync and agent access.
+        </p>
+        <TranscriptPreview className="ldg-rise mx-auto mt-14 max-w-4xl text-left" />
       </section>
 
       {/* ------------------------------------------------------ value props */}
       <Section>
         <SectionHead
-          kicker="Why it is built this way"
           title="A record you own, not a subscription to your own conversations."
           lede="Every other AI notetaker is a pipe to somebody else's database. That is a design choice, and it is the one thing Ledgeur does differently."
         />
         <div className="mt-10 grid gap-4 sm:grid-cols-2">
-          {VALUE_PROPS.map((v) => (
-            <Card key={v.title} raised className="p-6">
-              <h3 className="ldg-display text-[19px] text-ink-text">{v.title}</h3>
-              <p className="mt-2.5 text-[14.5px] leading-relaxed text-muted">{v.body}</p>
-            </Card>
-          ))}
+          {VALUE_PROPS.map((v, i) => {
+            const { icon: Icon, tile } = PROP_STYLE[i % PROP_STYLE.length];
+            return (
+              <Card key={v.title} className="p-6">
+                <span className={cn("flex h-11 w-11 items-center justify-center rounded-xl", tile)}>
+                  <Icon className="h-5 w-5" aria-hidden />
+                </span>
+                <h3 className="mt-5 text-xl font-semibold tracking-[-0.01em] text-ink-text">{v.title}</h3>
+                <p className="mt-2 text-base leading-relaxed text-muted">{v.body}</p>
+              </Card>
+            );
+          })}
         </div>
       </Section>
 
       {/* --------------------------------------------------------- speakers */}
-      <section className="border-y border-hairline bg-surface">
-        <Section className="!py-16 sm:!py-20">
-          <div className="grid gap-12 lg:grid-cols-2 lg:items-center">
-            <div>
-              <Kicker>The part nobody else does on-device</Kicker>
-              <Display level={2} className="mt-3 text-[26px] leading-tight sm:text-[34px]">
-                It learns the voices in the room.
-              </Display>
-              <div className="mt-5 space-y-4 text-[15px] leading-relaxed text-muted">
-                <p>
-                  A transcript that says “um, right, so” for forty minutes is a wall. A transcript
-                  that says <strong className="font-medium text-ink-text">who</strong> said it is a
-                  record you can act on.
-                </p>
-                <p>
-                  Ledgeur runs a speaker segmentation model over the audio to find where the voice
-                  changes, then turns each stretch of speech into a voice print and groups them.
-                  You get Speaker&nbsp;1, Speaker&nbsp;2, Speaker&nbsp;3 — with the overlaps handled,
-                  because people talk over each other.
-                </p>
-                <p>
-                  Rename Speaker&nbsp;2 to Priya once. From then on, Ledgeur recognises Priya in
-                  every meeting she is in. The voice prints live in your browser’s storage and are
-                  never synced, never uploaded, and never part of the paid tier — a voice print
-                  identifies a person even after the transcript is deleted, so it stays where it was
-                  made.
-                </p>
-              </div>
-              <div className="mt-7 flex flex-wrap gap-2">
-                <Badge tone="neutral">pyannote segmentation 3.0</Badge>
-                <Badge tone="neutral">WeSpeaker ResNet34</Badge>
-                <Badge tone="accent">Runs in your browser</Badge>
-              </div>
+      <Section tint>
+        <div className="grid gap-12 lg:grid-cols-2 lg:items-center">
+          <div>
+            <SectionHead
+              kicker="The part nobody else does on-device"
+              title="It learns the voices in the room."
+            />
+            <div className="mt-6 space-y-4 text-md leading-relaxed text-muted">
+              <p>
+                A transcript that says “um, right, so” for forty minutes is a wall. A transcript
+                that says who said it is a record you can act on.
+              </p>
+              <p>
+                Ledgeur runs a speaker segmentation model over the audio to find where the voice
+                changes, then turns each stretch of speech into a voice print and groups them.
+                You get Speaker&nbsp;1, Speaker&nbsp;2, Speaker&nbsp;3 — with the overlaps handled,
+                because people talk over each other.
+              </p>
+              <p>
+                Rename Speaker&nbsp;2 to Priya once. From then on, Ledgeur recognises Priya in
+                every meeting she is in. The voice prints live on your device and are never
+                synced, never uploaded, and never part of the paid tier — a voice print
+                identifies a person even after the transcript is deleted, so it stays where it was
+                made.
+              </p>
             </div>
-
-            <Card raised className="overflow-hidden">
-              <div className="border-b border-hairline px-5 py-4">
-                <div className="ldg-kicker">How a name sticks</div>
-              </div>
-              <ol className="divide-y divide-hairline">
-                {[
-                  ["The recording ends", "Ledgeur finds the turns and gives each voice a print — a 256-number fingerprint of how that person sounds."],
-                  ["You name one", "Click “Speaker 2”, type “Priya”. The print is saved under that name, on this device only."],
-                  ["Next Tuesday", "Priya speaks. Her print matches. The transcript says Priya before you have read a line of it."],
-                  ["It keeps learning", "Each meeting refines her print as a running average, so a bad headset once does not undo ten good recordings."],
-                ].map(([title, body], i) => (
-                  <li key={title} className="flex gap-4 px-5 py-4">
-                    <span className="ldg-display mt-0.5 grid h-7 w-7 shrink-0 place-items-center rounded-full bg-accent-soft text-[13px] text-accent-strong">
-                      {i + 1}
-                    </span>
-                    <div>
-                      <div className="text-[14.5px] font-medium text-ink-text">{title}</div>
-                      <p className="mt-1 text-[13.5px] leading-relaxed text-muted">{body}</p>
-                    </div>
-                  </li>
-                ))}
-              </ol>
-            </Card>
+            <div className="mt-7 flex flex-wrap gap-2">
+              <Badge>pyannote segmentation 3.0</Badge>
+              <Badge>WeSpeaker ResNet34</Badge>
+              <Badge tone="accent">Runs on your device</Badge>
+            </div>
           </div>
-        </Section>
-      </section>
+
+          <Card raised className="overflow-hidden">
+            <div className="border-b border-hairline px-5 py-4">
+              <Label>How a name sticks</Label>
+            </div>
+            <ol className="divide-y divide-hairline">
+              {[
+                ["The recording ends", "Ledgeur finds the turns and gives each voice a print — a 256-number fingerprint of how that person sounds."],
+                ["You name one", "Click “Speaker 2”, type “Priya”. The print is saved under that name, on this device only."],
+                ["Next Tuesday", "Priya speaks. Her print matches. The transcript says Priya before you have read a line of it."],
+                ["It keeps learning", "Each meeting refines her print as a running average, so a bad headset once does not undo ten good recordings."],
+              ].map(([title, body], i) => (
+                <li key={title} className="flex gap-4 px-5 py-4">
+                  <span className="ldg-num mt-0.5 grid h-7 w-7 shrink-0 place-items-center rounded-full bg-brand-soft text-sm font-bold text-brand-strong">
+                    {i + 1}
+                  </span>
+                  <div>
+                    <div className="text-base font-semibold text-ink-text">{title}</div>
+                    <p className="mt-1 text-sm leading-relaxed text-muted">{body}</p>
+                  </div>
+                </li>
+              ))}
+            </ol>
+          </Card>
+        </div>
+      </Section>
 
       {/* ---------------------------------------------------- how it works */}
       <Section>
-        <SectionHead
-          kicker="Start to finish"
-          title="Three steps, and none of them are “create an account”."
-          align="center"
-        />
+        <SectionHead title="Three steps, and none of them are “create an account”." align="center" />
         <div className="mt-12 grid gap-8 md:grid-cols-3">
-          {[
-            ["Capture", "Share the meeting tab with its audio, or just your microphone. Or drag in a recording you already have — a voice memo, a Zoom export, an old interview. It is treated exactly like a live meeting."],
-            ["Transcribe on your device", "Whisper runs in the browser through WebGPU, or the CPU if there is no WebGPU. The first run downloads the model once; after that it is cached and works with the wifi off."],
-            ["Read it, and act", "Speakers separated, timestamps on every line, a summary with the decisions and action items pulled out. Edit it, export it, search it later."],
-          ].map(([title, body], i) => (
+          {STEPS.map(([title, body], i) => (
             <div key={title}>
-              <div className="ldg-display text-[13px] text-accent-strong">{String(i + 1).padStart(2, "0")}</div>
-              <h3 className="ldg-display mt-2 text-[20px] text-ink-text">{title}</h3>
-              <p className="mt-2 text-[14.5px] leading-relaxed text-muted">{body}</p>
+              <span className="ldg-num grid h-9 w-9 place-items-center rounded-full bg-ink text-sm font-bold text-on-ink">{i + 1}</span>
+              <h3 className="mt-4 text-xl font-semibold tracking-[-0.01em] text-ink-text">{title}</h3>
+              <p className="mt-2 text-base leading-relaxed text-muted">{body}</p>
             </div>
           ))}
         </div>
       </Section>
 
       {/* ------------------------------------------------------- comparison */}
-      <section className="border-y border-hairline bg-surface">
-        <Section className="!py-16 sm:!py-20">
-          <SectionHead
-            kicker="The honest version"
-            title="What actually differs from a cloud notetaker."
-            lede="Not a feature-count. These are architectural differences — the consequences of where the audio goes."
-          />
-          <div className="mt-9 overflow-x-auto">
-            <table className="w-full min-w-[560px] border-collapse text-left text-[14px]">
-              <caption className="sr-only">Ledgeur compared with a typical cloud AI notetaker</caption>
-              <thead>
-                <tr className="border-b border-hairline-strong">
-                  <th scope="col" className="py-3 pr-4 font-medium text-faint" />
-                  <th scope="col" className="py-3 pr-4 font-medium text-ink-text">Ledgeur</th>
-                  <th scope="col" className="py-3 font-medium text-faint">A hosted notetaker</th>
-                </tr>
-              </thead>
-              <tbody>
-                {COMPARISON.map((row) => (
-                  <tr key={row.point} className="border-b border-hairline align-top">
-                    <th scope="row" className="py-4 pr-4 font-medium text-ink-text">{row.point}</th>
-                    <td className="py-4 pr-4 text-ink-text">{row.ledgeur}</td>
-                    <td className="py-4 text-muted">{row.them}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </Section>
-      </section>
+      <Section tint>
+        <SectionHead
+          title="What actually differs from a cloud notetaker."
+          lede="Not a feature-count. These are architectural differences — the consequences of where the audio goes."
+        />
+        <div className="mt-9"><ComparisonTable /></div>
+      </Section>
 
       {/* ----------------------------------------------------------- agents */}
       <Section>
         <div className="grid gap-10 lg:grid-cols-[1fr_1.05fr] lg:items-center">
           <div>
-            <Kicker>For the agents you already use</Kicker>
-            <Display level={2} className="mt-3 text-[26px] leading-tight sm:text-[32px]">
-              Point Claude at everything the company has said.
-            </Display>
-            <p className="mt-4 text-[15px] leading-relaxed text-muted">
+            <SectionHead
+              kicker="For the agents you already use"
+              title="Point Claude at everything the company has said."
+            />
+            <p className="mt-5 text-md leading-relaxed text-muted">
               The paid tier exposes your meetings over the Model Context Protocol — so an agent can
               list them, search them, read a full transcript with speakers, and pull the open action
               items. Same tools whether it connects over stdio on your machine or to the hosted
               endpoint.
             </p>
-            <p className="mt-3 text-[15px] leading-relaxed text-muted">
+            <p className="mt-3 text-md leading-relaxed text-muted">
               Access runs as <em>you</em>: the token resolves to your session, so row-level security
               decides what the agent can see. It cannot read a meeting you could not.
             </p>
             <div className="mt-6 flex flex-wrap gap-3">
-              <Link href="/agents" className={buttonClass("secondary", "md")}>How agent access works</Link>
-              <Link href="/pricing" className={buttonClass("ghost", "md")}>See pricing →</Link>
+              <Link href="/agents" className={buttonClass("secondary", "md", "rounded-full px-5")}>How agent access works</Link>
+              <Link href="/pricing" className={buttonClass("ghost", "md", "rounded-full")}>See pricing</Link>
             </div>
           </div>
 
           <Card raised className="overflow-hidden">
-            <div className="flex items-center justify-between border-b border-hairline px-5 py-3">
-              <div className="ldg-kicker">Available tools</div>
-              <Badge tone="glow">MCP</Badge>
+            <div className="flex items-center justify-between border-b border-hairline px-5 py-3.5">
+              <Label>Available tools</Label>
+              <Badge tone="brand">MCP</Badge>
             </div>
-            <ul className="divide-y divide-hairline text-[13.5px]">
+            <ul className="divide-y divide-hairline text-base">
               {[
                 ["list_meetings", "Browse the most recent meetings."],
                 ["search_meetings", "Find a meeting by what it was called."],
@@ -217,7 +197,7 @@ export default function Home() {
                 ["list_people", "Everyone named across your meetings."],
               ].map(([name, what]) => (
                 <li key={name} className="flex flex-wrap items-baseline gap-x-3 gap-y-1 px-5 py-3">
-                  <code className="font-mono text-[12.5px] text-glow-strong">{name}</code>
+                  <code className="font-mono text-sm font-medium text-brand-strong">{name}</code>
                   <span className="text-muted">{what}</span>
                 </li>
               ))}
@@ -227,70 +207,60 @@ export default function Home() {
       </Section>
 
       {/* -------------------------------------------------------- SEO links */}
-      <section className="border-y border-hairline bg-surface">
-        <Section className="!py-14">
-          <SectionHead kicker="Wherever you meet" title="Works with every browser-based meeting platform." />
-          <div className="mt-6 flex flex-wrap gap-2">
-            {PLATFORMS.map((p) => (
+      <Section tint>
+        <SectionHead title="Works with every browser-based meeting platform." />
+        <div className="mt-6 flex flex-wrap gap-2">
+          {PLATFORMS.map((p) => (
+            <Link key={p.slug} href={`/transcribe/${p.slug}`} className={buttonClass("secondary", "sm", "rounded-full")}>
+              {p.name}
+            </Link>
+          ))}
+        </div>
+
+        <div className="mt-16">
+          <SectionHead title="Coming from something else?" />
+          <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {COMPETITORS.slice(0, 6).map((c) => (
               <Link
-                key={p.slug}
-                href={`/transcribe/${p.slug}`}
-                className="rounded-full border border-hairline-strong bg-paper px-4 py-1.5 text-[13.5px] text-ink-text transition-colors hover:border-accent hover:text-accent-strong"
+                key={c.slug}
+                href={`/alternatives/${c.slug}`}
+                className="rounded-xl border border-hairline bg-surface p-4 transition-colors hover:border-brand"
               >
-                {p.name}
+                <div className="text-base font-semibold text-ink-text">Ledgeur vs {c.name}</div>
+                <p className="mt-1.5 line-clamp-2 text-sm leading-relaxed text-muted">{c.what}</p>
               </Link>
             ))}
           </div>
+          <Link href="/alternatives" className="mt-5 inline-block text-base font-medium text-brand-strong hover:underline">
+            Every comparison
+          </Link>
+        </div>
 
-          <div className="mt-14">
-            <SectionHead kicker="Switching" title="Coming from something else?" />
-            <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {COMPETITORS.slice(0, 6).map((c) => (
-                <Link
-                  key={c.slug}
-                  href={`/alternatives/${c.slug}`}
-                  className="group rounded-xl border border-hairline bg-paper p-4 transition-colors hover:border-accent"
-                >
-                  <div className="ldg-display text-[15px] text-ink-text">Ledgeur vs {c.name}</div>
-                  <p className="mt-1.5 line-clamp-2 text-[13px] leading-relaxed text-muted">{c.what}</p>
-                </Link>
-              ))}
-            </div>
-            <Link href="/alternatives" className="mt-4 inline-block text-[13.5px] font-medium text-accent-strong hover:underline">
-              Every comparison →
-            </Link>
+        <div className="mt-16">
+          <SectionHead title="Built for every kind of meeting." />
+          <div className="mt-6 flex flex-wrap gap-2">
+            {USE_CASES.map((u) => (
+              <Link key={u.slug} href={`/use-cases/${u.slug}`} className={buttonClass("secondary", "sm", "rounded-full")}>
+                {u.name}
+              </Link>
+            ))}
           </div>
-
-          <div className="mt-14">
-            <SectionHead kicker="What people use it for" title="Built for every kind of meeting." />
-            <div className="mt-6 flex flex-wrap gap-2">
-              {USE_CASES.map((u) => (
-                <Link
-                  key={u.slug}
-                  href={`/use-cases/${u.slug}`}
-                  className="rounded-full border border-hairline-strong bg-paper px-4 py-1.5 text-[13.5px] text-ink-text transition-colors hover:border-accent hover:text-accent-strong"
-                >
-                  {u.name}
-                </Link>
-              ))}
-            </div>
-          </div>
-        </Section>
-      </section>
+        </div>
+      </Section>
 
       {/* -------------------------------------------------------------- CTA */}
       <Section width="narrow" className="text-center">
-        <Display level={2} className="text-[30px] leading-tight sm:text-[38px]">
+        <Display level={2} className="text-3xl leading-tight sm:text-4xl">
           Your meetings, your machine, your record.
         </Display>
-        <p className="mx-auto mt-4 max-w-xl text-[15.5px] leading-relaxed text-muted">
+        <p className="mx-auto mt-4 max-w-xl text-lg leading-relaxed text-muted">
           The whole product is free for one person, permanently — not a trial, not a tier with the
           good parts removed. Pay ${TEAM_PRICE_USD} a month per person only when you want the record
           shared across a team and readable by your agents.
         </p>
         <div className="mt-8 flex flex-wrap justify-center gap-3">
-          <Link href="/app" className={buttonClass("primary", "lg")}>Open Ledgeur</Link>
-          <Link href="/pricing" className={buttonClass("secondary", "lg")}>See pricing</Link>
+          <Link href="/app" className={buttonClass("primary", "lg", "rounded-full px-7")}>Open Ledgeur</Link>
+          <a href={SITE.repo} target="_blank" rel="noreferrer" className={buttonClass("secondary", "lg", "rounded-full px-7")}>Read the source</a>
         </div>
       </Section>
     </main>

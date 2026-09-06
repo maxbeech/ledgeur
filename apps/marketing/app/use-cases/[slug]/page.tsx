@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { Check } from "lucide-react";
 import { notFound } from "next/navigation";
 import { USE_CASES, findUseCase } from "@/lib/usecases";
 import { SITE } from "@/lib/site";
@@ -36,7 +37,7 @@ export default async function UseCasePage({ params }: { params: Promise<{ slug: 
       <PageHeader kicker="Use case" title={useCase.headline} lede={useCase.why} />
 
       <Section width="narrow">
-        <nav aria-label="Breadcrumb" className="mb-8 text-[13px] text-muted">
+        <nav aria-label="Breadcrumb" className="mb-8 text-sm text-muted">
           <Link href="/use-cases" className="hover:text-ink-text">Use cases</Link>
           <span aria-hidden> › </span>
           <span className="text-faint">{useCase.name}</span>
@@ -46,8 +47,8 @@ export default async function UseCasePage({ params }: { params: Promise<{ slug: 
         <ul className="mt-6 grid gap-2.5 sm:grid-cols-2">
           {useCase.captures.map((capture) => (
             <li key={capture}>
-              <Card className="flex h-full gap-2.5 p-4 text-[13.5px] leading-relaxed text-ink-text">
-                <span aria-hidden className="mt-[3px] shrink-0 text-accent-strong">✓</span>
+              <Card className="flex h-full gap-2.5 p-4 text-sm leading-relaxed text-ink-text">
+                <span aria-hidden className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-mint-soft text-mint-strong"><Check className="h-3 w-3" strokeWidth={3} /></span>
                 <span>{capture}</span>
               </Card>
             </li>

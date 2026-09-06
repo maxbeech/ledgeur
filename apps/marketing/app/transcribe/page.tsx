@@ -28,8 +28,8 @@ export default function TranscribeIndex() {
           {PLATFORMS.map((platform) => (
             <Link key={platform.slug} href={`/transcribe/${platform.slug}`} className="group block">
               <Card className="h-full p-5 transition-colors group-hover:border-accent">
-                <h2 className="ldg-display text-[16px] text-ink-text">{platform.name}</h2>
-                <span className="mt-2 inline-block text-[13px] font-medium text-accent-strong">How to →</span>
+                <h2 className="ldg-display text-md text-ink-text">{platform.name}</h2>
+                <span className="mt-2 inline-block text-sm font-medium text-accent-strong">How to →</span>
               </Card>
             </Link>
           ))}

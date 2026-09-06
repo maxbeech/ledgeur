@@ -9,7 +9,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import type { LocalMeeting } from "@ledgeur/core";
-import { Badge, Card, ErrorNote, Kicker, buttonClass } from "@ledgeur/ui/components";
+import { Button, Card, ErrorNote, Label, ProgressBar } from "@ledgeur/ui/components";
 import { useLibrary } from "@/lib/useLibrary";
 import { useWebRecorder } from "@/lib/useWebRecorder";
 import { useImport, IMPORT_ACCEPT } from "@/lib/useImport";
@@ -75,10 +75,10 @@ export default function AppShell() {
         }}
       />
 
-      <div className="mx-auto grid max-w-7xl gap-6 px-4 py-6 lg:grid-cols-[320px_1fr] lg:px-5">
+      <div className="mx-auto grid max-w-6xl gap-6 px-5 py-6 lg:grid-cols-[300px_1fr]">
         {/* ------------------------------------------------------ sidebar */}
-        <aside className={`lg:sticky lg:top-[73px] lg:h-[calc(100dvh-9rem)] ${selected ? "hidden lg:block" : ""}`}>
-          <Card raised className="h-full overflow-hidden">
+        <aside className={`lg:sticky lg:top-[80px] lg:h-[calc(100dvh-9rem)] ${selected ? "hidden lg:block" : ""}`}>
+          <Card className="h-full overflow-hidden">
             <Library
               meetings={library.meetings}
               selectedId={selectedId}
@@ -89,25 +89,25 @@ export default function AppShell() {
             />
           </Card>
 
-          <div className="mt-4 rounded-xl border border-hairline bg-surface p-4">
+          <div className="mt-4 rounded-xl bg-paper p-4">
             {available && session ? (
               <>
-                <Kicker>Signed in</Kicker>
-                <p className="mt-1.5 text-[13px] text-muted">{session.user.email}</p>
-                <Link href="/account" className="mt-2 inline-block text-[13px] font-medium text-accent-strong hover:underline">
-                  Plan, billing and agent access →
+                <Label>Signed in</Label>
+                <p className="mt-1.5 text-sm text-muted">{session.user.email}</p>
+                <Link href="/account" className="mt-2 inline-block text-sm font-medium text-brand-strong hover:underline">
+                  Plan, billing and agent access
                 </Link>
               </>
             ) : (
               <>
-                <Kicker>Local only</Kicker>
-                <p className="mt-1.5 text-[13px] leading-relaxed text-muted">
-                  Your meetings are on this device and nowhere else. Sign in to sync them across
+                <Label>Only on this device</Label>
+                <p className="mt-1.5 text-sm leading-relaxed text-muted">
+                  Your meetings are here and nowhere else. Sign in to sync them across
                   your devices and open them to your AI agents.
                 </p>
                 {available && (
-                  <Link href="/signin?next=/app" className="mt-2.5 inline-block text-[13px] font-medium text-accent-strong hover:underline">
-                    Sign in →
+                  <Link href="/signin?next=/app" className="mt-2.5 inline-block text-sm font-medium text-brand-strong hover:underline">
+                    Sign in
                   </Link>
                 )}
               </>
@@ -120,29 +120,22 @@ export default function AppShell() {
           {importer.state.busy && (
             <Card raised className="mb-5 p-5">
               <div className="flex items-center gap-3">
-                <span className="ldg-pulse inline-block h-2 w-2 rounded-full bg-glow" aria-hidden />
+                <span className="ldg-pulse inline-block h-2 w-2 rounded-full bg-brand" aria-hidden />
                 <div className="min-w-0">
-                  <p className="truncate text-[14px] text-ink-text">{importer.state.name}</p>
-                  <p className="text-[12.5px] text-muted">{importer.state.step}</p>
+                  <p className="truncate text-base font-medium text-ink-text">{importer.state.name}</p>
+                  <p className="text-sm text-muted">{importer.state.step}</p>
                 </div>
               </div>
               {importer.state.modelProgress > 0 && importer.state.modelProgress < 100 && (
-                <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-surface-sunken">
-                  <div className="h-full bg-accent transition-[width]" style={{ width: `${importer.state.modelProgress}%` }} />
-                </div>
+                <ProgressBar value={importer.state.modelProgress} className="mt-3" />
               )}
-              <p className="mt-3 text-[12px] text-faint">
-                Transcribed on this device. The file is not uploaded anywhere.
-              </p>
+              <p className="mt-3 text-xs text-faint">Transcribed on this device. The file is not uploaded anywhere.</p>
             </Card>
           )}
 
           {importer.state.error && (
-            <ErrorNote className="mb-5">
+            <ErrorNote className="mb-5" onRetry={<Button size="sm" tone="secondary" onClick={importer.dismiss}>Dismiss</Button>}>
               {importer.state.error}
-              <button onClick={importer.dismiss} className="mt-2 block text-[12.5px] font-semibold underline">
-                Dismiss
-              </button>
             </ErrorNote>
           )}
 
@@ -170,18 +163,16 @@ export default function AppShell() {
           )}
 
           {!busy && !selected && library.meetings.length === 0 && (
-            <Card className="mt-5 p-5">
+            <Card className="mt-5 border-dashed border-hairline-strong p-5">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
-                  <Kicker>Nothing to record right now?</Kicker>
-                  <p className="mt-1.5 text-[13.5px] text-muted">
+                  <div className="text-base font-semibold text-ink-text">Nothing to record right now?</div>
+                  <p className="mt-1 text-sm leading-relaxed text-muted">
                     Drag in any recording you already have — a voice memo, a Zoom export, an old
                     interview. It is treated exactly like a live meeting.
                   </p>
                 </div>
-                <button onClick={() => fileInput.current?.click()} className={buttonClass("secondary", "sm")}>
-                  Choose a file
-                </button>
+                <Button tone="secondary" size="sm" onClick={() => fileInput.current?.click()}>Choose a file</Button>
               </div>
             </Card>
           )}

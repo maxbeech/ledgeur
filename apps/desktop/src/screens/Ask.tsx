@@ -1,10 +1,10 @@
-// The copilot conversation — question the whole record. Grounded in the org
-// hive mind (semantic search when signed in + model up) plus the user's real
-// local meetings. The conversation and its input live in the app shell (the
-// ever-present bottom field); this screen just renders the shared thread.
+// Ask — question the whole record. Grounded in the org's memory (semantic
+// search when signed in + model up), connected tools, and the real local
+// meetings. The conversation and its input live in the app shell (the
+// ever-present composer); this screen just renders the shared thread.
 import { useEffect, useRef } from "react";
 import { useSearchParams } from "react-router-dom";
-import { Kicker } from "../components/ui.tsx";
+import { LogoMark } from "../components/ui.tsx";
 import { ThreadView } from "../components/chat/ThreadView.tsx";
 import { useChatDock } from "../lib/useChatDock.ts";
 import { messageToItem } from "../lib/thread.ts";
@@ -30,34 +30,34 @@ export function Ask() {
 
   const items = dock.appMessages.map(messageToItem);
 
-  return (
-    <div className="flex h-full flex-col">
-      <header className="shrink-0 px-5 pt-5 sm:px-6">
-        <Kicker className="mb-2">Consult the record</Kicker>
-        <h1 className="ldg-display text-[26px] leading-tight text-ink-text">Ask your brain</h1>
-        <p className="mt-1 text-sm text-muted">Answers are grounded in your meetings and connected tools — never invented. Ask below.</p>
-        <div className="mt-4 h-px bg-hairline" />
-      </header>
+  if (items.length === 0) {
+    return (
+      <div className="ldg-rise mx-auto flex h-full w-full max-w-2xl flex-col items-center justify-center px-6 text-center">
+        <span className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-brand-soft text-brand-strong">
+          <LogoMark className="h-6 w-6" />
+        </span>
+        <h1 className="ldg-display text-2xl text-ink-text">Ask anything</h1>
+        <p className="mt-2 max-w-md text-base text-muted">
+          Answers come from your meetings and connected tools, and say where they came from. Nothing is invented.
+        </p>
+        <div className="mt-8 grid w-full gap-2 sm:grid-cols-2">
+          {STARTERS.map((s) => (
+            <button
+              key={s}
+              onClick={() => dock.send(s)}
+              className="rounded-xl bg-surface-muted px-4 py-3 text-left text-sm font-medium text-ink-text transition-colors hover:bg-surface-sunken"
+            >
+              {s}
+            </button>
+          ))}
+        </div>
+      </div>
+    );
+  }
 
-      {items.length === 0 ? (
-        <div className="mx-auto w-full max-w-3xl px-5 pt-6 sm:px-6">
-          <div className="ldg-stagger grid gap-2 sm:grid-cols-2">
-            {STARTERS.map((s) => (
-              <button
-                key={s}
-                onClick={() => dock.send(s)}
-                className="rounded-xl border border-hairline bg-surface px-4 py-3 text-left text-sm text-ink-text shadow-[var(--shadow-card)] transition-all duration-150 hover:-translate-y-0.5 hover:border-glow/40 hover:shadow-[var(--shadow-float)]"
-              >
-                {s}
-              </button>
-            ))}
-          </div>
-        </div>
-      ) : (
-        <div className="mx-auto flex w-full max-w-3xl min-h-0 flex-1 flex-col">
-          <ThreadView items={items} busy={dock.busy} onQuote={dock.onQuote} emptyHint="Ask anything across your company brain…" />
-        </div>
-      )}
+  return (
+    <div className="mx-auto flex h-full w-full max-w-3xl min-h-0 flex-col">
+      <ThreadView items={items} busy={dock.busy} onQuote={dock.onQuote} emptyHint="Ask anything across your meetings and tools." />
     </div>
   );
 }

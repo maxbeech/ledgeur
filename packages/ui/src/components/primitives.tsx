@@ -1,45 +1,44 @@
-// Shared UI primitives.
+// Shared UI primitives — one definition each, for every Ledgeur surface.
 //
-// These are deliberately presentational and hook-free, so the same file works
-// as a React Server Component in the Next.js marketing site and as an ordinary
-// component in the Vite app. Anything stateful belongs in the app that owns the
-// state, not here.
+// Deliberately presentational and hook-free, so the same file works as a React
+// Server Component on the site and as an ordinary component in the app.
+// Anything stateful belongs to the app that owns the state.
 //
-// The point is not to save typing. It is that "a Ledgeur button" should be one
-// thing — before this existed, the site had emerald pill buttons and the app
-// had spruce ones, and a visitor who signed up met two different products.
+// The point is not to save typing. It is that "a Ledgeur button" is one thing.
+// Before this was the only set, the site's primary button was green and the
+// app's was spruce, and a person who signed up met two different products.
 
-import type { ButtonHTMLAttributes, AnchorHTMLAttributes, ReactNode } from "react";
+import type { ButtonHTMLAttributes, AnchorHTMLAttributes, InputHTMLAttributes, SelectHTMLAttributes, TextareaHTMLAttributes, ReactNode } from "react";
 import { cn } from "../cn.ts";
-import { speakerColor } from "../tokens.ts";
+import { speakerIndex, pastelFor, type PastelName } from "../tokens.ts";
 
 /* ---------------------------------------------------------------- buttons */
 
-export type ButtonTone = "primary" | "secondary" | "ghost" | "danger";
+export type ButtonTone = "primary" | "secondary" | "soft" | "ghost" | "danger" | "brand";
 export type ButtonSize = "sm" | "md" | "lg";
 
 const TONE: Record<ButtonTone, string> = {
-  // accent-strong rather than accent: white on accent is 4.34:1, which fails
-  // AA for button text. accent-strong is 6.5:1.
-  primary: "bg-accent-strong text-white hover:bg-accent shadow-[0_1px_0_rgba(255,255,255,0.14)_inset]",
+  primary: "bg-ink text-on-ink hover:bg-ink-soft",
   secondary: "border border-hairline-strong bg-surface text-ink-text hover:bg-surface-muted",
+  soft: "bg-surface-muted text-ink-text hover:bg-surface-sunken",
   ghost: "text-ink-text hover:bg-surface-muted",
-  danger: "bg-danger text-white hover:bg-danger/90",
+  danger: "bg-danger-fill text-on-danger hover:brightness-95",
+  brand: "bg-brand-soft text-brand-strong hover:brightness-95",
 };
 
 const SIZE: Record<ButtonSize, string> = {
-  sm: "px-3 py-1.5 text-[13px]",
-  md: "px-4 py-2.5 text-sm",
-  lg: "px-6 py-3 text-[15px]",
+  sm: "h-8 px-3 text-sm rounded-md",
+  md: "h-10 px-4 text-base rounded-lg",
+  lg: "h-12 px-6 text-md rounded-xl",
 };
 
 /** Shared shape for every clickable thing, so a link and a button that look the
  *  same really are the same. */
 export function buttonClass(tone: ButtonTone = "primary", size: ButtonSize = "md", extra?: string): string {
   return cn(
-    "inline-flex items-center justify-center gap-2 rounded-xl font-medium",
-    "transition-[background-color,color,transform] duration-200 [transition-timing-function:var(--ease-swift)]",
-    "active:translate-y-px disabled:pointer-events-none disabled:opacity-55",
+    "inline-flex shrink-0 items-center justify-center gap-2 font-semibold whitespace-nowrap select-none",
+    "transition-[background-color,color,transform,filter] duration-150 [transition-timing-function:var(--ease-swift)]",
+    "active:scale-[0.98] disabled:pointer-events-none disabled:opacity-50",
     TONE[tone], SIZE[size], extra,
   );
 }
@@ -49,8 +48,8 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   size?: ButtonSize;
 }
 
-export function Button({ tone = "primary", size = "md", className, ...rest }: ButtonProps) {
-  return <button className={buttonClass(tone, size, className)} {...rest} />;
+export function Button({ tone = "primary", size = "md", className, type = "button", ...rest }: ButtonProps) {
+  return <button type={type} className={buttonClass(tone, size, className)} {...rest} />;
 }
 
 export interface LinkButtonProps extends AnchorHTMLAttributes<HTMLAnchorElement> {
@@ -62,16 +61,38 @@ export function LinkButton({ tone = "primary", size = "md", className, ...rest }
   return <a className={buttonClass(tone, size, className)} {...rest} />;
 }
 
+const ICON_SIZE: Record<ButtonSize, string> = { sm: "h-8 w-8 rounded-md", md: "h-10 w-10 rounded-lg", lg: "h-12 w-12 rounded-xl" };
+
+/** A square button holding one icon. `label` is required: an icon alone is
+ *  not a name. */
+export function IconButton({
+  label, tone = "ghost", size = "md", className, type = "button", ...rest
+}: ButtonProps & { label: string }) {
+  return (
+    <button
+      type={type}
+      aria-label={label}
+      title={label}
+      className={cn(
+        "inline-flex shrink-0 items-center justify-center transition-[background-color,color,transform] duration-150",
+        "active:scale-[0.96] disabled:pointer-events-none disabled:opacity-50",
+        TONE[tone], ICON_SIZE[size], className,
+      )}
+      {...rest}
+    />
+  );
+}
+
 /* ------------------------------------------------------------------ paper */
 
-/** A sheet of paper on the desk. `raised` is for the one thing being read. */
+/** A card. `raised` is for the one thing being read or acted on. */
 export function Card({
   children, className, raised = false, as: Tag = "div",
-}: { children: ReactNode; className?: string; raised?: boolean; as?: "div" | "section" | "article" | "li" }) {
+}: { children: ReactNode; className?: string; raised?: boolean; as?: "div" | "section" | "article" | "li" | "form" }) {
   return (
     <Tag className={cn(
       "rounded-xl border border-hairline bg-surface",
-      raised ? "shadow-[var(--shadow-card)]" : "",
+      raised && "shadow-[var(--shadow-card)]",
       className,
     )}>
       {children}
@@ -79,13 +100,13 @@ export function Card({
   );
 }
 
-/** The mono all-caps label above a section. */
-export function Kicker({ children, className }: { children: ReactNode; className?: string }) {
-  return <div className={cn("ldg-kicker", className)}>{children}</div>;
+/** A section label. Small, semibold, sentence case. */
+export function Label({ children, className, as: Tag = "div" }: { children: ReactNode; className?: string; as?: "div" | "span" | "h2" | "h3" | "label" }) {
+  return <Tag className={cn("ldg-label", className)}>{children}</Tag>;
 }
 
-/** Serif display heading. `level` picks the tag; size is set by the caller, so
- *  a section heading and a page heading share a voice but not a scale. */
+/** Display heading. `level` picks the tag; the size is the caller's, so a page
+ *  heading and a card heading share a voice but not a scale. */
 export function Display({
   children, className, level = 2,
 }: { children: ReactNode; className?: string; level?: 1 | 2 | 3 }) {
@@ -95,22 +116,29 @@ export function Display({
 
 /* ----------------------------------------------------------------- badges */
 
-export type BadgeTone = "neutral" | "accent" | "glow" | "danger" | "warn";
+export type BadgeTone = "neutral" | "brand" | "accent" | "danger" | "warn" | PastelName;
 
 const BADGE: Record<BadgeTone, string> = {
-  neutral: "border-hairline-strong bg-surface-muted text-muted",
-  accent: "border-accent/25 bg-accent-soft text-accent-strong",
-  glow: "border-glow/25 bg-glow-soft text-glow-strong",
-  danger: "border-danger/25 bg-danger-soft text-danger",
-  warn: "border-warn/25 bg-warn-soft text-warn",
+  neutral: "bg-surface-muted text-muted",
+  brand: "bg-brand-soft text-brand-strong",
+  accent: "bg-accent-soft text-accent-strong",
+  danger: "bg-danger-soft text-danger",
+  warn: "bg-warn-soft text-warn",
+  iris: "bg-iris-soft text-iris-strong",
+  mint: "bg-mint-soft text-mint-strong",
+  peach: "bg-peach-soft text-peach-strong",
+  butter: "bg-butter-soft text-butter-strong",
+  sky: "bg-sky-soft text-sky-strong",
+  rose: "bg-rose-soft text-rose-strong",
 };
 
+/** A small pill of state. Pastel on its own tint, never bordered. */
 export function Badge({
   children, tone = "neutral", className,
 }: { children: ReactNode; tone?: BadgeTone; className?: string }) {
   return (
     <span className={cn(
-      "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[11px] font-medium",
+      "inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold leading-5",
       BADGE[tone], className,
     )}>
       {children}
@@ -123,52 +151,204 @@ export function Badge({
 /**
  * A speaker's name in their assigned colour.
  *
- * Colour comes from `speakerColor` in tokens.ts, so "Speaker 2" is the same
- * madder red in the live transcript, the saved meeting and any export. A
+ * Colour comes from `speakerIndex` in tokens.ts, so "Speaker 2" is the same
+ * rose in the live transcript, the saved meeting, the site and any export. A
  * speaker whose colour changed between screens would read as a different
  * person.
  */
 export function SpeakerChip({
   label, confidence, className,
 }: { label: string; confidence?: number | null; className?: string }) {
-  const colour = speakerColor(label);
   return (
-    <span
-      className={cn("inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[12px] font-medium", className)}
-      style={{ color: colour.fg, backgroundColor: colour.bg }}
-    >
+    <span className={cn(
+      `ldg-speaker ldg-speaker-${speakerIndex(label)}`,
+      "inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-semibold leading-5",
+      className,
+    )}>
       {label}
       {/* A percentage only appears when the name was *guessed*. A name the user
           typed shows no number, because questioning it would be rude. */}
       {confidence != null && (
-        <span className="font-mono text-[10px] opacity-70">{Math.round(confidence * 100)}%</span>
+        <span className="ldg-num text-2xs opacity-70">{Math.round(confidence * 100)}%</span>
       )}
     </span>
   );
 }
 
+/** A person, as initials on their family's tint. Deterministic from the name,
+ *  so Priya is the same colour on every device. */
+export function Avatar({ name, size = "md", className }: { name: string; size?: "sm" | "md" | "lg"; className?: string }) {
+  const initials = name.trim().split(/[\s@._-]+/).filter(Boolean).slice(0, 2).map((w) => w[0]).join("").toUpperCase() || "?";
+  const tone = pastelFor(name);
+  const dims = size === "sm" ? "h-7 w-7 text-2xs" : size === "lg" ? "h-12 w-12 text-md" : "h-9 w-9 text-xs";
+  return (
+    <span
+      aria-hidden
+      className={cn("inline-flex shrink-0 select-none items-center justify-center rounded-full font-bold", dims, BADGE[tone], className)}
+    >
+      {initials}
+    </span>
+  );
+}
+
+/* ------------------------------------------------------------------ forms */
+
+/** The one input shape. */
+export function inputClass(extra?: string): string {
+  return cn(
+    "w-full rounded-lg border border-hairline-strong bg-surface px-3.5 py-2.5 text-base text-ink-text",
+    "placeholder:text-faint outline-none transition-[border-color,box-shadow] duration-150",
+    "focus:border-brand focus:shadow-[0_0_0_3px_color-mix(in_srgb,var(--color-brand)_22%,transparent)]",
+    "disabled:opacity-60",
+    extra,
+  );
+}
+
+export function Input({ className, ...rest }: InputHTMLAttributes<HTMLInputElement>) {
+  return <input className={inputClass(className)} {...rest} />;
+}
+
+export function Select({ className, children, ...rest }: SelectHTMLAttributes<HTMLSelectElement>) {
+  return <select className={inputClass(cn("appearance-none pr-9 bg-no-repeat bg-[right_0.85rem_center] bg-[length:14px] bg-[url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2362656e' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E\")]", className))} {...rest}>{children}</select>;
+}
+
+export function Textarea({ className, ...rest }: TextareaHTMLAttributes<HTMLTextAreaElement>) {
+  return <textarea className={inputClass(cn("resize-y leading-relaxed", className))} {...rest} />;
+}
+
+/** Label + control + hint, stacked the same way everywhere. */
+export function Field({
+  label, hint, htmlFor, children, className,
+}: { label: ReactNode; hint?: ReactNode; htmlFor?: string; children: ReactNode; className?: string }) {
+  return (
+    <div className={className}>
+      <label htmlFor={htmlFor} className="mb-1.5 block text-sm font-semibold text-ink-text">{label}</label>
+      {children}
+      {hint && <p className="mt-1.5 text-xs leading-relaxed text-faint">{hint}</p>}
+    </div>
+  );
+}
+
+/** A switch. Controlled; the owner keeps the state. */
+export function Toggle({
+  on, onChange, disabled, label,
+}: { on: boolean; onChange: (v: boolean) => void; disabled?: boolean; label?: string }) {
+  return (
+    <button
+      type="button"
+      onClick={() => !disabled && onChange(!on)}
+      role="switch"
+      aria-checked={on}
+      aria-label={label}
+      disabled={disabled}
+      className={cn(
+        "relative h-[26px] w-[44px] shrink-0 rounded-full transition-colors duration-200 disabled:opacity-50",
+        on ? "bg-ink" : "bg-hairline-strong",
+      )}
+    >
+      <span className={cn(
+        "absolute top-[3px] h-5 w-5 rounded-full bg-surface shadow-[0_1px_2px_rgb(0_0_0/0.25)] transition-[left] duration-200 [transition-timing-function:var(--ease-settle)]",
+        on ? "left-[21px]" : "left-[3px]",
+      )} />
+    </button>
+  );
+}
+
+/** Two to four choices, one of which is on. */
+export function Segmented<T extends string>({
+  options, value, onChange, className, size = "md",
+}: { options: readonly { value: T; label: ReactNode }[]; value: T; onChange: (v: T) => void; className?: string; size?: "sm" | "md" }) {
+  return (
+    <div role="tablist" className={cn("inline-flex rounded-lg bg-surface-muted p-1", className)}>
+      {options.map((o) => (
+        <button
+          key={o.value}
+          type="button"
+          role="tab"
+          aria-selected={o.value === value}
+          onClick={() => onChange(o.value)}
+          className={cn(
+            "inline-flex items-center gap-1.5 rounded-md font-semibold transition-[background-color,color,box-shadow] duration-150",
+            size === "sm" ? "px-2.5 py-1 text-xs" : "px-3.5 py-1.5 text-sm",
+            o.value === value ? "bg-surface text-ink-text shadow-[var(--shadow-card)]" : "text-muted hover:text-ink-text",
+          )}
+        >
+          {o.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 /* ------------------------------------------------------------------ state */
 
-/**
- * What to show when there is nothing to show.
- *
- * Every empty state takes an action, because an empty screen that only explains
- * itself leaves the user to go and find the button.
- */
-export function EmptyState({
-  title, body, action, className,
-}: { title: string; body: string; action?: ReactNode; className?: string }) {
+/** A spinner. The one spinner. */
+export function Spinner({ className }: { className?: string }) {
   return (
-    <div className={cn("rounded-xl border border-dashed border-hairline-strong px-6 py-12 text-center", className)}>
-      <p className="ldg-display text-lg text-ink-text">{title}</p>
-      <p className="mx-auto mt-2 max-w-sm text-sm leading-relaxed text-muted">{body}</p>
-      {action && <div className="mt-5 flex justify-center">{action}</div>}
+    <svg className={cn("h-4 w-4 animate-spin", className)} viewBox="0 0 24 24" fill="none" aria-label="Loading" role="status">
+      <circle className="opacity-20" cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="3" />
+      <path d="M12 3a9 9 0 0 1 9 9" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+/** A progress bar. `value` 0–100, or null for "working, unknown how long". */
+export function ProgressBar({ value, tone = "brand", className }: { value: number | null; tone?: "brand" | "accent"; className?: string }) {
+  const fill = tone === "brand" ? "bg-brand" : "bg-accent";
+  return (
+    <div className={cn("h-1.5 w-full overflow-hidden rounded-full bg-surface-sunken", className)} role="progressbar" aria-valuenow={value ?? undefined} aria-valuemin={0} aria-valuemax={100}>
+      <div
+        className={cn("h-full rounded-full transition-[width] duration-300", fill, value == null && "ldg-pulse w-1/3")}
+        style={value != null ? { width: `${Math.max(3, Math.min(100, value))}%` } : undefined}
+      />
+    </div>
+  );
+}
+
+export type NoticeTone = "neutral" | "brand" | "accent" | "warn" | "danger";
+
+const NOTICE: Record<NoticeTone, string> = {
+  neutral: "bg-surface-muted text-ink-text",
+  brand: "bg-brand-soft text-ink-text",
+  accent: "bg-accent-soft text-ink-text",
+  warn: "bg-warn-soft text-ink-text",
+  danger: "bg-danger-soft text-ink-text",
+};
+
+/** A line of state with a tint: a success, a caveat, something to know. */
+export function Notice({
+  children, tone = "neutral", icon, action, className,
+}: { children: ReactNode; tone?: NoticeTone; icon?: ReactNode; action?: ReactNode; className?: string }) {
+  return (
+    <div role={tone === "danger" ? "alert" : "status"} className={cn("flex items-start gap-2.5 rounded-lg px-3.5 py-2.5 text-sm leading-relaxed", NOTICE[tone], className)}>
+      {icon && <span className="mt-0.5 shrink-0">{icon}</span>}
+      <div className="min-w-0 flex-1">{children}</div>
+      {action && <div className="shrink-0">{action}</div>}
     </div>
   );
 }
 
 /**
- * A failure the user can act on.
+ * What to show when there is nothing to show.
+ *
+ * Every empty state takes an action, because an empty screen that only explains
+ * itself leaves the person to go and find the button.
+ */
+export function EmptyState({
+  icon, title, body, action, className,
+}: { icon?: ReactNode; title: string; body: string; action?: ReactNode; className?: string }) {
+  return (
+    <div className={cn("flex flex-col items-center px-6 py-12 text-center", className)}>
+      {icon && <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-xl bg-brand-soft text-brand-strong">{icon}</div>}
+      <p className="text-lg font-semibold text-ink-text">{title}</p>
+      <p className="mx-auto mt-1.5 max-w-sm text-sm leading-relaxed text-muted">{body}</p>
+      {action && <div className="mt-5">{action}</div>}
+    </div>
+  );
+}
+
+/**
+ * A failure the person can act on.
  *
  * Errors are shown, never swallowed: the product's whole claim is that it is
  * honest about what ran on your machine, and a silent failure is the fastest
@@ -178,16 +358,45 @@ export function ErrorNote({
   children, onRetry, className,
 }: { children: ReactNode; onRetry?: ReactNode; className?: string }) {
   return (
-    <div role="alert" className={cn(
-      "rounded-xl border border-danger/25 bg-danger-soft px-4 py-3 text-sm text-danger", className,
-    )}>
+    <div role="alert" className={cn("rounded-lg bg-danger-soft px-3.5 py-2.5 text-sm leading-relaxed text-danger", className)}>
       <div className="whitespace-pre-line">{children}</div>
       {onRetry && <div className="mt-2">{onRetry}</div>}
     </div>
   );
 }
 
-/** A hairline that fades at both ends, the way a printed rule sits on a page. */
+/** A hairline rule. */
 export function Rule({ className }: { className?: string }) {
   return <hr className={cn("ldg-rule", className)} />;
+}
+
+/* ------------------------------------------------------------------- mark */
+
+/**
+ * The mark: three rounded bars — the lines of a ledger, and a voice.
+ * Drawn in currentColor so it sits on any tint.
+ */
+export function LogoMark({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" aria-hidden className={className}>
+      <rect x="4" y="9" width="3.6" height="6" rx="1.8" fill="currentColor" />
+      <rect x="10.2" y="4" width="3.6" height="16" rx="1.8" fill="currentColor" />
+      <rect x="16.4" y="7" width="3.6" height="10" rx="1.8" fill="currentColor" />
+    </svg>
+  );
+}
+
+/** The wordmark: the mark on an iris tile, and the name. */
+export function Logo({ className, size = "md", wordmark = true }: { className?: string; size?: "sm" | "md" | "lg"; wordmark?: boolean }) {
+  const tile = size === "sm" ? "h-7 w-7 rounded-lg" : size === "lg" ? "h-11 w-11 rounded-2xl" : "h-8 w-8 rounded-[10px]";
+  const glyph = size === "sm" ? "h-4 w-4" : size === "lg" ? "h-7 w-7" : "h-5 w-5";
+  const text = size === "sm" ? "text-md" : size === "lg" ? "text-2xl" : "text-lg";
+  return (
+    <span className={cn("inline-flex items-center gap-2.5", className)}>
+      <span className={cn("inline-flex shrink-0 items-center justify-center bg-brand text-white", tile)}>
+        <LogoMark className={glyph} />
+      </span>
+      {wordmark && <span className={cn("ldg-display text-ink-text", text)}>Ledgeur</span>}
+    </span>
+  );
 }

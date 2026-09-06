@@ -42,6 +42,9 @@ pub fn run() {
                 app.handle().plugin(tauri_plugin_updater::Builder::new().build())?;
                 app.handle().plugin(tauri_plugin_process::init())?;
             }
+            // A phone has nothing to set up here; the store handles updates.
+            #[cfg(not(desktop))]
+            let _ = &app;
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![

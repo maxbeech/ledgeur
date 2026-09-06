@@ -268,7 +268,7 @@ export function runSiteTests(ok: (name: string, cond: boolean, detail?: string) 
   const globals = readFileSync(new URL("../app/globals.css", import.meta.url), "utf8");
   ok("the site imports the shared theme rather than defining its own",
     globals.includes("@ledgeur/ui/theme.css"));
-  ok("the site self-hosts its fonts", globals.includes("@fontsource-variable/fraunces"));
+  ok("the site self-hosts its fonts", globals.includes("@fontsource-variable/plus-jakarta-sans"));
 
   ok("the site description mentions speaker separation, which is the differentiator",
     /speaker|who said what/i.test(SITE.description), SITE.description);

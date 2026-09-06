@@ -3,7 +3,7 @@ import Link from "next/link";
 import { TOOLS } from "@ledgeur/mcp";
 import { hostedEndpoint } from "@ledgeur/mcp";
 import { SITE, TEAM_PRICE_USD } from "@/lib/site";
-import { Badge, Card, buttonClass } from "@ledgeur/ui/components";
+import { Badge, Card, Display, buttonClass } from "@ledgeur/ui/components";
 import { PageHeader, Section, SectionHead } from "@/components/site/Chrome";
 
 export const metadata: Metadata = {
@@ -26,23 +26,22 @@ export default function Agents() {
         lede="Ledgeur speaks the Model Context Protocol, so an agent can list your meetings, search them, read a full transcript with speakers, and pull the open action items — without you pasting anything."
       />
 
-      <Section width="narrow">
+      <Section width="narrow" pad="tight">
         <SectionHead
-          kicker="The tools"
-          title="Four tools, generated from the code that implements them."
+          title={`${TOOLS.length} tools, generated from the code that implements them.`}
           lede="This list is built from the real tool definitions at build time, so it cannot describe something that does not exist."
         />
         <Card className="mt-7 divide-y divide-hairline">
           {TOOLS.map((tool) => (
             <div key={tool.name} className="px-5 py-4">
-              <code className="font-mono text-[13px] text-glow-strong">{tool.name}</code>
-              <p className="mt-1.5 text-[13.5px] leading-relaxed text-muted">{tool.description}</p>
+              <code className="font-mono text-sm font-medium text-brand-strong">{tool.name}</code>
+              <p className="mt-1.5 text-base leading-relaxed text-muted">{tool.description}</p>
             </div>
           ))}
         </Card>
       </Section>
 
-      <Section width="prose" className="ldg-article !pt-4">
+      <Section width="prose" className="ldg-article" pad="tight">
         <h2>Connecting</h2>
         <p>
           Generate a token on your <Link href="/account">account page</Link>, then give your MCP
@@ -76,8 +75,8 @@ export default function Agents() {
           workspace&rsquo;s meetings even if it asks.
         </p>
         <p>
-          It also cannot see anything you have not synced. Meetings on the free plan live only in
-          your browser, so there is nothing for an agent to connect to — which is the trade being
+          It also cannot see anything you have not synced. Meetings on the free plan live only on
+          your device, so there is nothing for an agent to connect to — which is the trade being
           made when you pay: the record becomes reachable, deliberately.
         </p>
 
@@ -97,21 +96,19 @@ export default function Agents() {
         </ul>
       </Section>
 
-      <Section width="narrow" className="!pt-4 text-center">
-        <Card raised className="p-8">
-          <Badge tone="glow">Part of the Team plan</Badge>
-          <p className="ldg-display mt-4 text-[22px] text-ink-text">
-            ${TEAM_PRICE_USD} per person, per month.
-          </p>
-          <p className="mx-auto mt-2 max-w-md text-[14px] leading-relaxed text-muted">
+      <Section width="narrow" pad="tight" className="text-center">
+        <div className="rounded-3xl bg-brand-soft px-6 py-10">
+          <Badge tone="brand">Part of the Team plan</Badge>
+          <Display level={2} className="mt-4 text-2xl">${TEAM_PRICE_USD} per person, per month.</Display>
+          <p className="mx-auto mt-2 max-w-md text-base leading-relaxed text-muted">
             Agent access comes with sync and the shared team library. Fourteen days free, and the
             local app stays free whatever you decide.
           </p>
           <div className="mt-6 flex flex-wrap justify-center gap-3">
-            <Link href="/pricing" className={buttonClass("primary", "md")}>See pricing</Link>
-            <Link href="/account" className={buttonClass("secondary", "md")}>Generate a token</Link>
+            <Link href="/pricing" className={buttonClass("primary", "md", "rounded-full px-5")}>See pricing</Link>
+            <Link href="/account" className={buttonClass("secondary", "md", "rounded-full px-5")}>Generate a token</Link>
           </div>
-        </Card>
+        </div>
       </Section>
     </main>
   );

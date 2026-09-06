@@ -542,10 +542,10 @@ export function useRecorder(getThreadMessages?: () => ChatMessage[]) {
       manualNotes,
       messages: messages.length ? messages : undefined,
       noteMarkdown: notesToMarkdown(title || "Untitled meeting", now.slice(0, 10), notes, transcript, manualNotes),
-      wordCount: notes.wordCount, synced: false,
+      wordCount: notes.wordCount, synced: false, updatedAt: now,
       templateId: template.current,
     };
-    await saveMeeting(meeting);
+    await saveMeeting(meeting, "none");
     // The pipeline is process-wide and deliberately NOT disposed here: disposing
     // it is what made every recording after the first pay a full model reload.
     diarizer.current = null;

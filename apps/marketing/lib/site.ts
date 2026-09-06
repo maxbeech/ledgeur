@@ -64,9 +64,17 @@ export const VALUE_PROPS = [
   },
 ] as const;
 
-/** Every navigable page, in one list. The header, the footer and the sitemap
- *  all read from this, so a new page cannot be launched unlinked. */
+/** Every navigable page, in one list. The header and the footer both read
+ *  from this, so a new page cannot be launched unlinked. */
 export const NAV = {
+  /** The masthead's links, in order. Everything else lives in the footer. */
+  header: [
+    ["Download", "/download"],
+    ["Pricing", "/pricing"],
+    ["For agents", "/agents"],
+    ["Guides", "/blog"],
+    ["Alternatives", "/alternatives"],
+  ],
   product: [
     ["Open the app", "/app"],
     ["Download for Mac", "/download"],

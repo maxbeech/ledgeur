@@ -14,13 +14,13 @@ export const metadata: Metadata = {
 export default function AccountPage() {
   return (
     <main>
-      <PageHeader kicker="Account" title="Your account" />
-      <Section width="narrow" className="!py-12">
+      <PageHeader title="Your account" />
+      <Section width="narrow" pad="tight">
         {/* AccountPanel reads ?checkout=success, and a client component that
             reads search params has to sit under a Suspense boundary or the page
             cannot be prerendered at all. The fallback is what somebody sees for
             the few milliseconds before hydration. */}
-        <Suspense fallback={<p className="text-[14px] text-muted">Loading your account…</p>}>
+        <Suspense fallback={<p className="text-base text-muted">Loading your account</p>}>
           <AccountPanel />
         </Suspense>
       </Section>

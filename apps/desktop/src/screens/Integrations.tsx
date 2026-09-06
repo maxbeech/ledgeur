@@ -1,11 +1,14 @@
-// Settings — account, connections, on-device AI, voices, sharing and the paid
-// MCP data tier. Every card reflects real state; nothing is mocked.
-import { FileText, Cloud, StickyNote } from "lucide-react";
+// Settings — account, appearance, connections, automation, on-device AI,
+// sharing and agent access. Every card reflects real state; nothing is mocked.
+// A phone shows only what a phone can do: no system audio, no webhooks, no
+// native engine.
 import { Page, PageHeader } from "../components/PageHeader.tsx";
-import { Button, Card, Chip, Kicker } from "../components/ui.tsx";
-import { hasBackend } from "../lib/config.ts";
+import { Label } from "../components/ui.tsx";
 import { useSession } from "../lib/session.ts";
+import { useDevice } from "../lib/platform.ts";
 import { AccountCard } from "../components/integrations/AccountCard.tsx";
+import { SyncCard } from "../components/integrations/SyncCard.tsx";
+import { AppearanceCard } from "../components/integrations/AppearanceCard.tsx";
 import { NotionCard } from "../components/integrations/NotionCard.tsx";
 import { ContextelyCard } from "../components/integrations/ContextelyCard.tsx";
 import { GoogleCalendarCard } from "../components/integrations/GoogleCalendarCard.tsx";
@@ -18,88 +21,70 @@ import { RecipesCard } from "../components/integrations/RecipesCard.tsx";
 import { WebhookCard } from "../components/integrations/WebhookCard.tsx";
 import { AutomationCard } from "../components/integrations/AutomationCard.tsx";
 
-const CONNECTIONS = [
-  { id: "microsoft", name: "Microsoft 365", desc: "Outlook calendar + Teams meeting detection.", icon: Cloud },
-  { id: "google_docs", name: "Google Docs", desc: "Export notes to a Google Doc.", icon: FileText },
-  { id: "onenote", name: "OneNote", desc: "Export notes to a OneNote section.", icon: StickyNote },
-] as const;
-
 export function Integrations() {
   const { session } = useSession();
+  const { phone, native } = useDevice();
 
   return (
     <Page>
       <PageHeader
-        kicker="Settings"
-        title="Integrations & data"
-        subtitle="Connect your tools, control sharing, and open your brain to other apps."
+        title="Settings"
+        subtitle="Your account, how the app looks, what it connects to, and what leaves this device."
       />
 
-      <div className="ldg-stagger">
-        <Section title="Account">
+      <Section title="Account">
+        <div className="space-y-3">
           <AccountCard session={session} />
-        </Section>
+          <SyncCard />
+        </div>
+      </Section>
 
-        <Section title="Connections">
-          <div className="grid gap-3 sm:grid-cols-2">
-            <NotionCard signedIn={Boolean(session)} />
-            <ContextelyCard signedIn={Boolean(session)} />
-            <GoogleCalendarCard />
-            {CONNECTIONS.map((c) => (
-              <Card key={c.id} className="flex items-start gap-3 p-4">
-                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-surface-muted text-ink-text"><c.icon className="h-5 w-5" /></span>
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-semibold text-ink-text">{c.name}</span>
-                    <Chip>planned</Chip>
-                  </div>
-                  <p className="mt-0.5 text-xs leading-relaxed text-muted">{c.desc}</p>
-                  <div className="mt-3">
-                    <Button size="sm" variant="outline" disabled={!hasBackend} title={!hasBackend ? "Configure Supabase to enable OAuth connections" : undefined}>
-                      {hasBackend ? "Connect" : "Backend required"}
-                    </Button>
-                  </div>
-                </div>
-              </Card>
-            ))}
-          </div>
-        </Section>
+      <Section title="Appearance">
+        <AppearanceCard />
+      </Section>
 
-        <Section title="Automation">
-          <AutomationCard />
-        </Section>
+      <Section title="Connections">
+        <div className="grid gap-3 sm:grid-cols-2">
+          <NotionCard signedIn={Boolean(session)} />
+          <ContextelyCard signedIn={Boolean(session)} />
+          <GoogleCalendarCard />
+        </div>
+      </Section>
 
-        <Section title="How your notes are written">
-          <RecipesCard />
-        </Section>
+      <Section title="Automation">
+        <AutomationCard />
+      </Section>
 
-        <Section title="On-device AI">
-          <div className="space-y-3">
-            <AiEngineCard />
-            <CopilotCard />
-            <VoicesCard />
-          </div>
-        </Section>
+      <Section title="How your notes are written">
+        <RecipesCard />
+      </Section>
 
-        <Section title="Sharing & privacy (admin)">
-          <SharingPolicyCard session={session} />
-        </Section>
+      <Section title="On-device AI">
+        <div className="space-y-3">
+          {native && !phone && <AiEngineCard />}
+          <CopilotCard />
+          <VoicesCard />
+        </div>
+      </Section>
 
-        <Section title="Data access (MCP)">
-          <div className="space-y-3">
-            <McpAccessCard session={session} />
-            <WebhookCard />
-          </div>
-        </Section>
-      </div>
+      <Section title="Sharing">
+        <SharingPolicyCard session={session} />
+      </Section>
+
+      <Section title="Agent access">
+        <div className="space-y-3">
+          <McpAccessCard session={session} />
+          {!phone && <WebhookCard />}
+        </div>
+      </Section>
     </Page>
   );
 }
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <section className="mb-9">
-      <Kicker className="mb-3">{title}</Kicker>
+    <section className="mb-8">
+      <Label as="h2" className="mb-3">{title}</Label>
       {children}
     </section>
   );

@@ -1,64 +1,22 @@
-/* Ledgeur — "The Library of Record" theme.
-   Tokens mirror packages/ui/src/tokens.ts (single source of truth).
-   Fonts are bundled (offline-first): Fraunces (display serif) ·
-   Schibsted Grotesk (UI) · Spline Sans Mono (data/timestamps). */
-@import "@fontsource-variable/fraunces";
-@import "@fontsource-variable/schibsted-grotesk";
+/* The app's stylesheet.
+ *
+ * Everything visual comes from the design system — @ledgeur/ui/theme.css is
+ * the single source for colour, type, radii, shadows, motion and focus, shared
+ * with the site and the phone. This file adds only what is specific to an app
+ * window rather than a page: it does not scroll, it is not selectable, and it
+ * has a draggable title strip on macOS.
+ *
+ * Fonts are bundled (offline-first): Plus Jakarta Sans for everything read or
+ * operated, Spline Sans Mono for code. */
+@import "@fontsource-variable/plus-jakarta-sans";
 @import "@fontsource-variable/spline-sans-mono";
 @import "tailwindcss";
+@import "@ledgeur/ui/theme.css";
 
-@theme {
-  --color-paper: #f6f2ea;
-  --color-surface: #fdfbf7;
-  --color-surface-muted: #efe9de;
-  --color-surface-sunken: #e9e2d4;
-
-  --color-ink: #0e1f19;
-  --color-ink-soft: #163026;
-  --color-ink-raised: #1d3a2e;
-
-  --color-accent: #0f8a63;
-  --color-accent-strong: #0a6b4d;
-  --color-accent-soft: #dcefe5;
-
-  --color-glow: #a87a24;
-  --color-glow-strong: #805912;
-  --color-glow-soft: #f3e8d2;
-
-  --color-danger: #a33636;
-  --color-danger-soft: #f6e0dc;
-  --color-danger-on-ink: #e08a8a;
-  --color-warn: #8f520d;
-  --color-warn-soft: #f5e7d2;
-  --color-warn-on-ink: #d9a441;
-
-  --color-ink-text: #211d16;
-  --color-muted: #685f52;
-  --color-faint: #988f7f;
-  --color-on-ink: #f0ede4;
-  --color-on-ink-muted: #93a89b;
-
-  --color-hairline: #e2dacb;
-  --color-hairline-strong: #cfc4ae;
-
-  --radius-xl: 1.25rem;
-
-  --font-display: "Fraunces Variable", "Iowan Old Style", Georgia, serif;
-  --font-sans: "Schibsted Grotesk Variable", "Avenir Next", "Segoe UI", sans-serif;
-  --font-mono: "Spline Sans Mono Variable", "SF Mono", ui-monospace, monospace;
-
-  --ease-settle: cubic-bezier(0.22, 1, 0.36, 1);
-  --ease-swift: cubic-bezier(0.4, 0, 0.2, 1);
-
-  --shadow-card: 0 1px 2px rgb(24 32 22 / 0.05), 0 10px 28px -14px rgb(24 32 22 / 0.14);
-  --shadow-float: 0 18px 50px -16px rgb(14 31 25 / 0.32);
-  --shadow-palette: 0 24px 80px -12px rgb(14 31 25 / 0.45);
-}
-
-* {
-  -webkit-font-smoothing: antialiased;
-  text-rendering: optimizeLegibility;
-}
+/* Tailwind v4 scans sources it can see. The shared component package lives
+   outside this app's tree, so its classes have to be pointed at explicitly or
+   they are compiled away. */
+@source "../../../packages/ui/src";
 
 html, body, #root { height: 100%; }
 
@@ -67,8 +25,11 @@ body {
   background: var(--color-paper);
   color: var(--color-ink-text);
   font-family: var(--font-sans);
+  font-size: var(--text-base);
   overflow: hidden;
   user-select: none; /* app-like feel; re-enabled for reading surfaces */
+  -webkit-tap-highlight-color: transparent;
+  overscroll-behavior: none;
 }
 
 /* Reading surfaces stay selectable (transcripts, notes, chat, inputs). */
@@ -77,113 +38,10 @@ body {
   -webkit-user-select: text;
 }
 
-/* ---- Display type ------------------------------------------------------- */
-.ldg-display {
-  font-family: var(--font-display);
-  font-variation-settings: "opsz" 40, "SOFT" 60, "WONK" 0;
-  font-weight: 560;
-  letter-spacing: -0.015em;
-}
-.ldg-kicker {
-  font-family: var(--font-mono);
-  font-size: 10.5px;
-  font-weight: 500;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-  color: var(--color-faint);
-}
-
-/* ---- Paper grain — quiet, print-like texture over the canvas ------------ */
-.ldg-grain::before {
-  content: "";
-  position: fixed;
-  inset: 0;
-  z-index: 60;
-  pointer-events: none;
-  opacity: 0.30;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3CfeComponentTransfer%3E%3CfeFuncA type='linear' slope='0.05'/%3E%3C/feComponentTransfer%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E");
-}
-
-/* ---- Scrollbars ---------------------------------------------------------- */
-::-webkit-scrollbar { width: 10px; height: 10px; }
-::-webkit-scrollbar-thumb {
-  background: color-mix(in srgb, var(--color-ink) 16%, transparent);
-  border-radius: 999px;
-  border: 3px solid transparent;
-  background-clip: content-box;
-}
-::-webkit-scrollbar-thumb:hover {
-  background: color-mix(in srgb, var(--color-ink) 30%, transparent);
-  background-clip: content-box;
-}
-
-/* ---- Motion grammar ------------------------------------------------------ */
-@keyframes ldg-rise {
-  from { opacity: 0; transform: translateY(10px); filter: blur(2px); }
-  to { opacity: 1; transform: translateY(0); filter: blur(0); }
-}
-.ldg-rise { animation: ldg-rise 0.45s var(--ease-settle) both; }
-/* Staggered page-load orchestration: apply .ldg-stagger to a container. */
-.ldg-stagger > * { animation: ldg-rise 0.5s var(--ease-settle) both; }
-.ldg-stagger > *:nth-child(1) { animation-delay: 0ms; }
-.ldg-stagger > *:nth-child(2) { animation-delay: 60ms; }
-.ldg-stagger > *:nth-child(3) { animation-delay: 120ms; }
-.ldg-stagger > *:nth-child(4) { animation-delay: 180ms; }
-.ldg-stagger > *:nth-child(5) { animation-delay: 240ms; }
-.ldg-stagger > *:nth-child(6) { animation-delay: 300ms; }
-.ldg-stagger > *:nth-child(n + 7) { animation-delay: 360ms; }
-
-@keyframes ldg-pulse {
-  0%, 100% { opacity: 1; transform: scale(1); }
-  50% { opacity: 0.35; transform: scale(0.8); }
-}
-.ldg-pulse { animation: ldg-pulse 1.6s ease-in-out infinite; }
-
-/* Recording halo — a slow breathing ring around the live dot. */
-@keyframes ldg-halo {
-  0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--color-danger) 36%, transparent); }
-  70% { box-shadow: 0 0 0 9px transparent; }
-  100% { box-shadow: 0 0 0 0 transparent; }
-}
-.ldg-halo { animation: ldg-halo 2.2s var(--ease-swift) infinite; }
-
-/* The brain thinking — a gold shimmer sweep across a hairline. */
-@keyframes ldg-shimmer {
-  from { background-position: -200% 0; }
-  to { background-position: 200% 0; }
-}
-.ldg-shimmer {
-  background: linear-gradient(90deg, transparent 20%, color-mix(in srgb, var(--color-glow) 55%, transparent) 50%, transparent 80%);
-  background-size: 200% 100%;
-  animation: ldg-shimmer 1.6s linear infinite;
-}
-
-/* Command palette entrance. */
-@keyframes ldg-palette-in {
-  from { opacity: 0; transform: translateY(-8px) scale(0.985); }
-  to { opacity: 1; transform: translateY(0) scale(1); }
-}
-.ldg-palette-in { animation: ldg-palette-in 0.18s var(--ease-settle) both; }
-@keyframes ldg-fade-in { from { opacity: 0; } to { opacity: 1; } }
-.ldg-fade-in { animation: ldg-fade-in 0.16s ease-out both; }
-
-/* Live waveform bars (heights driven inline; this eases them). */
-.ldg-eq-bar { transition: height 100ms var(--ease-swift), background-color 160ms; }
-
-@media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after {
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
-  }
-}
-
-/* ---- Focus --------------------------------------------------------------- */
-:focus-visible {
-  outline: 2px solid color-mix(in srgb, var(--color-accent) 65%, transparent);
-  outline-offset: 2px;
-}
-
 /* ---- Frameless window chrome -------------------------------------------- */
 .ldg-drag { -webkit-app-region: drag; }
 .ldg-no-drag { -webkit-app-region: no-drag; }
+
+/* ---- Phone safe areas ---------------------------------------------------- */
+.ldg-safe-top { padding-top: env(safe-area-inset-top); }
+.ldg-safe-bottom { padding-bottom: env(safe-area-inset-bottom); }

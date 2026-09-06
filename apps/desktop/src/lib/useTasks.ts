@@ -4,7 +4,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { listActionItemsWithMeeting, setActionItemStatus } from "@ledgeur/core";
-import { listMeetings as listLocal } from "./meetingsStore.ts";
+import { listMeetings as listLocal, subscribeMeetings } from "./meetingsStore.ts";
 import { getSupabase } from "./supabase.ts";
 
 export interface TaskItem {
@@ -67,7 +67,10 @@ export function useTasks() {
     }
   }, []);
 
-  useEffect(() => { void refresh(); }, [refresh]);
+  useEffect(() => {
+    void refresh();
+    return subscribeMeetings(() => { void refresh(); });
+  }, [refresh]);
 
   const toggle = useCallback(async (task: TaskItem) => {
     const next = !task.done;

@@ -1,29 +1,28 @@
+// A screen's title and the one action that belongs beside it.
 import type { ReactNode } from "react";
-import { Kicker } from "./ui.tsx";
+import { cn } from "@ledgeur/ui";
 
-/** Editorial page header: mono kicker · Fraunces display title · hairline rule. */
-export function PageHeader({ kicker, title, subtitle, action }: {
-  kicker?: string; title: string; subtitle?: string; action?: ReactNode;
+export function PageHeader({ title, subtitle, action, back }: {
+  title: string; subtitle?: ReactNode; action?: ReactNode; back?: ReactNode;
 }) {
   return (
-    <header className="mb-8">
+    <header className="mb-6">
+      {back && <div className="mb-3">{back}</div>}
       <div className="flex items-end justify-between gap-4">
         <div className="min-w-0">
-          {kicker && <Kicker className="mb-2">{kicker}</Kicker>}
-          <h1 className="ldg-display text-[30px] leading-tight text-ink-text">{title}</h1>
-          {subtitle && <p className="mt-1.5 text-sm text-muted">{subtitle}</p>}
+          <h1 className="ldg-display text-3xl leading-tight text-ink-text">{title}</h1>
+          {subtitle && <p className="mt-1.5 text-base text-muted">{subtitle}</p>}
         </div>
-        {action && <div className="shrink-0 pb-1">{action}</div>}
+        {action && <div className="shrink-0 pb-0.5">{action}</div>}
       </div>
-      <div className="mt-5 h-px bg-hairline" />
     </header>
   );
 }
 
-/** Standard page container — consistent max width + padding across screens. */
-export function Page({ children, wide }: { children: ReactNode; wide?: boolean }) {
+/** Standard page container — one width, one padding, across screens. */
+export function Page({ children, wide, className }: { children: ReactNode; wide?: boolean; className?: string }) {
   return (
-    <div className={`mx-auto ${wide ? "max-w-6xl" : "max-w-5xl"} px-5 pb-24 pt-2 sm:px-8 md:pb-16`}>
+    <div className={cn("ldg-rise mx-auto px-5 pb-10 pt-4 sm:px-8 sm:pt-6", wide ? "max-w-6xl" : "max-w-4xl", className)}>
       {children}
     </div>
   );

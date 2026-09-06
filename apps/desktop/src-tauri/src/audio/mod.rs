@@ -20,6 +20,9 @@
 // apps/desktop/src/lib/systemAudioTap.ts for the consumer.
 
 use serde::Serialize;
+// `Emitter` is only used by the macOS tap; the stub for every other platform
+// has nothing to emit.
+#[allow(unused_imports)]
 use tauri::{AppHandle, Emitter};
 
 #[derive(Serialize, Clone)]

@@ -9,7 +9,8 @@
 import { useState } from "react";
 import Link from "next/link";
 import type { LocalMeeting } from "@ledgeur/core";
-import { Badge, Button, Card, ErrorNote, Kicker } from "@ledgeur/ui/components";
+import { Badge, Button, Card, ErrorNote, Label } from "@ledgeur/ui/components";
+import { cn } from "@ledgeur/ui";
 import { useSync, type Visibility } from "@/lib/useSync";
 import { useSession } from "@/lib/useSession";
 
@@ -36,41 +37,41 @@ export function SyncCard({
   }
 
   return (
-    <Card raised className="p-6">
+    <Card className="p-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <Kicker>Sync</Kicker>
+        <Label>Sync</Label>
         {synced && <Badge tone="accent">In the cloud</Badge>}
       </div>
 
       {!session ? (
         <>
-          <p className="mt-2.5 text-[13.5px] leading-relaxed text-muted">
+          <p className="mt-2.5 text-base leading-relaxed text-muted">
             This meeting is on this device only. Sign in on the Team plan to reach it from your
             other devices, share it with your workspace, and let your AI agents read it.
           </p>
-          <Link href="/signin?next=/app" className="mt-3 inline-block text-[13.5px] font-medium text-accent-strong hover:underline">
-            Sign in →
+          <Link href="/signin?next=/app" className="mt-3 inline-block text-base font-medium text-brand-strong hover:underline">
+            Sign in
           </Link>
         </>
       ) : !sync.paid ? (
         <>
-          <p className="mt-2.5 text-[13.5px] leading-relaxed text-muted">
+          <p className="mt-2.5 text-base leading-relaxed text-muted">
             Your workspace is on the free plan, so this meeting stays here — which is the default
             and is not a problem. Syncing, the shared library and agent access come with the Team
             plan.
           </p>
-          <Link href="/account" className="mt-3 inline-block text-[13.5px] font-medium text-accent-strong hover:underline">
-            See the Team plan →
+          <Link href="/account" className="mt-3 inline-block text-base font-medium text-brand-strong hover:underline">
+            See the Team plan
           </Link>
         </>
       ) : synced ? (
-        <p className="mt-2.5 text-[13.5px] leading-relaxed text-muted">
+        <p className="mt-2.5 text-base leading-relaxed text-muted">
           Sent to {sync.workspace?.name ?? "your workspace"}. The copy on this device is still the
           one you are reading — nothing was moved or deleted.
         </p>
       ) : (
         <>
-          <p className="mt-2.5 text-[13.5px] leading-relaxed text-muted">
+          <p className="mt-2.5 text-base leading-relaxed text-muted">
             Send this meeting to {sync.workspace?.name ?? "your workspace"}. The transcript, the
             notes and the speakers go; the voice prints do not, on any plan.
           </p>
@@ -84,24 +85,25 @@ export function SyncCard({
               ] as const).map(([value, label, hint]) => (
                 <label
                   key={value}
-                  className={`cursor-pointer rounded-xl border p-3 transition-colors ${
-                    visibility === value ? "border-accent bg-accent-soft" : "border-hairline hover:border-hairline-strong"
-                  }`}
+                  className={cn(
+                    "cursor-pointer rounded-xl border p-3.5 transition-colors",
+                    visibility === value ? "border-brand bg-brand-soft/50" : "border-hairline-strong hover:bg-surface-muted",
+                  )}
                 >
                   <input
                     type="radio" name={`visibility-${meeting.id}`} value={value}
                     checked={visibility === value} onChange={() => setVisibility(value)}
                     className="sr-only"
                   />
-                  <span className="block text-[13.5px] font-medium text-ink-text">{label}</span>
-                  <span className="mt-0.5 block text-[12px] leading-snug text-muted">{hint}</span>
+                  <span className="block text-base font-semibold text-ink-text">{label}</span>
+                  <span className="mt-0.5 block text-sm leading-snug text-muted">{hint}</span>
                 </label>
               ))}
             </div>
           </fieldset>
 
-          <Button onClick={push} disabled={busy} className="mt-4">
-            {busy ? "Sending…" : "Sync this meeting"}
+          <Button onClick={push} disabled={busy} className="mt-4 rounded-full">
+            {busy ? "Sending" : "Sync this meeting"}
           </Button>
         </>
       )}

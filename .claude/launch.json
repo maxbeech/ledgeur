@@ -6,6 +6,12 @@
       "runtimeExecutable": "pnpm",
       "runtimeArgs": ["--filter", "@ledgeur/marketing", "dev"],
       "port": 3000
+    },
+    {
+      "name": "desktop",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--filter", "@ledgeur/desktop", "dev"],
+      "port": 1420
     }
   ]
 }

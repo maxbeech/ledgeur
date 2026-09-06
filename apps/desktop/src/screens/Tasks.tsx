@@ -2,10 +2,11 @@
 // status (cross-device); unsynced local items keep their done-state on-device.
 import { useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { SquareCheck, CircleDot } from "lucide-react";
+import { SquareCheck, Check } from "lucide-react";
 import { cn } from "@ledgeur/ui";
 import { Page, PageHeader } from "../components/PageHeader.tsx";
-import { Button, Card, Chip, EmptyState, ErrorNote, Spinner } from "../components/ui.tsx";
+import { Badge, Button, Card, EmptyState, ErrorNote, Spinner } from "../components/ui.tsx";
+import { RecordDot } from "../components/RecordDot.tsx";
 import { useTasks, type TaskItem } from "../lib/useTasks.ts";
 
 export function Tasks() {
@@ -26,13 +27,12 @@ export function Tasks() {
   const openCount = (tasks ?? []).filter((t) => !t.done).length;
 
   if (tasks === null && !error) {
-    return <div className="flex items-center justify-center gap-2 py-20 text-sm text-muted"><Spinner /> Loading…</div>;
+    return <div className="flex items-center justify-center gap-2 py-20 text-sm text-muted"><Spinner /> Loading</div>;
   }
 
   return (
     <Page>
       <PageHeader
-        kicker="Follow through"
         title="Tasks"
         subtitle={`${openCount} open action item${openCount === 1 ? "" : "s"} from your meetings`}
       />
@@ -43,33 +43,34 @@ export function Tasks() {
           <EmptyState
             icon={<SquareCheck className="h-5 w-5" />}
             title="No action items yet"
-            body="Action items are extracted automatically when you record a meeting."
-            action={<Button variant="accent" onClick={() => nav("/record")}><CircleDot className="h-4 w-4" /> Record a meeting</Button>}
+            body="Action items are pulled out automatically when you record a meeting."
+            action={<Button onClick={() => nav("/record")}><RecordDot /> Record a meeting</Button>}
           />
         </Card>
       ) : (
-        <div className="ldg-stagger space-y-6">
+        <div className="space-y-6">
           {grouped.map(([meetingId, group]) => (
             <section key={meetingId}>
               <button
                 onClick={() => meetingId !== "unassigned" && nav(`/meetings/${meetingId}`)}
-                className="ldg-kicker mb-2 transition-colors hover:text-ink-text"
+                className="ldg-label mb-2 transition-colors hover:text-ink-text"
               >
                 {group.title}
               </button>
               <Card className="divide-y divide-hairline">
                 {group.items.map((t) => (
-                  <label key={t.key} className="flex cursor-pointer items-start gap-3 px-5 py-3.5 transition-colors hover:bg-surface-muted/40">
-                    <input
-                      type="checkbox"
-                      checked={t.done}
-                      onChange={() => void toggle(t)}
-                      className="mt-0.5 h-4 w-4 accent-[var(--color-accent-strong)]"
-                    />
-                    <span className={cn("ldg-prose flex-1 text-sm leading-relaxed text-ink-text transition-colors", t.done && "text-faint line-through")}>
+                  <label key={t.key} className="flex cursor-pointer items-start gap-3 px-4 py-3 transition-colors hover:bg-surface-muted">
+                    <input type="checkbox" checked={t.done} onChange={() => void toggle(t)} className="peer sr-only" />
+                    <span className={cn(
+                      "mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 transition-colors",
+                      t.done ? "border-accent-strong bg-accent-strong text-white" : "border-hairline-strong bg-surface peer-focus-visible:border-brand",
+                    )}>
+                      {t.done && <Check className="h-3 w-3" strokeWidth={3} />}
+                    </span>
+                    <span className={cn("ldg-prose flex-1 text-base leading-relaxed text-ink-text transition-colors", t.done && "text-faint line-through")}>
                       {t.text}
                     </span>
-                    {t.source === "local" && <Chip tone="warn">local</Chip>}
+                    {t.source === "local" && <Badge tone="warn">On this device</Badge>}
                   </label>
                 ))}
               </Card>

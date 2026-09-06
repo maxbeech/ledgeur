@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { Suspense } from "react";
 import { SITE } from "@/lib/site";
 import SignInForm from "@/components/auth/SignInForm";
-import { PageHeader, Section } from "@/components/site/Chrome";
+import { Display } from "@ledgeur/ui/components";
 
 export const metadata: Metadata = {
   title: "Sign in",
@@ -15,19 +15,19 @@ export const metadata: Metadata = {
 
 export default function SignInPage() {
   return (
-    <main>
-      <PageHeader
-        kicker="Account"
-        title="Sign in"
-        lede="You do not need an account to record, transcribe or read your meetings — that all works offline. An account adds sync across your devices, the shared team library, and agent access."
-      />
-      <Section width="prose" className="!py-14">
-        {/* SignInForm reads ?next=, so it needs a Suspense boundary to stay
-            statically prerenderable. */}
-        <Suspense fallback={<p className="text-[14px] text-muted">Loading…</p>}>
-          <SignInForm />
-        </Suspense>
-      </Section>
+    <main className="mx-auto max-w-md px-5 py-14 sm:py-20">
+      <div className="mb-8 text-center">
+        <Display level={1} className="text-3xl">Sign in</Display>
+        <p className="mt-3 text-base leading-relaxed text-muted">
+          You do not need an account to record, transcribe or read your meetings. An account adds sync
+          across your devices, the shared team library, and agent access.
+        </p>
+      </div>
+      {/* SignInForm reads ?next=, so it needs a Suspense boundary to stay
+          statically prerenderable. */}
+      <Suspense fallback={<p className="text-center text-base text-muted">Loading</p>}>
+        <SignInForm />
+      </Suspense>
     </main>
   );
 }

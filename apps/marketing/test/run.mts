@@ -278,7 +278,7 @@ ok("the ISR window picks up a new release without a redeploy, but is not per-req
 ok("/download is in the sitemap",
   readFileSync(new URL("../app/sitemap.ts", import.meta.url), "utf8").includes("/download"));
 ok("/download is linked from the header",
-  readFileSync(new URL("../components/site/Chrome.tsx", import.meta.url), "utf8").includes('"/download"'));
+  /\["Download", "\/download"\]/.test(readFileSync(new URL("../lib/site.ts", import.meta.url), "utf8")));
 ok("/download is linked from the footer",
   readFileSync(new URL("../lib/site.ts", import.meta.url), "utf8").includes('"/download"'));
 

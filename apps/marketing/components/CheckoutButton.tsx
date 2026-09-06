@@ -69,7 +69,7 @@ export default function CheckoutButton({
         {busy ? "Opening Stripe…" : loading ? "…" : session ? label : `${label} →`}
       </Button>
       {!loading && !session && available && (
-        <p className="mt-2 text-center text-[12.5px] text-faint">
+        <p className="mt-2 text-center text-xs text-faint">
           You will be asked to sign in first, so the plan can be attached to your workspace.
         </p>
       )}
