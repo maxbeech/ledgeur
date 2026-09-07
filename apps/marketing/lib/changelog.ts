@@ -15,6 +15,18 @@ export interface Release {
 
 export const RELEASES: readonly Release[] = [
   {
+    date: "2026-09-07",
+    title: "Sync switched fully on, and the phone apps tested on real phones",
+    changes: [
+      { kind: "new", text: "Two-way sync is now switched on for everybody. Editing a title, renaming a speaker, filing a meeting into a space or deleting it reaches your other devices within a second or two, with nothing to refresh." },
+      { kind: "fixed", text: "An open meeting never changed underneath you. If someone renamed, filed or deleted a meeting on another device while you had it open, the page carried on showing it as it was when you opened it, until you reloaded." },
+      { kind: "fixed", text: "With no connection, Ledgeur told you your account had no workspace and to sign out and sign back in \u2014 the one thing you cannot do without a connection. It now says plainly that you are offline, that your work is saved on the device, and that it will sync on its own." },
+      { kind: "fixed", text: "Coming back online could take up to five minutes to catch up, because nothing was watching for the connection returning. It now syncs a couple of seconds after your wifi or signal is back." },
+      { kind: "fixed", text: "On Android, the phone's own navigation bar was drawn over the tabs at the bottom of the screen, across the Record button." },
+      { kind: "fixed", text: "While a recording was catching up on a slower phone, Ledgeur warned that the speech model was returning nothing \u2014 and then never took the warning back once the words started arriving." },
+    ],
+  },
+  {
     date: "2026-09-06",
     title: "A new look, a phone app, and sync that goes both ways",
     changes: [
