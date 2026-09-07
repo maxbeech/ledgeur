@@ -372,31 +372,26 @@ export function Rule({ className }: { className?: string }) {
 
 /* ------------------------------------------------------------------- mark */
 
-/**
- * The mark: three rounded bars — the lines of a ledger, and a voice.
- * Drawn in currentColor so it sits on any tint.
- */
+/** The mark alone, from /logo.png — served by each app's own public/ directory. */
 export function LogoMark({ className }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" aria-hidden className={className}>
-      <rect x="4" y="9" width="3.6" height="6" rx="1.8" fill="currentColor" />
-      <rect x="10.2" y="4" width="3.6" height="16" rx="1.8" fill="currentColor" />
-      <rect x="16.4" y="7" width="3.6" height="10" rx="1.8" fill="currentColor" />
-    </svg>
-  );
+  return <img src="/logo.png" alt="" aria-hidden className={cn("object-contain", className)} />;
 }
 
-/** The wordmark: the mark on an iris tile, and the name. */
+/**
+ * The mark and wordmark together, from /logo_with_text.png when `wordmark`
+ * is on. The wordmark's text is baked into the PNG in near-black, so a
+ * second, light-text PNG stands in on dark surfaces — see `.ldg-logo-dark`
+ * in theme.css.
+ */
 export function Logo({ className, size = "md", wordmark = true }: { className?: string; size?: "sm" | "md" | "lg"; wordmark?: boolean }) {
-  const tile = size === "sm" ? "h-7 w-7 rounded-lg" : size === "lg" ? "h-11 w-11 rounded-2xl" : "h-8 w-8 rounded-[10px]";
-  const glyph = size === "sm" ? "h-4 w-4" : size === "lg" ? "h-7 w-7" : "h-5 w-5";
-  const text = size === "sm" ? "text-md" : size === "lg" ? "text-2xl" : "text-lg";
-  return (
-    <span className={cn("inline-flex items-center gap-2.5", className)}>
-      <span className={cn("inline-flex shrink-0 items-center justify-center bg-brand text-white", tile)}>
-        <LogoMark className={glyph} />
-      </span>
-      {wordmark && <span className={cn("ldg-display text-ink-text", text)}>Ledgeur</span>}
+  const markSize = size === "sm" ? "h-7 w-7" : size === "lg" ? "h-11 w-11" : "h-8 w-8";
+  const lockupHeight = size === "sm" ? "h-6" : size === "lg" ? "h-9" : "h-7";
+  return wordmark ? (
+    <span className={cn("inline-flex", className)}>
+      <img src="/logo_with_text.png" alt="Ledgeur" className={cn(lockupHeight, "ldg-logo-light w-auto object-contain")} />
+      <img src="/logo_with_text_dark.png" alt="Ledgeur" className={cn(lockupHeight, "ldg-logo-dark w-auto object-contain")} />
     </span>
+  ) : (
+    <LogoMark className={cn(markSize, className)} />
   );
 }
