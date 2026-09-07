@@ -30,6 +30,15 @@
 // click it. Set LEDGEUR_MAC_TARGET=native for a quick host-only build while
 // developing — never for something you hand to someone else.
 //
+// Builds with the native AI engine (whisper.cpp + sherpa-onnx + llama.cpp —
+// see docs/NATIVE_AI.md) by default, on both architectures, so the shipped
+// app actually has a working copilot/Ask instead of silently falling back to
+// an unconfigured HTTP endpoint. Requires a C/C++ toolchain + CMake, which
+// `requireTargets()` cannot check for — if this is the first native-ai build
+// on this machine, run `cargo check --features native-ai` in src-tauri first
+// so a missing toolchain fails fast instead of partway through a universal
+// build. Set LEDGEUR_MAC_NATIVE_AI=0 to build without it (the old behaviour).
+//
 // Pass --publish to also create the GitHub release and upload every asset
 // (dmg, the signed updater bundle, its signature, latest.json) — the download
 // page and every installed app's update check both read from that release.
@@ -38,7 +47,7 @@
 // it can never silently overwrite a release someone already has.
 
 import { execFileSync } from "node:child_process";
-import { existsSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -46,6 +55,7 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const UNIVERSAL = "universal-apple-darwin";
 const TARGET = process.env.LEDGEUR_MAC_TARGET === "native" ? null : UNIVERSAL;
 const BUNDLE = join(ROOT, "src-tauri/target", TARGET ?? "", "release/bundle");
+const NATIVE_AI = process.env.LEDGEUR_MAC_NATIVE_AI !== "0";
 const PUBLISH = process.argv.includes("--publish");
 const REPO = "maxbeech/ledgeur";
 
@@ -179,20 +189,125 @@ const newestFile = (dir, ext) => {
   return files.sort((a, b) => statSync(b).mtimeMs - statSync(a).mtimeMs)[0] ?? null;
 };
 
+/** Recursively find the first file named `name` under `dir` — used to locate
+ *  sherpa-rs-sys's downloaded prebuilt libs, whose cache path includes a hash
+ *  component that isn't worth hardcoding. */
+function findFile(dir, name) {
+  if (!existsSync(dir)) return null;
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    const full = join(dir, entry.name);
+    if (entry.isDirectory()) {
+      const found = findFile(full, name);
+      if (found) return found;
+    } else if (entry.name === name) {
+      return full;
+    }
+  }
+  return null;
+}
+
+/**
+ * Embed sherpa-onnx's prebuilt shared libraries into the .app and point the
+ * binary at them, then re-sign everything that touches.
+ *
+ * `sherpa-rs-sys` links `libonnxruntime` and `libsherpa-onnx-c-api` as
+ * `@rpath/...` (that's their own install name) but never adds an `LC_RPATH`
+ * pointing anywhere — its build.rs has a literal `// TODO: add rpath for
+ * Android and iOS` left undone, macOS included. `tauri build`'s bundler will
+ * copy config-listed "frameworks" into Contents/Frameworks, but it doesn't add
+ * rpaths either. Net effect: `cargo run`/`cargo build` work by accident
+ * (Cargo puts `target/.../deps` — where the build script copied the dylib —
+ * on `DYLD_LIBRARY_PATH` for you), and the packaged, signed, notarised .app
+ * does not: it launches straight into `Library not loaded:
+ * @rpath/libonnxruntime.1.17.1.dylib — Reason: no LC_RPATH's found`. Verified
+ * by shipping exactly that build and watching it fail to launch.
+ *
+ * `tauri build` already signed `app` once; embedding a new dylib and adding an
+ * rpath both invalidate that signature, so this re-signs the dylibs, then the
+ * executable, then the whole bundle — nested code first, matching Apple's own
+ * signing order — and the caller must re-derive the dmg and updater tarball
+ * from this now-fixed .app, since `tauri build` already built both from the
+ * pre-fix one.
+ */
+function embedNativeAiLibs(app, identity) {
+  const cacheRoot = join(process.env.HOME ?? "", "Library/Caches/sherpa-rs");
+  const libNames = ["libonnxruntime.1.17.1.dylib", "libsherpa-onnx-c-api.dylib"];
+  const libs = libNames.map((name) => {
+    const found = findFile(cacheRoot, name);
+    if (!found) {
+      die(`Could not find ${name} under ${cacheRoot}.\n` +
+          "  Expected sherpa-rs-sys's build script to have downloaded it there — " +
+          "did this build actually compile with --features native-ai?");
+    }
+    return found;
+  });
+
+  say("\n▸ Embedding sherpa-onnx's shared libraries into the app bundle…");
+  const frameworksDir = join(app, "Contents/Frameworks");
+  mkdirSync(frameworksDir, { recursive: true });
+  for (const lib of libs) {
+    const dest = join(frameworksDir, lib.split("/").pop());
+    copyFileSync(lib, dest);
+    run("codesign", ["--force", "--options", "runtime", "--timestamp", "--sign", identity, dest]);
+  }
+
+  const binary = mainExecutable(app);
+  const loadCommands = execFileSync("otool", ["-l", binary], { encoding: "utf8" });
+  if (!loadCommands.includes("@executable_path/../Frameworks")) {
+    run("install_name_tool", ["-add_rpath", "@executable_path/../Frameworks", binary]);
+  }
+  const entitlements = join(ROOT, "src-tauri/Entitlements.plist");
+  const signArgs = ["--force", "--options", "runtime", "--timestamp", "--entitlements", entitlements, "--sign", identity];
+  run("codesign", [...signArgs, binary]);
+  run("codesign", [...signArgs, app]);
+
+  say("\n▸ Verifying the re-signed bundle…");
+  // --deep here only re-checks nested code (the two embedded dylibs) against
+  // the signatures already applied above — signing --deep is what's
+  // discouraged, verifying --deep is the normal way to confirm it worked.
+  run("codesign", ["--verify", "--deep", "--strict", "--verbose=2", app]);
+}
+
+/** Rebuild the .dmg (at the same path `tauri build` used) and the signed
+ *  updater tarball from a .app that changed after both were already built
+ *  from the pre-fix one. Plain `hdiutil`, not Tauri's own `bundle_dmg.sh` —
+ *  this dmg won't have the drag-to-Applications background/layout a normal
+ *  release build gets; fine for getting a real build onto a device, worth
+ *  revisiting before a polished public release. */
+function rebuildArtifactsAfterFixup(app, dmgPath, macosBundle, identity, updaterEnv) {
+  if (!dmgPath) die("No .dmg from the original build to rebuild — was dmg bundling disabled?");
+  say(`\n▸ Rebuilding ${dmgPath} from the fixed .app…`);
+  run("hdiutil", ["create", "-volname", "Ledgeur", "-srcfolder", app, "-format", "UDZO", "-ov", dmgPath]);
+  run("codesign", ["--force", "--sign", identity, dmgPath]);
+
+  const updaterBundle = join(macosBundle, "Ledgeur.app.tar.gz");
+  say(`\n▸ Rebuilding ${updaterBundle} from the fixed .app…`);
+  run("tar", ["-czf", updaterBundle, "-C", macosBundle, "Ledgeur.app"]);
+  run("pnpm", ["tauri", "signer", "sign", updaterBundle], { env: { ...process.env, ...updaterEnv } });
+}
+
 // ── 1. build + sign ────────────────────────────────────────────────────────
 const identity = signingIdentity();
 const updaterEnv = updaterSigningEnv();
 say(`\n▸ Signing as: ${identity}`);
 say(TARGET ? `▸ Target: ${TARGET} (Apple Silicon + Intel)` : "▸ Target: this machine only (LEDGEUR_MAC_TARGET=native)");
+say(NATIVE_AI ? "▸ Native AI engine: on (whisper.cpp + sherpa-onnx + llama.cpp)" : "▸ Native AI engine: off (LEDGEUR_MAC_NATIVE_AI=0) — webview model only");
 if (TARGET) requireTargets();
-run("pnpm", ["tauri", "build", ...(TARGET ? ["--target", TARGET] : [])], {
+run("pnpm", ["tauri", "build", ...(TARGET ? ["--target", TARGET] : []), ...(NATIVE_AI ? ["--features", "native-ai"] : [])], {
   env: { ...process.env, PATH: BUILD_PATH, APPLE_SIGNING_IDENTITY: identity, ...updaterEnv },
 });
 
 const app = join(BUNDLE, "macos/Ledgeur.app");
-const dmg = newestFile(join(BUNDLE, "dmg"), ".dmg");
 if (!existsSync(app)) die(`Build finished but ${app} is missing.`);
 assertArchitectures(mainExecutable(app));
+
+const macosBundle = join(BUNDLE, "macos");
+if (NATIVE_AI) {
+  const originalDmg = newestFile(join(BUNDLE, "dmg"), ".dmg");
+  embedNativeAiLibs(app, identity);
+  rebuildArtifactsAfterFixup(app, originalDmg, macosBundle, identity, updaterEnv);
+}
+const dmg = newestFile(join(BUNDLE, "dmg"), ".dmg");
 
 // ── 2. notarise ────────────────────────────────────────────────────────────
 const creds = notaryCredentials();
@@ -240,7 +355,6 @@ try {
 // actually download and verify; the dmg is only ever a first-install vehicle.
 // One universal bundle serves both Mac architectures, so latest.json lists it
 // under both platform keys with the same signature and URL.
-const macosBundle = join(BUNDLE, "macos");
 const updaterBundle = newestFile(macosBundle, ".tar.gz");
 const updaterSig = updaterBundle ? `${updaterBundle}.sig` : null;
 if (!updaterBundle || !updaterSig || !existsSync(updaterSig)) {

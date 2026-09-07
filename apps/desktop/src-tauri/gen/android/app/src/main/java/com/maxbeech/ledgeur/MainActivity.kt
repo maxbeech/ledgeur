@@ -1,4 +1,4 @@
-package com.ledgeur.app
+package com.maxbeech.ledgeur
 
 import android.os.Bundle
 import androidx.activity.enableEdgeToEdge

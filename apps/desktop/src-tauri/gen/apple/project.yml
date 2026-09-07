@@ -1,6 +1,6 @@
 name: ledgeur
 options:
-  bundleIdPrefix: com.ledgeur.app
+  bundleIdPrefix: com.maxbeech.ledgeur
   deploymentTarget:
     iOS: 14.0
 fileGroups: [../../src]
@@ -11,7 +11,8 @@ settingGroups:
   app:
     base:
       PRODUCT_NAME: Ledgeur
-      PRODUCT_BUNDLE_IDENTIFIER: com.ledgeur.app
+      PRODUCT_BUNDLE_IDENTIFIER: com.maxbeech.ledgeur
+      DEVELOPMENT_TEAM: E353LGUVGH
 targetTemplates:
   app:
     type: application
@@ -40,7 +41,6 @@ targets:
       path: ledgeur_iOS/Info.plist
       properties:
         LSRequiresIPhoneOS: true
-        NSMicrophoneUsageDescription: Ledgeur records meeting audio so it can transcribe it on this phone. Audio and transcripts stay on the phone unless you choose to sync them.
         UILaunchStoryboardName: LaunchScreen
         UIRequiredDeviceCapabilities: [arm64, metal]
         UISupportedInterfaceOrientations:
@@ -52,8 +52,8 @@ targets:
           - UIInterfaceOrientationPortraitUpsideDown
           - UIInterfaceOrientationLandscapeLeft
           - UIInterfaceOrientationLandscapeRight
-        CFBundleShortVersionString: 0.2.2
-        CFBundleVersion: "0.2.2"
+        CFBundleShortVersionString: 0.3.1
+        CFBundleVersion: "0.3.1"
     entitlements:
       path: ledgeur_iOS/ledgeur_iOS.entitlements
     scheme:
