@@ -25,7 +25,44 @@ committed, so a checkout can build without running `init` again.
 - **Android:** Android Studio with an SDK (platform 34+), an NDK (27+), and a
   JDK 17. Export `ANDROID_HOME`, `NDK_HOME` and `JAVA_HOME`.
 
-## Run it
+## Run it on your own iPhone
+
+The signing team is set in `tauri.conf.json` (`bundle.iOS.developmentTeam`), so
+this needs no Xcode fiddling beyond trusting the app once on the phone. A team
+id is an identifier rather than a secret; set `APPLE_DEVELOPMENT_TEAM` to build
+under a different account.
+
+1. Plug the iPhone into the Mac and unlock it; tap **Trust** if it asks. The
+   first time, also turn on **Settings → Privacy & Security → Developer Mode**
+   on the phone and let it restart.
+2. From the repo root:
+
+   ```bash
+   pnpm --filter @ledgeur/desktop tauri ios dev --open --host
+   ```
+
+   `--host` puts the Vite dev server on the LAN, which a real phone needs: a
+   simulator shares the Mac's `localhost`, a phone does not. `--open` opens
+   Xcode.
+3. In Xcode, choose the iPhone in the device menu and press **Run**. Xcode
+   creates the provisioning profile itself the first time.
+4. iOS blocks the first launch until you allow it: **Settings → General → VPN &
+   Device Management → Developer App → Trust**.
+
+The app stays on the phone and keeps working unplugged, though the signing
+profile expires (7 days on a free Apple account, a year on a paid one), after
+which you re-run step 2. To give a build to someone else without a cable:
+
+```bash
+pnpm --filter @ledgeur/desktop tauri ios build --export-method release-testing
+```
+
+and send them the `.ipa` — their device's UDID has to be registered in the
+developer account first. TestFlight is the way to avoid that, and needs an App
+Store Connect record.
+
+## Run it on a simulator or emulator
+
 
 ```bash
 # iOS, on the default booted simulator (or name one: … ios dev "iPhone 17 Pro")
