@@ -111,8 +111,12 @@ pub fn delete_voice_profile(app: tauri::AppHandle, id: String) -> Result<(), Str
 
 /// Enroll a voice from ~5–15 s of clear speech. Requires the native engine +
 /// downloaded models; otherwise returns an explicit error.
+///
+/// Runs on a blocking thread: the embedding inference otherwise runs directly
+/// in the IPC callback on the main thread, freezing the window for the
+/// duration — see the comment on `transcribe_chunk` in `ai/mod.rs`.
 #[tauri::command]
-pub fn enroll_voice(
+pub async fn enroll_voice(
     app: tauri::AppHandle,
     name: String,
     samples: Vec<f32>,
@@ -125,18 +129,22 @@ pub fn enroll_voice(
     if (samples.len() as f32) < sample_rate as f32 * 3.0 {
         return Err("Record at least 3 seconds of clear speech.".into());
     }
-    let embedding = crate::ai::engine::embed_voice(&app, &samples, sample_rate)?;
-    let mut profiles = load_profiles(&app);
-    let profile = VoiceProfile {
-        id: format!("vp-{}-{}", now_unix(), profiles.len() + 1),
-        name,
-        created_at: now_unix(),
-        embedding,
-    };
-    let meta = VoiceProfileMeta::from(&profile);
-    profiles.push(profile);
-    save_profiles(&app, &profiles)?;
-    Ok(meta)
+    tauri::async_runtime::spawn_blocking(move || {
+        let embedding = crate::ai::engine::embed_voice(&app, &samples, sample_rate)?;
+        let mut profiles = load_profiles(&app);
+        let profile = VoiceProfile {
+            id: format!("vp-{}-{}", now_unix(), profiles.len() + 1),
+            name,
+            created_at: now_unix(),
+            embedding,
+        };
+        let meta = VoiceProfileMeta::from(&profile);
+        profiles.push(profile);
+        save_profiles(&app, &profiles)?;
+        Ok(meta)
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 #[cfg(test)]

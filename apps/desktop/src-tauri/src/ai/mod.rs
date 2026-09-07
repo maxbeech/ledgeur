@@ -105,10 +105,14 @@ pub fn ai_status(app: tauri::AppHandle) -> AiStatus {
     }
 }
 
+/// Runs on a blocking thread — see the comment on `transcribe_chunk` below.
 #[tauri::command]
-pub fn download_models(app: tauri::AppHandle) -> Result<(), String> {
+pub async fn download_models(app: tauri::AppHandle) -> Result<(), String> {
     log::info!("download_models: starting");
-    engine::download_models(&app).inspect_err(|e| log::error!("download_models failed: {e}"))
+    tauri::async_runtime::spawn_blocking(move || engine::download_models(&app))
+        .await
+        .map_err(|e| e.to_string())?
+        .inspect_err(|e| log::error!("download_models failed: {e}"))
 }
 
 // ---- On-device LLM (copilot, suggestions, notes) ----
@@ -137,21 +141,42 @@ pub async fn llm_chat(app: tauri::AppHandle, messages: Vec<llm::ChatMsg>, temper
         .inspect_err(|e| log::error!("llm_chat failed: {e}"))
 }
 
+/// Runs on a blocking thread, not directly in the IPC handler: whisper.cpp
+/// inference for one utterance can take longer than the utterance itself on a
+/// slow CPU, and the webview's IPC callback fires on the main thread (a
+/// WebKit/wry constraint, not a Tauri one). A synchronous command body runs
+/// there directly — every chunk transcribed during a live recording froze the
+/// whole window for its duration, and, worse, backed up every other pending
+/// IPC call (including the copilot model download and its progress polling)
+/// behind it. `spawn_blocking` moves the CPU-bound work off that thread; the
+/// `download_llm`/`llm_chat` commands below already did this.
 #[tauri::command]
-pub fn transcribe_chunk(app: tauri::AppHandle, samples: Vec<f32>, sample_rate: u32) -> Result<Vec<TranscriptSegment>, String> {
-    engine::transcribe(&app, &samples, sample_rate).inspect_err(|e| log::error!("transcribe_chunk failed: {e}"))
+pub async fn transcribe_chunk(app: tauri::AppHandle, samples: Vec<f32>, sample_rate: u32) -> Result<Vec<TranscriptSegment>, String> {
+    tauri::async_runtime::spawn_blocking(move || engine::transcribe(&app, &samples, sample_rate))
+        .await
+        .map_err(|e| e.to_string())?
+        .inspect_err(|e| log::error!("transcribe_chunk failed: {e}"))
 }
 
 /// Full pass, run on stop: transcribe + diarize + identify enrolled voices +
 /// merge speaker labels (with identity confidence where a voice matched).
+///
+/// Runs on a blocking thread — see `transcribe_chunk` above. This one matters
+/// even more: it re-transcribes and diarizes the *entire* meeting, so on the
+/// main thread it froze the app for the whole duration of that pass with no
+/// way to tell it apart from a genuine hang.
 #[tauri::command]
-pub fn transcribe_diarize(app: tauri::AppHandle, samples: Vec<f32>, sample_rate: u32) -> Result<Vec<TranscriptSegment>, String> {
+pub async fn transcribe_diarize(app: tauri::AppHandle, samples: Vec<f32>, sample_rate: u32) -> Result<Vec<TranscriptSegment>, String> {
     log::info!("transcribe_diarize: starting full pass ({} samples)", samples.len());
-    let transcript = engine::transcribe(&app, &samples, sample_rate).inspect_err(|e| log::error!("transcribe_diarize: transcribe step failed: {e}"))?;
-    let diar = engine::diarize(&app, &samples, sample_rate).inspect_err(|e| log::error!("transcribe_diarize: diarize step failed: {e}"))?;
-    let profiles = voices::load_profiles(&app);
-    let identities = engine::identify_speakers(&app, &samples, sample_rate, &diar, &profiles);
-    Ok(merge_speakers(transcript, &diar, &identities))
+    tauri::async_runtime::spawn_blocking(move || {
+        let transcript = engine::transcribe(&app, &samples, sample_rate).inspect_err(|e| log::error!("transcribe_diarize: transcribe step failed: {e}"))?;
+        let diar = engine::diarize(&app, &samples, sample_rate).inspect_err(|e| log::error!("transcribe_diarize: diarize step failed: {e}"))?;
+        let profiles = voices::load_profiles(&app);
+        let identities = engine::identify_speakers(&app, &samples, sample_rate, &diar, &profiles);
+        Ok(merge_speakers(transcript, &diar, &identities))
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 #[cfg(test)]

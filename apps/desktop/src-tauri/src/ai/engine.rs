@@ -98,6 +98,28 @@ mod inner {
         Ok(out)
     }
 
+    /// Cosine-distance floor below which two clusters are merged (sherpa-onnx's
+    /// fast clustering runs on `1 - cosine_similarity`; see
+    /// `fast-clustering.cc` in the vendored sherpa-onnx source).
+    ///
+    /// `sherpa_rs::diarize::DiarizeConfig::default()` sets `num_clusters:
+    /// Some(4)` — its own default, not sherpa-onnx's (which is -1, i.e.
+    /// "unknown"). A fixed cluster count takes priority over `threshold` in the
+    /// underlying clustering call, so every meeting — one speaker or ten — was
+    /// being force-cut into exactly 4 clusters regardless of how many people
+    /// were actually talking, which is why speaker labels didn't track real
+    /// turns. `num_clusters: None` below restores threshold-based clustering.
+    ///
+    /// The threshold itself is carried over from `MERGE_SIMILARITY` in
+    /// `packages/core/src/diarize/cluster.ts` (measured against real audio —
+    /// see that file's comment), converted from a similarity floor to a
+    /// distance ceiling (`1 - similarity`). That measurement used a different
+    /// embedding model than this native pipeline's, so treat 0.70 as a
+    /// reasonable starting point, not a re-verified value — if speaker
+    /// splitting still looks wrong on real recordings, sweep this the same way
+    /// `packages/asr/verify/diarize.mjs` did and record the result here.
+    const DIARIZE_DISTANCE_THRESHOLD: f32 = 0.70;
+
     pub fn diarize(app: &tauri::AppHandle, samples: &[f32], rate: u32) -> Result<Vec<DiarSegment>, String> {
         let audio = resample_16k(samples, rate);
         let seg = models_dir(app).join(SEG_MODEL);
@@ -105,7 +127,12 @@ mod inner {
         if !seg.exists() || !emb.exists() {
             return Err("Diarization models missing. Run download first.".into());
         }
-        let mut sd = Diarize::new(seg.to_string_lossy().as_ref(), emb.to_string_lossy().as_ref(), DiarizeConfig::default())
+        let config = DiarizeConfig {
+            num_clusters: None,
+            threshold: Some(DIARIZE_DISTANCE_THRESHOLD),
+            ..DiarizeConfig::default()
+        };
+        let mut sd = Diarize::new(seg.to_string_lossy().as_ref(), emb.to_string_lossy().as_ref(), config)
             .map_err(|e| e.to_string())?;
         let segments = sd.compute(audio, None).map_err(|e| e.to_string())?;
         Ok(segments
