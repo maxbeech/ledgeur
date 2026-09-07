@@ -41,14 +41,61 @@ export async function downloadModels(): Promise<void> {
   await invoke<void>("download_models");
 }
 
+/**
+ * Send audio to a native command as raw bytes rather than JSON.
+ *
+ * Tauri passes an ArrayBuffer view through untouched as
+ * `application/octet-stream`; anything else goes through `JSON.stringify`. The
+ * previous `Array.from(samples)` did the latter, so stopping a ten-minute
+ * meeting built a ~10-million-element array and serialised it to a couple of
+ * hundred megabytes of JSON — on the main thread, before any transcription had
+ * started. The Rust side decodes with `samples_from_request` (ai/mod.rs) and
+ * assumes 16 kHz mono, which is what the recorder resamples to on the way out.
+ *
+ * `samples` is copied when it is a view onto a larger buffer, because Tauri
+ * serialises the whole underlying ArrayBuffer, not just the view's window.
+ */
+async function invokeWithAudio<T>(cmd: string, samples: Float32Array): Promise<T> {
+  const exact =
+    samples.byteOffset === 0 && samples.byteLength === samples.buffer.byteLength
+      ? samples
+      : new Float32Array(samples);
+  // Handed over as bytes: `invoke`'s types accept ArrayBuffer/Uint8Array, and
+  // the Rust side reads little-endian f32s back out of them regardless.
+  const { invoke } = await import("@tauri-apps/api/core");
+  return invoke<T>(cmd, new Uint8Array(exact.buffer));
+}
+
 /** Live transcription of a 16 kHz mono chunk (whisper.cpp). */
 export async function nativeTranscribeChunk(samples: Float32Array): Promise<NativeSegment[]> {
-  return invoke<NativeSegment[]>("transcribe_chunk", { samples: Array.from(samples), sampleRate: 16000 });
+  return invokeWithAudio<NativeSegment[]>("transcribe_chunk", samples);
 }
 
 /** Full pass over the whole meeting: transcription + diarization + voice ID. */
 export async function nativeTranscribeDiarize(samples: Float32Array): Promise<NativeSegment[]> {
-  return invoke<NativeSegment[]>("transcribe_diarize", { samples: Array.from(samples), sampleRate: 16000 });
+  return invokeWithAudio<NativeSegment[]>("transcribe_diarize", samples);
+}
+
+/** Progress of the post-meeting pass, mirrored from `DIARIZE_PROGRESS_EVENT`. */
+export interface DiarizeProgress {
+  /** 0–100 within the current phase. */
+  percent: number;
+  phase: string;
+}
+
+/**
+ * Subscribe to post-meeting progress. Resolves to an unsubscribe function; a
+ * no-op outside the desktop shell so callers need no branch of their own.
+ */
+export async function onDiarizeProgress(fn: (p: DiarizeProgress) => void): Promise<() => void> {
+  if (!isTauri()) return () => {};
+  try {
+    const { listen } = await import("@tauri-apps/api/event");
+    return await listen<DiarizeProgress>("ai:diarize-progress", (e) => fn(e.payload));
+  } catch {
+    // Progress is a nicety; never let it stop a meeting from being written up.
+    return () => {};
+  }
 }
 
 // ---- Voice profiles (speaker identification) -------------------------------

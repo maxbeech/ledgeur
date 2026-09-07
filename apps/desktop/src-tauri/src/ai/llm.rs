@@ -56,8 +56,10 @@ pub fn status(app: &tauri::AppHandle) -> LlmStatus {
     }
 }
 
-/// Render OpenAI-style messages into Qwen's ChatML prompt. Pure — unit-tested.
-pub fn render_chatml(messages: &[ChatMsg]) -> String {
+/// Render messages into ChatML turns, without the trailing assistant opener.
+/// Split out from `render_chatml` so the leading system turns can be tokenised
+/// on their own and protected from truncation — see `chat`.
+pub fn render_chatml_turns(messages: &[ChatMsg]) -> String {
     let mut out = String::new();
     for m in messages {
         out.push_str("<|im_start|>");
@@ -66,8 +68,20 @@ pub fn render_chatml(messages: &[ChatMsg]) -> String {
         out.push_str(m.content.trim());
         out.push_str("<|im_end|>\n");
     }
+    out
+}
+
+/// Render OpenAI-style messages into Qwen's ChatML prompt. Pure — unit-tested.
+pub fn render_chatml(messages: &[ChatMsg]) -> String {
+    let mut out = render_chatml_turns(messages);
     out.push_str("<|im_start|>assistant\n");
     out
+}
+
+/// How many leading messages are system messages. Those carry the instructions
+/// (and, for notes, the JSON contract), so they are never what gets dropped.
+pub fn system_prefix_len(messages: &[ChatMsg]) -> usize {
+    messages.iter().take_while(|m| m.role == "system").count()
 }
 
 #[cfg(not(feature = "native-ai"))]
@@ -125,6 +139,10 @@ mod inner {
         let dir = models_dir(app);
         let path = dir.join(LLM_MODEL);
         if path.exists() {
+            // Worth logging: "I pressed Download and nothing happened" looks
+            // identical to a failure from the outside, and this is the branch
+            // that produces it once the weights are already on disk.
+            log::info!("download_llm: weights already present at {}", path.display());
             PROGRESS.store(1000, Ordering::Relaxed);
             return Ok(());
         }
@@ -181,15 +199,40 @@ mod inner {
         let max_new = max_tokens.max(16) as usize;
 
         // Tokenise the ChatML prompt. `str_to_token` parses the ChatML control
-        // tokens (<|im_start|> etc.) as specials. If the prompt is too long for
-        // the window, keep the most recent tokens (the question lives at the end).
-        let prompt = render_chatml(messages);
-        let mut tokens = model
-            .str_to_token(&prompt, AddBos::Never)
+        // tokens (<|im_start|> etc.) as specials.
+        //
+        // Truncation keeps the leading system turns and trims the front of what
+        // follows. This used to be a plain "keep the most recent tokens", on the
+        // reasoning that the question lives at the end — true for chat, wrong for
+        // everything else: for note-writing the instructions and the JSON
+        // contract are at the HEAD, so any transcript long enough to overflow the
+        // window silently cost the model its instructions. It then replied with
+        // prose, the JSON parse failed, and the meeting quietly fell back to
+        // summary bullets lifted verbatim out of the transcript.
+        let split = system_prefix_len(messages);
+        let head = model
+            .str_to_token(&render_chatml_turns(&messages[..split]), AddBos::Never)
             .map_err(|e| format!("tokenise failed: {e}"))?;
-        let budget = N_CTX.saturating_sub(max_new + 8);
-        if tokens.len() > budget {
-            tokens = tokens.split_off(tokens.len() - budget);
+        let mut tail = model
+            .str_to_token(&render_chatml(&messages[split..]), AddBos::Never)
+            .map_err(|e| format!("tokenise failed: {e}"))?;
+
+        // Reserve the system turns and the reply; whatever is left is the budget
+        // for the conversation. If the system prompt alone cannot fit, there is
+        // nothing sensible to trim and the caller gets a real error rather than a
+        // confidently wrong answer off a mangled prompt.
+        let reserved = head.len() + max_new + 8;
+        let budget = N_CTX.checked_sub(reserved).filter(|b| *b > 0).ok_or_else(|| {
+            format!("Prompt is too long for the model's {N_CTX}-token window.")
+        })?;
+        if tail.len() > budget {
+            log::warn!("llm: trimming {} prompt tokens to fit the context window", tail.len() - budget);
+            tail = tail.split_off(tail.len() - budget);
+        }
+        let mut tokens = head;
+        tokens.extend(tail);
+        if tokens.is_empty() {
+            return Err("Nothing to send to the model.".into());
         }
 
         let mut ctx = model
@@ -250,5 +293,35 @@ mod tests {
             p,
             "<|im_start|>system\nBe terse.<|im_end|>\n<|im_start|>user\nHi<|im_end|>\n<|im_start|>assistant\n"
         );
+    }
+
+    #[test]
+    fn turns_render_without_the_assistant_opener() {
+        let msgs = vec![ChatMsg { role: "system".into(), content: "Be terse.".into() }];
+        assert_eq!(render_chatml_turns(&msgs), "<|im_start|>system\nBe terse.<|im_end|>\n");
+        // The two halves must reassemble into exactly what render_chatml gives,
+        // or the split-and-truncate in `chat` would change the prompt shape.
+        let all = vec![
+            ChatMsg { role: "system".into(), content: "Be terse.".into() },
+            ChatMsg { role: "user".into(), content: "Hi".into() },
+        ];
+        let split = system_prefix_len(&all);
+        assert_eq!(
+            format!("{}{}", render_chatml_turns(&all[..split]), render_chatml(&all[split..])),
+            render_chatml(&all)
+        );
+    }
+
+    #[test]
+    fn system_prefix_stops_at_the_first_non_system_turn() {
+        let msgs = vec![
+            ChatMsg { role: "system".into(), content: "a".into() },
+            ChatMsg { role: "user".into(), content: "b".into() },
+            // A later system message is NOT part of the protected prefix.
+            ChatMsg { role: "system".into(), content: "c".into() },
+        ];
+        assert_eq!(system_prefix_len(&msgs), 1);
+        assert_eq!(system_prefix_len(&[]), 0);
+        assert_eq!(system_prefix_len(&msgs[1..]), 0);
     }
 }

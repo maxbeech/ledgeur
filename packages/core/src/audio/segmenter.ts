@@ -34,6 +34,20 @@ export interface SegmenterOptions {
   minSeconds?: number;
   /** Emit unconditionally once this much is buffered, pause or not. */
   maxSeconds?: number;
+  /**
+   * Past this much buffered audio, a pause anywhere in the buffer will do, not
+   * just one at the very end.
+   *
+   * Only the trailing pause used to count, on the reasoning that an internal
+   * gap is the seam between two sentences of one turn and splitting there buys
+   * nothing. That holds for accuracy and costs a model pass — but it is what
+   * made the live transcript arrive in slabs: in a flowing conversation the
+   * buffer's tail is almost never quiet at the instant it is inspected, so
+   * nothing emitted until the `maxSeconds` ceiling, and then several chunks
+   * came due at once. Once someone has been talking this long, a sentence
+   * boundary they already gave us beats waiting for the ceiling.
+   */
+  latencySeconds?: number;
   /** Frame RMS at or below this counts as silence. */
   silenceRms?: number;
   /** Trailing quiet needed before a pause counts as the end of an utterance. */
@@ -62,7 +76,16 @@ export interface Utterance {
 const DEFAULTS = {
   sampleRate: WHISPER_SAMPLE_RATE,
   minSeconds: 3,
+  // Left at 18 deliberately. It is the worst-case wait before a word appears,
+  // but it only binds on speech with no usable gap at all, which is rare — and
+  // lowering it would cost real catch-up throughput, since Whisper pads every
+  // input to the same 30 s window and so charges the same for a 6 s pass as an
+  // 18 s one. `latencySeconds` is what actually shortens the common case.
   maxSeconds: 18,
+  // Roughly a sentence and a half. Long enough that Whisper still has context
+  // and we are not paying a pass per clause; short enough that a line lands
+  // while the point being made is still the one on screen.
+  latencySeconds: 7,
   // Matches the recorder's own SILENCE_RMS gate, so "quiet enough to cut on" and
   // "too quiet to bother transcribing" agree rather than fighting each other.
   silenceRms: 0.006,
@@ -78,6 +101,7 @@ export class UtteranceSegmenter {
   private readonly frameSamples: number;
   private readonly holdFrames: number;
   private readonly tailPadSamples: number;
+  private readonly latencySamples: number;
 
   /** Undrained audio, oldest first. */
   private parts: Float32Array[] = [];
@@ -93,6 +117,12 @@ export class UtteranceSegmenter {
     this.frameSamples = Math.max(1, Math.round(this.opts.frameSeconds * sampleRate));
     this.holdFrames = Math.max(1, Math.round(this.opts.silenceHoldSeconds / this.opts.frameSeconds));
     this.tailPadSamples = Math.round(this.opts.tailPadSeconds * sampleRate);
+    // Clamped between the two bounds: below minSeconds it would fire before a
+    // chunk is even emittable, above maxSeconds it could never fire at all.
+    this.latencySamples = Math.min(
+      this.maxSamples,
+      Math.max(this.minSamples, Math.round(this.opts.latencySeconds * sampleRate)),
+    );
   }
 
   push(samples: Float32Array): void {
@@ -132,7 +162,11 @@ export class UtteranceSegmenter {
       return this.emit(buf, cut, "max");
     }
 
-    const cut = this.pauseCut(buf);
+    // A pause at the very end is the ideal boundary. Failing that, once enough
+    // has stacked up, take the first clean gap inside the buffer instead of
+    // holding the whole turn back until `maxSeconds`.
+    const cut = this.pauseCut(buf)
+      ?? (this.buffered >= this.latencySamples ? this.firstPauseCut(buf) : null);
     return cut === null ? null : this.emit(buf, cut, "pause");
   }
 
@@ -201,6 +235,33 @@ export class UtteranceSegmenter {
     const speechEnd = (frames - quiet) * this.frameSamples;
     if (speechEnd < this.minSamples) return null; // the "speech" was too short to be worth a pass
     return Math.min(speechEnd + this.tailPadSamples, buf.length);
+  }
+
+  /**
+   * The first pause inside the buffer that is long enough to end an utterance
+   * on, at least `minSamples` in, or null if there isn't one.
+   *
+   * Used only once `latencySamples` has accumulated (see `take`). Scanning
+   * forward rather than back is deliberate: the earliest usable boundary is the
+   * one that gets a line on screen soonest, which is the entire point.
+   */
+  private firstPauseCut(buf: Float32Array): number | null {
+    const frames = Math.floor(buf.length / this.frameSamples);
+    const from = Math.ceil(this.minSamples / this.frameSamples);
+    let quiet = 0;
+    for (let f = from; f < frames; f++) {
+      if (this.frameRms(buf, f * this.frameSamples) > this.opts.silenceRms) {
+        quiet = 0;
+        continue;
+      }
+      quiet++;
+      if (quiet < this.holdFrames) continue;
+      // Cut where the quiet began, keeping the usual decay padding.
+      const speechEnd = (f + 1 - quiet) * this.frameSamples;
+      if (speechEnd < this.minSamples) continue;
+      return Math.min(speechEnd + this.tailPadSamples, buf.length);
+    }
+    return null;
   }
 
   /** Quietest frame boundary in [lo, hi] — the least-bad seam mid-sentence. */

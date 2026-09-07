@@ -1,5 +1,88 @@
 # Changelog
 
+## Unreleased (2026-09-08) — Writing up a meeting, at a speed a meeting takes
+
+Six things were reported after testing a production build on a Mac. They came
+down to four causes, all in the on-device engine.
+
+### Stopping a long meeting no longer looks like a crash
+
+Sampling a build stuck for over an hour after Stop put 100% of the main thread
+inside one call: `SpeakerEmbeddingExtractorGeneralImpl::Compute`, on a single
+core. Three separate things were making that happen.
+
+- **Diarization ran on one thread.** `sherpa-rs`'s `Diarize` wrapper hardcodes
+  `num_threads: 1` for both the segmentation and embedding models and offers no
+  way to change it. The config is now built against sherpa-onnx's C API
+  directly, purely so the thread count is ours to set. Whisper was likewise
+  left on its own `min(4, cores)` default.
+- **The audio went over IPC as JSON.** `Array.from(samples)` turned a ten-minute
+  meeting into a ~10-million-element array, which Tauri then serialised to a
+  couple of hundred megabytes of JSON text — built in the webview and parsed in
+  Rust, both on the main thread, before any transcription started. It is sent
+  as raw `Float32Array` bytes now, which Tauri passes straight through.
+- **Nothing said it was working.** The pass now reports its phase and progress,
+  and logs how long each step took. Minutes of silence and a spinner is
+  indistinguishable from a hang, which is how it was reported.
+
+### Speakers who aren't the same person
+
+The speaker-embedding model was `3dspeaker_..._sv_zh-cn_...` — trained on
+Mandarin, and being asked to tell English speakers apart. It is now WeSpeaker's
+English CAM++, which is also several times cheaper to run, and the clustering
+threshold is sherpa-onnx's own default for it rather than a value carried over
+from the webview path's different model. The stale weights are deleted on the
+next model download.
+
+### Summaries that read like the transcript
+
+They *were* the transcript. When the model fails, notes fall back to a heuristic
+extractor that picks sentences verbatim — correct behaviour, invisible failure:
+the `catch` was bare, so a fallback looked exactly like the model doing a bad
+job. Four things were making it fire, or making its output worse:
+
+- The transcript reached the model as one undifferentiated wall of text, with
+  no speakers and no timestamps, so nothing could be attributed to anyone. It
+  is now speaker- and time-labelled, using the formatter the copilot already
+  used.
+- It was clipped at 48,000 characters — which still overflows the model's
+  8192-token window, *and* drops the end of a long meeting, where things get
+  decided. Long meetings are now summarised in windows and condensed, so no
+  part is dropped.
+- On overflow the Rust side kept the most recent tokens, discarding the head —
+  which for note-writing is the instructions and the JSON contract. It now
+  protects the system prompt and trims the conversation instead.
+- The 45-second timeout did not cover loading a 1.1 GB model off disk, so the
+  first meeting after launch tended to fall back.
+
+Notes now record whether a model or the extractor wrote them, and the reason for
+any fallback is logged.
+
+### Live transcript arrives as it is spoken
+
+Only a pause at the very *end* of the buffer counted as an utterance boundary,
+and in flowing speech the tail is rarely quiet at the instant it is checked — so
+nothing emitted until the 18-second ceiling, and then several chunks came due at
+once. Past seven seconds, a gap the speaker already gave us is now used.
+
+### You can see whether other people are being recorded
+
+The system-audio toggle stated an intent and nothing more. `available()` answers
+yes on macOS without probing, so an unsupported OS version or a refused
+permission only surfaced once recording had started — and because the
+screen-share route had already been skipped, the meeting quietly continued with
+this device's microphone alone. It now falls back to the share picker, and the
+live header says whether other voices are actually being *heard*, which is not
+the same claim as the capture having started.
+
+### The copilot download button
+
+`startDownload` had a `finally` and no `catch`, so a failure became an unhandled
+rejection and the prompt reverted with no explanation. Readiness was also read
+exactly once on mount, so weights downloaded anywhere else left the prompt up
+over a model that was already there — and pressing it did nothing visible,
+because the command correctly returns straight away when the file exists.
+
 ## Unreleased (2026-09-07) — The redesign, the phone, and sync that is sync
 
 ### One design system, actually shared

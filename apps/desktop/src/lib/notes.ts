@@ -18,15 +18,42 @@
 // transcript does not support has to stay as the user wrote it, not get
 // elaborated into a plausible-sounding sentence nobody said.
 
-import { summarizeTranscript, templateInstruction, type MeetingNotes } from "@ledgeur/core";
+import {
+  formatTranscript,
+  summarizeTranscript,
+  templateInstruction,
+  type MeetingNotes,
+  type TranscriptLine,
+} from "@ledgeur/core";
 import { chatComplete } from "./llm.ts";
+import { createLogger } from "./logger.ts";
 import { templateFor } from "./recipes.ts";
+
+const log = createLogger("notes");
 
 // The on-device model has no cancellation and can legitimately take a while on
 // slower hardware; an unreachable HTTP fallback can hang on connect too. Neither
 // should make "Finishing the record" wait forever — past this, fall back to the
 // local heuristic extractor exactly as on any other model failure.
-const NOTES_TIMEOUT_MS = 45_000;
+//
+// Generous because the first call of a session also pays for loading ~1 GB of
+// weights off disk, and a 1.5B model on CPU emits a few tokens a second. The old
+// 45 s covered generation but not a cold start, so the very first meeting after
+// launch tended to time out and silently fall back — which looks exactly like
+// the model being bad at its job rather than never having run.
+const NOTES_TIMEOUT_MS = 180_000;
+
+/**
+ * Transcript characters per model pass.
+ *
+ * The on-device window is 8192 tokens (N_CTX in src-tauri/src/ai/llm.rs), shared
+ * between the system prompt, the transcript and a 768-token reply. Speaker- and
+ * time-labelled lines tokenise densely (`[12:04] Speaker 1: ` is ~8 tokens of
+ * pure scaffolding), so budget conservatively at ~2.5 chars/token and leave room
+ * to spare. Anything longer is summarised in windows and then condensed — see
+ * `generateMeetingNotes`.
+ */
+const CHUNK_CHARS = 14_000;
 function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
   return new Promise((resolve, reject) => {
     const timer = setTimeout(() => reject(new Error("Notes generation timed out.")), ms);
@@ -104,10 +131,14 @@ export function buildNotesPrompt(
   templateId?: string,
 ): { role: "system" | "user"; content: string }[] {
   const notes = manualNotes.trim();
-  const clipped = transcript.length > 48000 ? `${transcript.slice(0, 48000)}\n…(truncated)` : transcript;
+  // No clipping here any more. It used to `.slice(0, 48000)`, which both
+  // overflowed the model's 8k window (so the Rust side dropped the head of the
+  // prompt — the instructions) and dropped the END of a long meeting, where the
+  // decisions and actions live. Length is handled by windowing in
+  // `generateMeetingNotes` instead, so every part of the meeting is seen.
   const user = notes
-    ? `The user's own notes from the meeting:\n\n${notes}\n\nTranscript:\n\n${clipped}`
-    : `Transcript:\n\n${clipped}`;
+    ? `The user's own notes from the meeting:\n\n${notes}\n\nTranscript:\n\n${transcript}`
+    : `Transcript:\n\n${transcript}`;
   // Order matters: the JSON contract and the never-invent rule come first and a
   // template can only add to them. The user's own notes come last, because they
   // outrank the template — a template says what this KIND of meeting is usually
@@ -128,28 +159,138 @@ export function buildNotesPrompt(
  * `manualNotes` is whatever the user typed during the meeting; see the header.
  */
 export async function generateMeetingNotes(
-  transcript: string,
+  lines: readonly TranscriptLine[],
   manualNotes = "",
   templateId?: string,
 ): Promise<MeetingNotes> {
-  const text = transcript.trim();
+  // Speaker- and time-labelled, not a flat wall of text. `segments.map(s =>
+  // s.text).join(" ")` is what this used to be handed, and it makes "who
+  // committed to what" unanswerable — the model cannot attribute an action to
+  // anyone, so action items came out ownerless and the summary could not tell
+  // one person's position from another's. packages/core/src/context/transcript.ts
+  // has the same note about the copilot, which was fixed there and not here.
+  const text = formatTranscript(lines).trim();
+  // Prose, for word counts and for the extractive fallback: that summariser
+  // splits on sentences and would treat every `[12:04] Speaker 1:` prefix as
+  // part of the sentence it labels.
+  const plain = lines.map((l) => l.text).join(" ");
   const notes = manualNotes.trim();
   // Nothing said and nothing typed: there is genuinely nothing to summarise.
-  if (!text && !notes) return summarizeTranscript(transcript);
+  if (!text && !notes) return summarizeTranscript(plain);
+
+  const started = Date.now();
   try {
-    const reply = await withTimeout(
-      chatComplete(buildNotesPrompt(text, notes, templateId), { temperature: 0.2, maxTokens: 768 }),
-      NOTES_TIMEOUT_MS,
-    );
-    return parseAiNotes(reply, transcript);
-  } catch {
-    // No model, unreachable endpoint, or unparseable reply — use the local
-    // deterministic extractor so notes are still real and grounded. The user's
-    // own notes are kept verbatim at the top rather than dropped: they are the
-    // one part of the record that is definitely theirs.
-    const fallback = summarizeTranscript(transcript);
+    const reply = text.length > CHUNK_CHARS
+      ? await condenseLongMeeting(text, notes, templateId)
+      : await askForNotes(text, notes, templateId);
+    const parsed = parseAiNotes(reply, plain);
+    log.info("notes written by the on-device model", {
+      ms: Date.now() - started,
+      transcriptChars: text.length,
+      summaryPoints: parsed.summary.length,
+    });
+    return { ...parsed, generator: "model" };
+  } catch (e) {
+    // No model, unreachable endpoint, timeout, or an unparseable reply — use the
+    // local deterministic extractor so notes are still real and grounded. The
+    // user's own notes are kept verbatim at the top rather than dropped: they
+    // are the one part of the record that is definitely theirs.
+    //
+    // The reason is logged rather than swallowed. This `catch` used to be bare,
+    // so a meeting that fell back was indistinguishable from one the model had
+    // simply written badly — and the extractor's output (verbatim transcript
+    // sentences) reads exactly like a model doing a terrible job.
+    log.warn("falling back to the extractive summariser", {
+      reason: e instanceof Error ? e.message : String(e),
+      ms: Date.now() - started,
+      transcriptChars: text.length,
+    });
+    const fallback = summarizeTranscript(plain);
     if (!notes) return fallback;
     const typed = notes.split("\n").map((l) => l.replace(/^[-*•]\s*/, "").trim()).filter(Boolean);
     return { ...fallback, summary: [...typed, ...fallback.summary].slice(0, 12) };
   }
+}
+
+/** One model pass over a transcript that already fits the context window. */
+function askForNotes(transcript: string, manualNotes: string, templateId?: string): Promise<string> {
+  return withTimeout(
+    chatComplete(buildNotesPrompt(transcript, manualNotes, templateId), { temperature: 0.2, maxTokens: 768 }),
+    NOTES_TIMEOUT_MS,
+  );
+}
+
+/**
+ * Split on line boundaries into windows that fit the context, keeping whole
+ * transcript lines together so a speaker turn is never cut mid-sentence.
+ * Exported for testing: getting this wrong silently loses part of a meeting.
+ */
+export function windowTranscript(transcript: string, chars = CHUNK_CHARS): string[] {
+  const lines = transcript.split("\n");
+  const out: string[] = [];
+  let current = "";
+  for (const line of lines) {
+    if (current && current.length + line.length + 1 > chars) {
+      out.push(current);
+      current = "";
+    }
+    // A single line longer than the window is rare (one very long utterance)
+    // but must not be dropped — it becomes its own oversized window and the
+    // Rust side trims it rather than losing the instructions with it.
+    current = current ? `${current}\n${line}` : line;
+  }
+  if (current) out.push(current);
+  return out;
+}
+
+/**
+ * Notes for a meeting too long for one pass: summarise each window, then
+ * condense the collected points into the final set.
+ *
+ * The alternative — clipping the transcript — dropped the end of every long
+ * meeting, which is exactly where decisions and next steps are agreed.
+ */
+async function condenseLongMeeting(
+  transcript: string,
+  manualNotes: string,
+  templateId?: string,
+): Promise<string> {
+  const windows = windowTranscript(transcript);
+  log.info("summarising a long meeting in windows", { windows: windows.length, chars: transcript.length });
+
+  const parts: string[] = [];
+  for (const [i, window] of windows.entries()) {
+    // Manual notes go only to the final pass: they describe the meeting as a
+    // whole, and repeating them per window would have each pass try to answer
+    // points the window it can see has nothing to say about.
+    const reply = await askForNotes(`(Part ${i + 1} of ${windows.length} of the meeting.)\n\n${window}`, "", templateId);
+    try {
+      const notes = parseAiNotes(reply, window);
+      parts.push(
+        [
+          ...notes.summary,
+          ...notes.decisions.map((d) => `Decision: ${d}`),
+          ...notes.actionItems.map((a) => `Action: ${a}`),
+          ...notes.questions.map((q) => `Open question: ${q}`),
+        ].map((p) => `- ${p}`).join("\n"),
+      );
+    } catch (e) {
+      // One bad window should not lose the rest of the meeting.
+      log.warn("a transcript window produced no usable notes", {
+        window: i + 1,
+        reason: e instanceof Error ? e.message : String(e),
+      });
+    }
+  }
+  if (parts.length === 0) throw new Error("No transcript window produced usable notes.");
+
+  // Reduce: the collected points stand in for the transcript. They are already
+  // prose, so they are far denser than raw speech and fit comfortably.
+  return askForNotes(
+    `These are notes taken from consecutive parts of one meeting, in order. ` +
+      `Merge them into a single set of notes for the whole meeting, removing ` +
+      `duplicates and keeping the wording faithful.\n\n${parts.join("\n")}`,
+    manualNotes,
+    templateId,
+  );
 }

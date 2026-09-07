@@ -15,41 +15,68 @@ export interface CopilotReadiness {
   /** 0–100 while downloading. */
   progress: number;
   modelName: string;
+  /** Why the last download attempt failed, if it did. Empty when all is well. */
+  error: string;
   startDownload: () => Promise<void>;
 }
+
+/** How often readiness is re-checked while the model still isn't available. */
+const IDLE_POLL_MS = 4_000;
+/** Faster cadence while a download is streaming, so the bar actually moves. */
+const DOWNLOAD_POLL_MS = 800;
 
 export function useCopilot(): CopilotReadiness {
   const [st, setSt] = useState<LlmStatus | null>(null);
   const [downloading, setDownloading] = useState(false);
+  const [error, setError] = useState("");
   const poll = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const refresh = useCallback(() => llmStatus().then(setSt), []);
+  const refresh = useCallback(() => llmStatus().then(setSt, () => {}), []);
+
+  // Re-check while the model isn't ready yet. Status used to be read exactly
+  // once, when the hook mounted, so a download finishing anywhere else — the
+  // Settings card, or a previous run of this same screen — left this copy of
+  // the state permanently stale: the "Download" prompt stayed up over weights
+  // that were already on disk, and pressing it did nothing visible, because the
+  // command correctly returns straight away when the file is already there.
+  const ready = Boolean(st?.modelReady);
   useEffect(() => {
     refresh();
-    return () => { if (poll.current) clearInterval(poll.current); };
-  }, [refresh]);
+    if (ready) return;
+    const id = setInterval(refresh, downloading ? DOWNLOAD_POLL_MS : IDLE_POLL_MS);
+    return () => clearInterval(id);
+  }, [refresh, ready, downloading]);
+
+  useEffect(() => () => { if (poll.current) clearInterval(poll.current); }, []);
 
   const startDownload = useCallback(async () => {
     setDownloading(true);
-    poll.current = setInterval(refresh, 800);
+    setError("");
     try {
       await downloadLlmModel();
+    } catch (e) {
+      // Previously this had a `finally` and no `catch`, so a failed download
+      // became an unhandled rejection (the caller invokes it as `void
+      // startDownload()`) and the prompt just reverted to "Download" with no
+      // explanation at all.
+      setError(e instanceof Error ? e.message : String(e));
     } finally {
-      if (poll.current) { clearInterval(poll.current); poll.current = null; }
-      await refresh();
       setDownloading(false);
+      // Deliberately last, and not awaited into the state updates above: if the
+      // status call itself fails, `downloading` must still have been cleared.
+      void refresh();
     }
   }, [refresh]);
 
   const compiled = Boolean(st?.compiled);
-  const modelReady = Boolean(st?.modelReady);
   return {
-    ready: modelReady,
+    ready,
     // Only offer a download inside the native shell that can actually run it.
-    needsDownload: isTauri() && compiled && !modelReady,
+    needsDownload: isTauri() && compiled && !ready,
     downloading: downloading || Boolean(st?.downloading),
     progress: st?.progress ?? 0,
     modelName: st?.modelName ?? "on-device model",
+    error,
     startDownload,
   };
 }

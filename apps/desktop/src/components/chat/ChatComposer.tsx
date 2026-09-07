@@ -51,7 +51,11 @@ export function ChatComposer({
         >
           {copilot.downloading
             ? <>Getting the copilot ready — {Math.round(copilot.progress)}%</>
-            : <>The copilot runs privately on your device. Download it once (about 1&nbsp;GB) to start.</>}
+            : copilot.error
+              // A download that fails has to say so. It used to leave the prompt
+              // looking untouched, which reads as the button doing nothing.
+              ? <>Couldn&rsquo;t download the copilot: {copilot.error}</>
+              : <>The copilot runs privately on your device. Download it once (about 1&nbsp;GB) to start.</>}
         </Notice>
       )}
 

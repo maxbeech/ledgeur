@@ -2,7 +2,7 @@
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 // Only import modules free of browser-only globals (no import.meta.env, DOM).
 import { mergeThread, quoteOf, messageToItem, type ThreadItem } from "../src/lib/thread.ts";
-import { parseAiNotes, buildNotesPrompt } from "../src/lib/notes.ts";
+import { parseAiNotes, buildNotesPrompt, windowTranscript } from "../src/lib/notes.ts";
 import {
   authErrorMessage, hasNoAuthMethod, NO_AUTH, parseAuthSettings, providerUnavailableMessage,
   signUpNextStep, ssoDomain, validateCredentials,
@@ -110,9 +110,35 @@ ok("parseAiNotes throws on empty summary", (() => {
   const blank = buildNotesPrompt("transcript here", "   \n  ");
   ok("whitespace-only notes are treated as none", !blank[0].content.includes("priority"));
 
+  // A long transcript is NOT clipped here any more. It used to be cut at 48,000
+  // characters, which was wrong twice over: 48k characters still overflows the
+  // on-device model's 8k-token window (so the Rust side dropped the head of the
+  // prompt — the instructions — and the reply came back unparseable), and it
+  // dropped the END of a long meeting, which is where things actually get
+  // decided. Length is handled by windowing in generateMeetingNotes instead.
   const long = buildNotesPrompt("x".repeat(60000), "");
-  ok("an over-long transcript is truncated", long[1].content.includes("(truncated)"));
-  ok("truncation keeps the prompt bounded", long[1].content.length < 50000, String(long[1].content.length));
+  ok("a long transcript reaches the prompt whole", long[1].content.includes("x".repeat(60000)));
+  ok("nothing is marked truncated", !long[1].content.includes("(truncated)"));
+
+  // --- windowing: every part of a long meeting is summarised, in order ---
+  {
+    const lines = Array.from({ length: 400 }, (_, i) => `[00:${String(i % 60).padStart(2, "0")}] Speaker 1: line ${i}`);
+    const windows = windowTranscript(lines.join("\n"), 500);
+    ok("a long transcript is split into windows", windows.length > 1, String(windows.length));
+    ok("windows respect the character budget", windows.every((w) => w.length <= 500 || !w.includes("\n")),
+      JSON.stringify(windows.map((w) => w.length)));
+    // The whole point: nothing is dropped, and the order is preserved. Clipping
+    // silently lost the tail; this must not.
+    ok("no line is lost", windows.join("\n") === lines.join("\n"));
+    ok("the last line survives", windows[windows.length - 1].includes("line 399"));
+    ok("lines are never split mid-line", windows.every((w) => !w.startsWith("ine ")));
+  }
+  {
+    // Short enough for one pass: one window, unchanged.
+    const one = windowTranscript("[00:01] Speaker 1: short meeting", 500);
+    ok("a short transcript is a single window", one.length === 1 && one[0] === "[00:01] Speaker 1: short meeting");
+    ok("an empty transcript yields no windows", windowTranscript("", 500).length === 0);
+  }
 }
 
 // --- auth capabilities & messages ---

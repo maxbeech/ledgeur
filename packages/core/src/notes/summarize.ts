@@ -10,6 +10,16 @@ export interface MeetingNotes {
   decisions: string[];
   questions: string[];
   wordCount: number;
+  /**
+   * How these notes were produced. `"extractive"` means the heuristic
+   * summariser below picked sentences straight out of the transcript because no
+   * model was available — worth saying out loud, because those bullets read as
+   * verbatim transcript lines and users reasonably read that as the model
+   * having done a bad job rather than not having run at all.
+   *
+   * Optional so existing stored notes (and the marketing app) stay valid.
+   */
+  generator?: "model" | "extractive";
 }
 
 /** Split free-form transcript text into trimmed sentences. */
@@ -93,6 +103,7 @@ export function summarizeTranscript(transcript: string): MeetingNotes {
     decisions: dedupe(sentences.filter((s) => !s.endsWith("?") && matchesAny(s, DECISION_CUES)), 8),
     questions: dedupe(sentences.filter((s) => s.endsWith("?")), 10),
     wordCount,
+    generator: "extractive",
   };
 }
 

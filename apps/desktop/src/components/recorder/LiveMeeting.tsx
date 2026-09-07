@@ -9,7 +9,7 @@
 // quiet line under the header, and the audio banked while it comes up is
 // transcribed as soon as it does.
 import { useMemo, useState } from "react";
-import { Square, PenLine, TriangleAlert, X } from "lucide-react";
+import { Square, PenLine, TriangleAlert, X, MonitorSpeaker, MicOff } from "lucide-react";
 import { formatElapsed, cn } from "@ledgeur/ui";
 import { Button, Card, ErrorNote, IconButton, Notice, Spinner } from "../ui.tsx";
 import { LevelMeter } from "./LevelMeter.tsx";
@@ -18,6 +18,7 @@ import { ThreadView } from "../chat/ThreadView.tsx";
 import { RecordDot } from "../RecordDot.tsx";
 import { mergeThread } from "../../lib/thread.ts";
 import { useRecorderCtx } from "../../lib/useRecorderCtx.ts";
+import type { RecorderState } from "../../lib/useRecorder.ts";
 import { useChatDock } from "../../lib/useChatDock.ts";
 import { useDevice } from "../../lib/platform.ts";
 
@@ -49,6 +50,7 @@ export function LiveMeeting({ onStop }: { onStop: () => void }) {
             <RecordDot live className="h-3 w-3" />
             <h1 className="ldg-display min-w-0 truncate text-xl text-ink-text">{title || "Live meeting"}</h1>
             <span className="ldg-num rounded-full bg-surface-muted px-2.5 py-0.5 text-sm text-muted">{formatElapsed(state.elapsed)}</span>
+            <SystemAudioChip mode={state.systemAudio} heard={state.systemAudioHeard} />
           </div>
           <div className="flex items-center gap-2">
             {phone && (
@@ -77,7 +79,14 @@ export function LiveMeeting({ onStop }: { onStop: () => void }) {
         </Card>
         {processing && (
           <div className="mt-3 flex items-center gap-2 text-sm text-muted">
-            <Spinner /> Finishing up — separating speakers and writing notes
+            <Spinner />
+            {/* Named phase and a percentage, not a bare spinner: on a long
+                meeting this runs for minutes, and silence here reads as a
+                freeze. */}
+            {state.processingPhase
+              ? <>Finishing up — {state.processingPhase}
+                  {state.processingProgress > 0 && ` ${state.processingProgress}%`}</>
+              : <>Finishing up — separating speakers and writing notes</>}
           </div>
         )}
         {state.error && <ErrorNote className="mt-3">{state.error}</ErrorNote>}
@@ -138,4 +147,44 @@ function TranscriberStatus({ phase, progress, device, backlogSeconds }: {
   }
 
   return null;
+}
+
+/**
+ * Whether the other people in the meeting are actually being recorded.
+ *
+ * "Is the system-audio toggle doing anything?" had no answer anywhere in the UI:
+ * the toggle stated an intent, and both routes to honouring it can fail after
+ * recording has already begun. `heard` is the one that counts — the capture can
+ * start cleanly and still deliver pure silence when nobody else has joined yet
+ * or the output is muted, so "started" is not the same claim as "working".
+ */
+function SystemAudioChip({ mode, heard }: { mode: RecorderState["systemAudio"]; heard: boolean }) {
+  if (mode === "off") return null;
+
+  if (mode === "failed") {
+    return (
+      <span className="inline-flex items-center gap-1.5 rounded-full bg-warn-soft px-2.5 py-0.5 text-xs font-medium text-warn">
+        <MicOff className="h-3 w-3" /> Your mic only
+      </span>
+    );
+  }
+
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium",
+        heard ? "bg-surface-muted text-muted" : "bg-surface-muted text-faint",
+      )}
+      title={
+        heard
+          ? mode === "tap"
+            ? "Other people's audio is being captured straight from Core Audio."
+            : "Other people's audio is being captured from the shared tab or screen."
+          : "Set up and listening, but nothing has come through from the other side yet."
+      }
+    >
+      <MonitorSpeaker className="h-3 w-3" />
+      {heard ? "Hearing others" : "Waiting for others"}
+    </span>
+  );
 }

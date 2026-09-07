@@ -126,7 +126,8 @@ export function useFileImport() {
 
       patch({ step: "Writing the notes…" });
       const transcript = segments.map((s) => s.text).join(" ");
-      const notes = await generateMeetingNotes(transcript);
+      // Segments, not the flat string: the notes writer needs speaker labels.
+      const notes = await generateMeetingNotes(segments);
 
       // An imported recording did not happen now. The file's modified date is
       // the best available answer, and is usually when it was exported.

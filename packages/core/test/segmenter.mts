@@ -174,4 +174,51 @@ export function runSegmenterTests(ok: (name: string, cond: boolean, detail?: str
     const out = seg.take();
     ok("a custom ceiling is respected", out !== null && seconds(out.endSample) <= 4.01, String(seconds(out?.endSample ?? 0)));
   }
+
+  // --- an internal pause cuts once enough has stacked up (latencySeconds) ---
+  //
+  // The live transcript used to arrive in slabs: only a pause at the very END
+  // of the buffer counted, and in flowing speech the tail is rarely quiet at
+  // the instant it is inspected, so nothing emitted until the 18 s ceiling and
+  // then several chunks came due at once. Past `latencySeconds`, a gap the
+  // speaker already gave us is a better boundary than waiting for the ceiling.
+  {
+    const seg = new UtteranceSegmenter();
+    seg.push(speech(4));
+    seg.push(silence(1)); // a real gap, mid-buffer
+    seg.push(speech(4));  // ...and they carry straight on, so the tail is loud
+    const out = seg.take();
+    ok("an internal pause is used once past the latency target", out !== null);
+    ok("it is flagged as a real boundary", out?.reason === "pause", out?.reason);
+    ok(
+      "it cuts at the gap, not at the ceiling",
+      out !== null && seconds(out.endSample) > 3.9 && seconds(out.endSample) < 4.4,
+      String(seconds(out?.endSample ?? 0)),
+    );
+    // The remainder stays for the next pass, still on the meeting clock.
+    ok("the rest is retained", seg.pendingSeconds > 4.5, String(seg.pendingSeconds));
+  }
+
+  // --- ...but not before it, so short exchanges aren't chopped up ---
+  {
+    const seg = new UtteranceSegmenter();
+    seg.push(speech(3.2));
+    seg.push(silence(0.6));
+    seg.push(speech(1)); // total ~4.8s, under the 7s latency target
+    ok("an internal pause is ignored below the latency target", seg.take() === null);
+  }
+
+  // --- an internal pause too close to the start is still not a boundary ---
+  {
+    const seg = new UtteranceSegmenter();
+    seg.push(speech(1));
+    seg.push(silence(1));   // a gap, but only 1s of speech precedes it
+    seg.push(speech(6));    // pushes the buffer past the latency target
+    const out = seg.take();
+    ok(
+      "a gap before minSeconds does not become a boundary",
+      out === null || seconds(out.endSample) > 3,
+      String(seconds(out?.endSample ?? 0)),
+    );
+  }
 }

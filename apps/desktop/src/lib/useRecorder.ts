@@ -34,7 +34,7 @@ import {
   defaultSpeakerLabel, UtteranceSegmenter, type AsrChunk,
 } from "@ledgeur/core";
 import { AudioCapture, DiarizerController, listVoiceProfiles, type AnalysedSlice } from "@ledgeur/core/browser";
-import { aiStatus, nativeTranscribeChunk, nativeTranscribeDiarize, type NativeSegment } from "./nativeAI.ts";
+import { aiStatus, nativeTranscribeChunk, nativeTranscribeDiarize, onDiarizeProgress, type NativeSegment } from "./nativeAI.ts";
 import { saveMeeting, type LocalMeeting, type LocalSegment, type LocalSpeaker, type ChatMessage } from "./meetingsStore.ts";
 import { generateMeetingNotes } from "./notes.ts";
 import { getSettings } from "./settings.ts";
@@ -72,6 +72,36 @@ export interface RecorderState {
    * opened with the first one's conversation still in it.
    */
   takeId: string;
+  /**
+   * Whether the other people in the room/call are actually being recorded.
+   *
+   * "I turned on system audio, is it doing anything?" was unanswerable from the
+   * UI: the toggle only expressed an intent, and both ways of honouring it (the
+   * native Core Audio tap, and getDisplayMedia) can fail after the recording has
+   * already started, at which point the meeting quietly continued mic-only.
+   *
+   *   off     — not requested
+   *   tap     — native system-audio tap running (no screen-share prompt)
+   *   shared  — captured via the screen-share picker instead
+   *   failed  — requested, and neither route worked; only this device's mic
+   */
+  systemAudio: "off" | "tap" | "shared" | "failed";
+  /**
+   * True once non-silent system audio has actually arrived. The distinction
+   * from `systemAudio` matters: the tap starts happily on a call where nobody
+   * else has joined yet, or where output is muted, and reports success while
+   * delivering nothing but zeroes.
+   */
+  systemAudioHeard: boolean;
+  /**
+   * What the post-meeting pass is doing, and how far in — mirrored from the
+   * native engine. Writing up a long meeting is minutes of work; with no signal
+   * at all it is indistinguishable from the app having hung, which is exactly
+   * how it was reported.
+   */
+  processingPhase: string;
+  /** 0–100 within `processingPhase`. */
+  processingProgress: number;
 }
 
 /** How often captured PCM is moved into the segmenter. Cheap — no model runs. */
@@ -114,8 +144,11 @@ export function useRecorder(getThreadMessages?: () => ChatMessage[]) {
   const [state, setState] = useState<RecorderState>({
     status: "idle", elapsed: 0, modelProgress: 0, modelPhase: "loading", device: "",
     segments: [], error: "", meetingId: null, notes: "", backlogSeconds: 0, takeId: "",
+    systemAudio: "off", systemAudioHeard: false, processingPhase: "", processingProgress: 0,
   });
   const capture = useRef<AudioCapture | null>(null);
+  /** Latched once real (non-silent) system audio has been seen — see pump(). */
+  const systemAudioHeard = useRef(false);
   /** Set only when the native Core Audio tap is supplying "system" audio
    *  instead of getDisplayMedia — see start(). */
   const systemTap = useRef<SystemAudioTap | null>(null);
@@ -195,7 +228,18 @@ export function useRecorder(getThreadMessages?: () => ChatMessage[]) {
     const tap = systemTap.current;
     if (tap) {
       const tapRaw = tap.drainNew();
-      if (tapRaw.length) audio = mixFloat32(audio, resample(tapRaw, tap.sampleRate, WHISPER_SAMPLE_RATE));
+      if (tapRaw.length) {
+        // Latch the first time the tap delivers something that isn't silence.
+        // It reports success on a call nobody else has joined, or with output
+        // muted, while handing over nothing but zeroes — so "the tap started"
+        // is not the same claim as "the other people are being recorded", and
+        // only the second one is worth showing anyone.
+        if (!systemAudioHeard.current && rms(tapRaw) >= SILENCE_RMS) {
+          systemAudioHeard.current = true;
+          patch({ systemAudioHeard: true });
+        }
+        audio = mixFloat32(audio, resample(tapRaw, tap.sampleRate, WHISPER_SAMPLE_RATE));
+      }
     }
     if (audio.length) seg.push(audio);
 
@@ -344,9 +388,11 @@ export function useRecorder(getThreadMessages?: () => ChatMessage[]) {
       notesRef.current = "";
       startedAt.current = new Date().toISOString();
       segmenter.current = new UtteranceSegmenter();
+      systemAudioHeard.current = false;
       patch({
         status: "recording", error: "", segments: [], elapsed: 0, meetingId: null, notes: "",
         backlogSeconds: 0, modelPhase: "loading", modelProgress: 0, device: "", takeId: uid(),
+        systemAudio: opts.system ? "tap" : "off", systemAudioHeard: false,
       });
 
       // getDisplayMedia/getUserMedia must be requested while the click that
@@ -368,17 +414,37 @@ export function useRecorder(getThreadMessages?: () => ChatMessage[]) {
       });
       capture.current = cap;
 
+      if (opts.system && !useNativeSystemAudio) patch({ systemAudio: "shared" });
+
       if (useNativeSystemAudio) {
         const tap = new SystemAudioTap();
         try {
           await tap.start();
           systemTap.current = tap;
+          patch({ systemAudio: "tap" });
         } catch (e) {
-          // AudioCapture was deliberately told to skip getDisplayMedia above, so
-          // there's no fallback left to try here — surface it rather than
-          // silently recording without the other side of the call.
-          log.error("native system-audio tap failed to start", e);
-          patch({ error: e instanceof Error ? e.message : String(e) });
+          // `available()` on macOS answers yes without probing — there is no
+          // cheap honest way to ask — so this is the first point at which an
+          // unsupported OS version or a refused permission actually shows up,
+          // and AudioCapture was already told to skip getDisplayMedia. Retry
+          // through the screen-share route rather than silently recording
+          // without the other side of the call, which is what used to happen.
+          log.error("native system-audio tap failed to start, trying screen share", e);
+          try {
+            await cap.stop();
+            await cap.start({ mic: opts.mic, system: true });
+            patch({ systemAudio: "shared", error: "" });
+            log.info("system audio fell back to the screen-share picker");
+          } catch (fallbackError) {
+            log.error("screen-share fallback also failed", fallbackError);
+            patch({
+              systemAudio: "failed",
+              error: "Couldn't capture the other people in this meeting — only your microphone is being recorded.",
+            });
+            // Whatever happens, capture has to be running: a meeting recording
+            // only this device's mic still beats one recording nothing.
+            if (opts.mic) await cap.start({ mic: true, system: false }).catch(() => {});
+          }
         }
       }
 
@@ -480,11 +546,22 @@ export function useRecorder(getThreadMessages?: () => ChatMessage[]) {
     // retention cap we keep the complete live transcript instead of overwriting
     // it with a diarized prefix (which would silently drop the tail).
     if (native.current && fullLen.current > 0 && !capExceeded.current) {
+      // Report what the pass is doing while it runs. This is minutes of work on
+      // a long meeting, and it used to be entirely silent — the engine emits
+      // progress now, and showing it is the difference between "still going"
+      // and "the app has hung", which is how it was reported.
+      patch({ processingPhase: "transcribing", processingProgress: 0 });
+      const unlisten = await onDiarizeProgress((p) =>
+        patch({ processingPhase: p.phase, processingProgress: p.percent }),
+      );
       try {
         const finalSegs = await nativeTranscribeDiarize(concatFloat32(fullAudio.current));
         if (finalSegs.length) { segments.current = finalSegs.map((s) => toLocal(s, 0)); patch({ segments: segments.current }); }
       } catch (e) {
         log.error("diarization pass failed, keeping live transcript", e);
+      } finally {
+        unlisten();
+        patch({ processingPhase: "writing the notes", processingProgress: 0 });
       }
     }
 
@@ -542,7 +619,9 @@ export function useRecorder(getThreadMessages?: () => ChatMessage[]) {
     // Notes are written by the on-device model from the transcript AND whatever
     // the user typed during the meeting, falling back to the local heuristic
     // extractor when no model is available.
-    const notes = await generateMeetingNotes(transcript, manualNotes, template.current);
+    // Passed as segments, not as the flat `transcript` string: the notes writer
+    // needs the speaker labels and timestamps to attribute anything.
+    const notes = await generateMeetingNotes(segments.current, manualNotes, template.current);
     // The copilot/user thread is saved with the meeting only when the user opts
     // in — by default just the spoken transcript is kept.
     const saveChat = getSettings().saveChatWithMeeting;
@@ -581,9 +660,11 @@ export function useRecorder(getThreadMessages?: () => ChatMessage[]) {
     asrChunks.current = []; slices.current = []; analysing.current = [];
     statusRef.current = "idle";
     setAudioLevel(0);
+    systemAudioHeard.current = false;
     setState({
       status: "idle", elapsed: 0, modelProgress: 0, modelPhase: "loading", device: "",
       segments: [], error: "", meetingId: null, notes: "", backlogSeconds: 0, takeId: "",
+      systemAudio: "off", systemAudioHeard: false, processingPhase: "", processingProgress: 0,
     });
   }, []);
 

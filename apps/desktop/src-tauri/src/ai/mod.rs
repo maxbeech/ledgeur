@@ -6,7 +6,7 @@
 use serde::Serialize;
 use std::collections::HashMap;
 use std::path::PathBuf;
-use tauri::Manager;
+use tauri::{Emitter, Manager};
 
 pub mod engine;
 pub mod llm;
@@ -41,7 +41,27 @@ pub struct AiStatus {
 
 pub const WHISPER_MODEL: &str = "ggml-base.en.bin";
 pub const SEG_MODEL: &str = "pyannote-segmentation-3.0.onnx";
-pub const EMBED_MODEL: &str = "speaker-embedding.onnx";
+/// English CAM++ (see `DOWNLOADS` in engine.rs for why it replaced the previous
+/// Mandarin-trained model). The filename carries the model so an existing
+/// install re-downloads rather than silently keeping the old weights.
+pub const EMBED_MODEL: &str = "speaker-embedding-en-campplus.onnx";
+
+/// Audio reaching the native engine is always 16 kHz mono: the recorder
+/// resamples on the way out (`WHISPER_SAMPLE_RATE` in the web layer) and the
+/// raw-bytes IPC below has no room for a sample-rate argument.
+const IPC_SAMPLE_RATE: u32 = 16_000;
+
+/// Emitted while the post-meeting pass runs, so the UI can show real progress
+/// instead of looking hung. Payload is `DiarizeProgress`.
+pub const DIARIZE_PROGRESS_EVENT: &str = "ai:diarize-progress";
+
+#[derive(Serialize, Clone)]
+pub struct DiarizeProgress {
+    /// 0–100. Diarization only; transcription runs first and reports 0.
+    pub percent: u32,
+    /// Which phase the pass is in, for the label next to the bar.
+    pub phase: &'static str,
+}
 
 pub fn models_dir(app: &tauri::AppHandle) -> PathBuf {
     app.path()
@@ -141,6 +161,29 @@ pub async fn llm_chat(app: tauri::AppHandle, messages: Vec<llm::ChatMsg>, temper
         .inspect_err(|e| log::error!("llm_chat failed: {e}"))
 }
 
+/// Decode a raw IPC body into 16 kHz mono samples.
+///
+/// Audio arrives as the bytes of a `Float32Array`, not as JSON. The JS side used
+/// to send `Array.from(samples)`, which turned a ten-minute meeting into a
+/// ~10-million-element array that Tauri then serialised to a couple of hundred
+/// megabytes of JSON text — built in the webview and parsed in Rust, both on the
+/// main thread, before a single sample had been looked at. Tauri passes an
+/// ArrayBuffer view straight through as `application/octet-stream` (see
+/// `process-ipc-message-fn.js` in the tauri crate), so this is now a memcpy.
+fn samples_from_request(request: &tauri::ipc::Request<'_>) -> Result<Vec<f32>, String> {
+    let tauri::ipc::InvokeBody::Raw(bytes) = request.body() else {
+        return Err("Expected raw audio bytes, not JSON.".into());
+    };
+    if bytes.len() % 4 != 0 {
+        return Err("Audio payload is not a whole number of 32-bit samples.".into());
+    }
+    // Every platform we ship a webview on is little-endian.
+    Ok(bytes
+        .chunks_exact(4)
+        .map(|b| f32::from_le_bytes([b[0], b[1], b[2], b[3]]))
+        .collect())
+}
+
 /// Runs on a blocking thread, not directly in the IPC handler: whisper.cpp
 /// inference for one utterance can take longer than the utterance itself on a
 /// slow CPU, and the webview's IPC callback fires on the main thread (a
@@ -151,8 +194,12 @@ pub async fn llm_chat(app: tauri::AppHandle, messages: Vec<llm::ChatMsg>, temper
 /// behind it. `spawn_blocking` moves the CPU-bound work off that thread; the
 /// `download_llm`/`llm_chat` commands below already did this.
 #[tauri::command]
-pub async fn transcribe_chunk(app: tauri::AppHandle, samples: Vec<f32>, sample_rate: u32) -> Result<Vec<TranscriptSegment>, String> {
-    tauri::async_runtime::spawn_blocking(move || engine::transcribe(&app, &samples, sample_rate))
+pub async fn transcribe_chunk(
+    app: tauri::AppHandle,
+    request: tauri::ipc::Request<'_>,
+) -> Result<Vec<TranscriptSegment>, String> {
+    let samples = samples_from_request(&request)?;
+    tauri::async_runtime::spawn_blocking(move || engine::transcribe(&app, &samples, IPC_SAMPLE_RATE))
         .await
         .map_err(|e| e.to_string())?
         .inspect_err(|e| log::error!("transcribe_chunk failed: {e}"))
@@ -165,14 +212,53 @@ pub async fn transcribe_chunk(app: tauri::AppHandle, samples: Vec<f32>, sample_r
 /// even more: it re-transcribes and diarizes the *entire* meeting, so on the
 /// main thread it froze the app for the whole duration of that pass with no
 /// way to tell it apart from a genuine hang.
+///
+/// It also reports progress (`DIARIZE_PROGRESS_EVENT`) and logs how long each
+/// step took. Both exist because "is it working or has it hung?" was previously
+/// unanswerable from either side of the window.
 #[tauri::command]
-pub async fn transcribe_diarize(app: tauri::AppHandle, samples: Vec<f32>, sample_rate: u32) -> Result<Vec<TranscriptSegment>, String> {
-    log::info!("transcribe_diarize: starting full pass ({} samples)", samples.len());
+pub async fn transcribe_diarize(
+    app: tauri::AppHandle,
+    request: tauri::ipc::Request<'_>,
+) -> Result<Vec<TranscriptSegment>, String> {
+    let samples = samples_from_request(&request)?;
+    let seconds = samples.len() as f32 / IPC_SAMPLE_RATE as f32;
+    log::info!("transcribe_diarize: starting full pass ({seconds:.0}s of audio)");
+
     tauri::async_runtime::spawn_blocking(move || {
-        let transcript = engine::transcribe(&app, &samples, sample_rate).inspect_err(|e| log::error!("transcribe_diarize: transcribe step failed: {e}"))?;
-        let diar = engine::diarize(&app, &samples, sample_rate).inspect_err(|e| log::error!("transcribe_diarize: diarize step failed: {e}"))?;
+        let emit = |percent: u32, phase: &'static str| {
+            let _ = app.emit(DIARIZE_PROGRESS_EVENT, DiarizeProgress { percent, phase });
+        };
+
+        emit(0, "transcribing");
+        let t0 = std::time::Instant::now();
+        let transcript = engine::transcribe(&app, &samples, IPC_SAMPLE_RATE)
+            .inspect_err(|e| log::error!("transcribe_diarize: transcribe step failed: {e}"))?;
+        log::info!("transcribe_diarize: transcribed in {:?}", t0.elapsed());
+
+        // Only re-emit on a whole-percent change: sherpa-onnx calls back per
+        // window, which is thousands of times on a long meeting, and every event
+        // is a hop to the main thread.
+        let t1 = std::time::Instant::now();
+        let mut last = u32::MAX;
+        let diar = engine::diarize(&app, &samples, IPC_SAMPLE_RATE, |done, total| {
+            let percent = if total > 0 { (done.max(0) as u32 * 100) / total as u32 } else { 0 };
+            if percent != last {
+                last = percent;
+                emit(percent, "separating speakers");
+            }
+        })
+        .inspect_err(|e| log::error!("transcribe_diarize: diarize step failed: {e}"))?;
+        log::info!(
+            "transcribe_diarize: diarized in {:?} ({} segments, {} speakers)",
+            t1.elapsed(),
+            diar.len(),
+            diar.iter().map(|d| d.speaker).collect::<std::collections::BTreeSet<_>>().len(),
+        );
+
+        emit(100, "matching voices");
         let profiles = voices::load_profiles(&app);
-        let identities = engine::identify_speakers(&app, &samples, sample_rate, &diar, &profiles);
+        let identities = engine::identify_speakers(&app, &samples, IPC_SAMPLE_RATE, &diar, &profiles);
         Ok(merge_speakers(transcript, &diar, &identities))
     })
     .await
