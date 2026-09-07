@@ -43,5 +43,10 @@ body {
 .ldg-no-drag { -webkit-app-region: no-drag; }
 
 /* ---- Phone safe areas ---------------------------------------------------- */
-.ldg-safe-top { padding-top: env(safe-area-inset-top); }
-.ldg-safe-bottom { padding-bottom: env(safe-area-inset-bottom); }
+/* iOS reports real insets and they win. Android's WebView reports none unless
+   the activity opts into edge-to-edge, while the system still draws its status
+   bar and gesture pill over the page — which put the pill straight through the
+   "Record" label in the tab bar. The floor is the height of an Android system
+   bar, so the bars are cleared either way. */
+.ldg-safe-top { padding-top: max(env(safe-area-inset-top), 24px); }
+.ldg-safe-bottom { padding-bottom: max(env(safe-area-inset-bottom), 24px); }

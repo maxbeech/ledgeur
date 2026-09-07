@@ -12,6 +12,7 @@ import { renameSpeakerInMeeting } from "../src/lib/renameSpeaker.ts";
 import { runModelWarmupTests } from "./modelWarmup.mts";
 import { runGranolaDesktopTests } from "./granola.mts";
 import { runSyncStoreTests, runPullMappingTests } from "./sync.mts";
+import { runEmptyTranscriptTests } from "./emptyTranscript.mts";
 
 let pass = 0, fail = 0;
 const ok = (name: string, cond: boolean, detail = "") => {
@@ -283,6 +284,7 @@ for (const file of surfaces) {
 runGranolaDesktopTests(ok);
 runSyncStoreTests(ok);
 runPullMappingTests(ok);
+runEmptyTranscriptTests(ok);
 
 await runModelWarmupTests(ok);
 

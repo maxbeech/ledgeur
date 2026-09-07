@@ -73,16 +73,33 @@ phone and stays there unless the meeting is synced.
 
 ## Testing
 
-What has been run so far (2026-09-06): the iOS build installed and launched
-on an iPhone 17 Pro simulator (iOS 26.5 runtime, Xcode 26.6) and rendered
-Home with the phone shell; the Android debug APK built (arm64-v8a, NDK 29)
-but the emulator on the build machine crashed in its GPU renderer before
-booting, so the APK has not been run. Everything that needs a microphone or a
-second device is listed in `docs/MANUAL_TESTING.md`: a recording on the phone
-appearing on the laptop under the same id, a rename on the laptop reaching the
-phone without a refresh, and the microphone permission prompt on first record.
+Both apps have been run (2026-09-07).
+
+**iOS.** Built with Xcode 26.6 against the iOS 26.5 runtime and launched on an
+iPhone 17 Pro simulator. Signed in, pulled every cloud meeting, recorded, and
+the recording was on the laptop under the same id within seconds of Stop.
+
+**Android.** The debug APK installs and launches on a Pixel 3a arm64 emulator
+and renders Home with the phone shell. Two things about the emulator, learned
+the hard way: it needs real free memory — under swap pressure its package
+service dies mid-install with `cmd: Can't find service: package` or a broken
+pipe, which looks like a corrupt APK and is not — and `gradlew assemble…` on
+its own fails in `:app:rustBuildArm64Debug`, because that task shells back into
+`tauri android android-studio-script`, which expects a dev-server address file.
+Build with `pnpm tauri android build`, never with Gradle directly.
+
+The one thing running on Android caught that a phone-width browser did not:
+the system's gesture pill was drawn straight through the "Record" label,
+because `env(safe-area-inset-*)` reports nothing in the Android WebView. Both
+safe-area rules now floor at the height of an Android system bar.
+
+Not yet covered by either run, and listed in `docs/MANUAL_TESTING.md`: the
+microphone permission prompt (a simulator grants it without asking) and a real
+transcript on a phone — the iOS simulator has no WebGPU, so transformers.js
+falls back to WebAssembly and runs far behind a live recording.
 
 The debug APK lands at
 `apps/desktop/src-tauri/gen/android/app/build/outputs/apk/universal/debug/`
 and installs with `adb install -r <apk>` on any arm64 device with developer
-mode on.
+mode on. It is large (about 470 MB) because a debug build carries unstripped
+Rust symbols; a release build is a fraction of that.

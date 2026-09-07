@@ -106,7 +106,7 @@ header, the gradient avatars, the fade-and-slide on every section, the
       prop. Legal and SEO pages still carry a few `!py-*` overrides — they
       render correctly and were left alone.
 
-### D. Sync that is actually sync — ✅ (engine) · ⬜ (migration on the live backend)
+### D. Sync that is actually sync — ✅
 - [x] Migration `0007_sync.sql`: client-supplied meeting ids, `updated_at`
       and soft deletes on meetings, `folders` and `note_templates` tables,
       `meetings.folder_id` / `template_id`, `meeting_notes.manual_notes`,
@@ -117,9 +117,11 @@ header, the gradient avatars, the fade-and-slide on every section, the
       `updated_at`, and listens to Realtime so a second device updates without
       a refresh.
 - [x] Honest degraded state when the backend has not had the migration
-      ("Limited", naming the migration). This is the mode the live project
-      is in: no access token was available to apply 0007 from here, and a
-      local Supabase stack could not start (Docker Desktop hung).
+      ("Limited", naming the migration). Both states have now been seen: the
+      live project ran in it until 2026-09-07, when `0007_sync.sql` was applied
+      over the Management API and Settings → Sync moved to "In step" · "Live".
+      The migration is idempotent and `supabase/apply-migration.mjs` applies
+      it, so this is repeatable rather than a one-off by hand.
 - [x] Tests over the pure merge logic in `packages/core`, and over the
       row mapping and the device stores in `apps/desktop`.
 - [x] Verified between two browser origins against the live backend: six
@@ -127,7 +129,7 @@ header, the gradient avatars, the fade-and-slide on every section, the
       speakers and notes; a meeting created on the second reached the first
       through Realtime; the same ids on both.
 
-### E. iOS and Android — ✅ (iOS ran) · 🟡 (Android built, not run)
+### E. iOS and Android — ✅
 - [x] Rust targets, `tauri ios init`, `tauri android init`, committed
       projects, microphone permission strings in both.
 - [x] Desktop-only plugins and capabilities split by platform.
@@ -138,16 +140,53 @@ header, the gradient avatars, the fade-and-slide on every section, the
       with the phone shell. Taps could not be driven from here (simulator
       input access was not granted), so the screens past Home are covered by
       the phone-width browser pass.
-- [x] Android: debug APK built (`com.ledgeur.app`, arm64-v8a, NDK 29,
-      `RECORD_AUDIO` declared). The emulator on this machine crashed in its
-      GPU renderer on three launches, so the APK has not been run — install
-      it on a device with `adb install -r`.
+- [x] Android: the debug APK installs and launches on a Pixel 3a arm64
+      emulator and renders Home with the phone shell. The earlier emulator
+      crashes and install failures were the machine being out of memory, not
+      the build. Running it caught the one defect a phone-width browser could
+      not: the gesture pill was drawn through the "Record" label, because
+      `env(safe-area-inset-*)` reports nothing in the Android WebView.
+- [x] Two-way sync exercised on a real phone build: the iOS simulator signed
+      in, pulled every cloud meeting, recorded one, and it was on the laptop
+      under the same id within seconds of Stop.
 
 ### F. Proof — ✅
-- [x] All packages test and typecheck (1,468 assertions).
+- [x] All packages test and typecheck.
 - [x] Browser E2E by a separate agent: the site in light, dark and phone
       widths passed with no defects; the app passed with no defects.
 - [x] `docs/MANUAL_TESTING.md` lists what needs a real phone.
+- [x] Items 15–20 of `docs/MANUAL_TESTING.md` driven end to end on 2026-09-07
+      across two devices and both phone platforms — see that file for what
+      each one showed, and G below for what it turned up.
+
+### G. What running it on real devices found — ✅
+
+Five defects that only appear once the app is on a phone, on two devices, or
+without a network. Each is fixed and covered by a test where the logic is
+testable.
+
+- **An open meeting never updated.** Every screen subscribed to the meetings
+  store except the one showing a single meeting, which loaded once. Sync wrote
+  a rename, a filing or a deletion underneath it and the page went on showing
+  what it looked like when it was opened.
+- **"Sign out and in again" to someone offline.** `resolveOrg` read the data
+  from its queries and dropped the errors, so no network looked exactly like
+  no workspace — and the advice for no workspace is to sign out, which is the
+  one thing that cannot be undone without a network.
+- **`TypeError: Failed to fetch` shown to a person**, and the "Live" badge
+  still claiming a Realtime channel that was gone. Both replaced by one honest
+  offline state.
+- **Recovery waited for the five-minute tick.** Nothing listened for the
+  network returning; it now resyncs about two seconds after it does.
+- **A warning that could not be taken back.** Three audible-but-empty slices
+  raised "the speech model isn't returning any text" and nothing ever cleared
+  it — so on a device with no WebGPU, where the transcriber works through the
+  silence before anyone speaks, it sat contradicting the "transcribing 50s
+  behind" line directly above it for the rest of the meeting.
+
+And one that a browser at phone width could not show: the Android WebView
+reports no safe-area insets, so the system's gesture pill was drawn through
+the tab bar.
 
 ## Assumptions made without asking
 
@@ -162,8 +201,9 @@ Listed as they are made; repeated in the final report.
 - The theme follows the system unless overridden in Settings.
 - Iris is both the brand colour and the copilot colour; mint marks anything
   live, and peach marks recording and destructive actions.
-- The live Supabase project has not had migration `0007_sync.sql`; the
-  engine runs in its "legacy" mode there until it is applied.
+- Migration `0007_sync.sql` was applied to the live project on 2026-09-07,
+  and was rewritten to be safe to run twice first, since it gets applied by
+  hand and a half-applied migration must not be a dead end.
 - A test account was created and stored in `apps/desktop/.env`.
 - Legal and SEO pages keep a few `!py-*` spacing overrides.
 - The phone apps are built from source and are not in either store; no

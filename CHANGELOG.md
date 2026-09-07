@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased (2026-09-06) — The redesign, the phone, and sync that is sync
+## Unreleased (2026-09-07) — The redesign, the phone, and sync that is sync
 
 ### One design system, actually shared
 
@@ -43,12 +43,46 @@ ring from the site's.
   capture, the speech model downloaded on the first record rather than at
   launch, and no settings a phone cannot act on. Capabilities split so the
   desktop-only updater is not asked for on a phone. See `docs/MOBILE.md`.
-- **Built and run.** The iOS app compiled with Xcode 26.6 for the iOS 26.5
-  simulator, installed on an iPhone 17 Pro simulator and rendered Home with
-  the phone shell (bottom tabs, pinned composer, safe areas). The Android
-  debug APK (`com.ledgeur.app`, arm64-v8a, `RECORD_AUDIO`) built with NDK 29
-  and Gradle; the Android emulator on this machine crashes in its GPU
-  renderer before booting, so the APK has not been run yet.
+- **Both run.** The iOS app (Xcode 26.6, iOS 26.5 runtime) runs on an iPhone
+  17 Pro simulator: signed in, pulled every cloud meeting, recorded one, and it
+  was on the laptop under the same id within seconds of Stop. The Android debug
+  APK (`com.ledgeur.app`, arm64-v8a, NDK 29) installs and launches on a Pixel
+  3a arm64 emulator and renders Home with the phone shell.
+- **The Android system bars no longer sit on the app.** `env(safe-area-inset-*)`
+  reports nothing in the Android WebView, so the gesture pill was drawn
+  straight through the "Record" label in the tab bar. Both safe-area rules now
+  floor at the height of a system bar; a real iOS inset is larger and still
+  wins. This is the one defect a phone-width browser window could not show.
+- Still needing a real handset, and listed in `docs/MANUAL_TESTING.md`: the
+  microphone permission prompt (a simulator grants it without asking) and a
+  real transcript — the simulator has no WebGPU, so transformers.js falls back
+  to WebAssembly and runs far behind a live recording. The app says so
+  ("Transcribing 50s behind on this device (CPU)") rather than appearing stuck.
+
+### What running it on real devices found
+
+Five defects that only show up on a phone, across two devices, or without a
+network. All fixed, with tests where the logic is testable.
+
+- **An open meeting never updated.** Every screen subscribed to the meetings
+  store except the one showing a single meeting, which loaded once and never
+  again — so a rename, a filing or a deletion arriving from another device did
+  not appear until a reload.
+- **"Sign out and in again" told to someone offline.** The workspace lookup
+  read its query results and dropped the errors, so no network was
+  indistinguishable from no workspace — and the advice for no workspace is to
+  sign out, which needs the network they have not got.
+- **`TypeError: Failed to fetch` shown to a person**, next to a "Live" badge
+  claiming a Realtime channel that had gone. Both replaced by one honest
+  state: "No connection. Everything is saved on this device, and syncs by
+  itself once you are back online."
+- **Recovery waited up to five minutes.** Nothing listened for the network
+  coming back; it now resyncs about two seconds after it does.
+- **A warning that could not be taken back.** Three audible-but-empty slices
+  raised "the speech model isn't returning any text", and nothing ever cleared
+  it — so on a device with no WebGPU, where the transcriber works through the
+  silence before anyone speaks, it sat contradicting the live "transcribing
+  50s behind" line for the rest of the meeting.
 
 ### Sync
 
@@ -63,7 +97,13 @@ ring from the site's.
   device's work without a refresh; the whole library is cached locally so
   search and Ask work offline. `supabase/migrations/0007_sync.sql`.
 - Against a backend that has not had the migration, the engine does what the
-  old one could and **says so** in Settings, naming the migration.
+  old one could and **says so** in Settings, naming the migration. The live
+  project has now had it applied, so Settings → Sync reads "In step" · "Live";
+  the migration was made safe to run twice first, and
+  `supabase/apply-migration.mjs` applies it over the Management API rather
+  than by hand. Pressing "Sync now" re-asks the backend which schema it has —
+  the schema answer is cached for the life of the process, and pressing Sync
+  now is exactly what someone does straight after applying it.
 
 ### Also
 - `bg-line`, a border class that did not exist, left three sign-in fields

@@ -20,7 +20,7 @@ import { attributeMeetingNotes, type AttributedNote, type AttributableLine } fro
 import { Page } from "../components/PageHeader.tsx";
 import { Badge, Button, Card, ErrorNote, IconButton, Label, Notice, Segmented, SpeakerChip, Spinner } from "../components/ui.tsx";
 import { FollowUpPanel } from "../components/meeting/FollowUpPanel.tsx";
-import { getMeeting, saveMeeting, deleteMeeting, type LocalMeeting } from "../lib/meetingsStore.ts";
+import { getMeeting, saveMeeting, deleteMeeting, subscribeMeetings, type LocalMeeting } from "../lib/meetingsStore.ts";
 import { renameSpeakerInMeeting } from "../lib/renameSpeaker.ts";
 import { getCloudMeeting, deleteCloudMeeting } from "../lib/cloudMeeting.ts";
 import { hasBackend } from "../lib/config.ts";
@@ -41,6 +41,9 @@ export function MeetingDetail() {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [notion, setNotion] = useState<{ busy: boolean; msg: string; error: boolean }>({ busy: false, msg: "", error: false });
   const [fromCloud, setFromCloud] = useState(false);
+  /** The same fact as `fromCloud`, readable from inside the load below
+   *  without making it depend on a render. */
+  const showingCloudCopy = useRef(false);
   /** Which speaker is being renamed, and to what. */
   const [renaming, setRenaming] = useState<string | null>(null);
   const [draftName, setDraftName] = useState("");
@@ -53,14 +56,37 @@ export function MeetingDetail() {
   useEffect(() => {
     if (!id) return;
     let cancelled = false;
-    getMeeting(id).then(async (local) => {
+
+    /**
+     * Read this meeting as it is now.
+     *
+     * The cloud is only asked on open: a meeting this device does not hold is
+     * a read-only copy, and re-fetching it on every store change would be a
+     * request per sync.
+     */
+    const load = async (opening: boolean) => {
+      const local = await getMeeting(id);
       if (cancelled) return;
-      if (local) { setMeeting(local); return; }
-      const cloud = await getCloudMeeting(id).catch(() => null);
-      if (cancelled) return;
-      if (cloud) { setMeeting(cloud); setFromCloud(true); } else { setMeeting(null); }
-    });
-    return () => { cancelled = true; };
+      if (local) { showingCloudCopy.current = false; setFromCloud(false); setMeeting(local); return; }
+      if (opening) {
+        const cloud = await getCloudMeeting(id).catch(() => null);
+        if (cancelled) return;
+        showingCloudCopy.current = Boolean(cloud);
+        setFromCloud(Boolean(cloud));
+        setMeeting(cloud ?? null);
+        return;
+      }
+      // It was in this device's library a moment ago and is not now: deleted,
+      // here or on another device. A read-only cloud copy is left alone.
+      if (!showingCloudCopy.current) setMeeting(null);
+    };
+
+    void load(true);
+    // Sync writes straight into the store, so without this an open meeting goes
+    // on showing what it looked like when it was opened — a rename, a filing or
+    // a deletion arriving from another device would not appear until a reload.
+    const off = subscribeMeetings(() => { void load(false); });
+    return () => { cancelled = true; off(); };
   }, [id]);
 
   const speakers = useMemo(() => {

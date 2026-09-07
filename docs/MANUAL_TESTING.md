@@ -375,43 +375,83 @@ so they can't be verified headless in CI — verify these by hand once configure
     returns a config; paste it into Claude/Cursor and confirm the tools list/query
     meetings under your RLS.
 
-## The phone app and sync (2026-09-06)
+## The phone app and sync (2026-09-07)
 
 The iOS and Android projects are generated and committed under
-`apps/desktop/src-tauri/gen/`; see `docs/MOBILE.md` for the toolchain. What was
-verified here: the Xcode and Gradle projects generate, the Rust core compiles
-for the phone targets, the phone layout (bottom tabs, sheets, safe areas)
-renders in a phone-sized browser window, the iOS build installs and launches
-on an iPhone 17 Pro simulator (Home rendered with the phone shell; taps could
-not be driven because simulator input access was not granted to the agent),
-and the Android debug APK builds (`com.ledgeur.app`, arm64-v8a, microphone
-permission declared). The Android emulator on this machine crashes in its GPU
-renderer before booting, so the APK has not been run. What needs a real phone,
-simulator or emulator:
+`apps/desktop/src-tauri/gen/`; see `docs/MOBILE.md` for the toolchain.
+Migration `0007_sync.sql` has been applied to the live project, so the engine
+is out of its "Limited" mode and the whole two-way path is live.
+
+**Driven end to end on 2026-09-07** — items 15 to 20 below now pass, and are
+kept here as the regression list rather than as unknowns:
+
+- The iOS app runs on an iPhone 17 Pro simulator, signed in, and pulled every
+  cloud meeting. A meeting recorded on it reached the laptop under the same id
+  within seconds of Stop.
+- The Android debug APK installs and launches on a Pixel 3a arm64 emulator
+  (`com.ledgeur.app`) and renders Home with the phone shell.
+- Edits, filings and deletions travel both ways between two devices, live,
+  without a refresh.
+- Offline, the library, search and reading a meeting all work; the app says so
+  honestly and resyncs by itself about two seconds after the network returns.
+- Every screen clears WCAG AA in both light and dark mode, measured.
+
+What still needs a real phone, a real room, or a Windows machine:
 
 14. **First record on a phone.** Tap Record → Start. The OS asks for the
     microphone once, with the app's own wording. The speech model downloads
     now (not at launch) with a visible progress line, and the transcript
     starts once it is ready. Stop → the meeting opens with notes.
-15. **A phone recording reaches the laptop.** Signed in on both, record on the
-    phone. Within seconds of Stop, the laptop's library shows the meeting
-    (Realtime), with the same id in both URLs, the transcript, speakers and
-    notes intact, and no duplicate.
-16. **An edit travels both ways.** On the laptop, rename Speaker 2 to a name
-    and file the meeting in a space. On the phone, without refreshing: the
-    name appears on every line, and the space appears in Library's filter row.
-    Then edit the title on the phone and watch it change on the laptop.
-17. **A deletion travels.** Delete the meeting on one device; it disappears
-    from the other and does not come back after "Sync now".
-18. **Offline.** Turn the phone's radio off. Library, search, Ask (with the
-    local meetings) and reading a meeting all work. Record a meeting; turn the
-    radio on; it syncs on its own.
-19. **Settings → Sync** shows "In step", the last sync time, and a "Live"
-    badge while the Realtime channel is subscribed. Against a backend without
-    migration 0007 it shows "Limited" and names the migration.
-20. **Dark mode.** Settings → Appearance → Dark, and System with the OS in dark
-    mode. Every screen, including the live room and the composer, is legible.
-21. Windows: `tauri build` on a Windows host (unchanged, still untested).
+
+    Mostly done on the simulator on 2026-09-07: Record offers the microphone
+    only, the model downloaded on the first record with a visible percentage,
+    audio was captured (live waveform), and Stop was near-instant and opened
+    the meeting. Two parts still need a real handset. The **permission prompt**
+    never appeared because a simulator grants the microphone without asking.
+    And the **transcript came back empty**: the simulator has no WebGPU, so
+    transformers.js falls back to WebAssembly and ran about 50 seconds behind a
+    live recording before stalling — the app reported that honestly
+    ("Transcribing 50s behind on this device (CPU)") but produced no words in
+    90 seconds of clear speech. On an iPhone with WebGPU in WKWebView this
+    should be far faster; that is the thing to check first on a device.
+15. **A phone recording reaches the laptop.** ✅ 2026-09-07 — recorded on the
+    iOS simulator; `e12db456-fdba-404f-bc9b-6d5dfbd2ba81` was in the cloud
+    within seconds of Stop and in the laptop's library under the same id, with
+    no duplicate. Still worth repeating on a device with a real transcript in
+    it, since this one was empty (see 14).
+16. **An edit travels both ways.** ✅ 2026-09-07 — filing a meeting into a
+    space on one device changed it on the other, with the meeting open and no
+    refresh, in about a second; the space itself travelled too. This needed a
+    fix: the open meeting screen was the one screen that never subscribed to
+    the store, so sync updated the data underneath it and the page went on
+    showing what it looked like when it was opened. Still worth doing by hand:
+    renaming a **speaker**, and an edit made on the phone rather than received
+    by it.
+17. **A deletion travels.** ✅ 2026-09-07 — deleted on device B, tombstoned in
+    the cloud (`deleted_at` set, not a hard delete), gone from device A's
+    library within seconds without a refresh, and still gone after "Sync
+    now".
+18. **Offline.** ✅ 2026-09-07, with the network cut under the app — library,
+    search and reading a meeting all worked, and it resynced by itself about
+    two seconds after the network came back. Two fixes came out of it: a failed
+    sync used to report "This account has no workspace yet. Sign out and in
+    again to create one", which is the worst possible advice for someone
+    offline, because signing back in needs the network they have not got; and
+    nothing listened for the network returning, so recovery waited for the
+    five-minute tick. Still to do on a handset: **record** while offline and
+    watch it sync when the radio comes back.
+19. **Settings → Sync** ✅ 2026-09-07 — seen in both states: "Limited" naming
+    `supabase/migrations/0007_sync.sql` before the migration, and "In step"
+    with the "Live" badge after it, on the laptop and on the phone. Note that
+    the schema answer is cached for the life of the process; pressing "Sync
+    now" re-asks, which is what someone does straight after applying it.
+20. **Dark mode.** ✅ 2026-09-07 — every text/background pair on Home,
+    Library, Record, Ask, Tasks, People, Settings and a meeting was measured
+    against WCAG AA in both themes, and all pass. The **live room** is not
+    covered by that sweep because it needs a recording in progress; it was seen
+    in light mode on the simulator only.
+21. Windows: `tauri build` on a Windows host (unchanged, still untested —
+    there is no Windows machine here).
 
 ## Error tracking (Sentry)
 15. With `VITE_SENTRY_DSN`/`SENTRY_DSN` set in `apps/desktop/.env`, throw a test

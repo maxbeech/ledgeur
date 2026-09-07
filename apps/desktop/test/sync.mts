@@ -63,7 +63,7 @@ export function runSyncStoreTests(ok: Ok): void {
 // as an object, not a one-element array. The engine read `[0]` and every
 // pulled meeting arrived with its notes missing — found by pulling a real
 // meeting between two devices. Both shapes are accepted now, and pinned.
-import { toLocal, type RemoteFull } from "../src/lib/sync.ts";
+import { toLocal, isManualSync, isOffline, OFFLINE_MESSAGE, type RemoteFull } from "../src/lib/sync.ts";
 
 export function runPullMappingTests(ok: Ok): void {
   const base: RemoteFull = {
@@ -107,4 +107,31 @@ export function runPullMappingTests(ok: Ok): void {
   // means they were cleared on another device, not that they were never sent.
   const cleared = toLocal({ ...base, meeting_notes: { ...note, manual_notes: "" } as unknown as RemoteFull["meeting_notes"] }, previous);
   ok("an emptied manual note from the cloud is honoured", cleared.manualNotes === "");
+
+  // Which syncs re-ask the backend what schema it has. The schema answer is
+  // cached for the life of the process, which is right except at the one moment
+  // it changes: someone has just applied migration 0007 because the "Limited"
+  // notice told them to, and presses Sync now. That press has to re-ask, or it
+  // reports "Limited" again and only restarting the app clears it.
+  ok("pressing Sync now re-asks the backend", isManualSync("manual"));
+  ok("a sync on sign-in does not", !isManualSync("session"));
+  ok("a sync from a Realtime change does not", !isManualSync("realtime"));
+  ok("a sync after a meeting ends does not", !isManualSync("meeting-finished"));
+
+  // Telling "this device has no network" apart from "the backend said no".
+  // Getting this wrong is not cosmetic: every one of these used to fall through
+  // to the caller's "This account has no workspace yet. Sign out and in again",
+  // which is the one thing someone offline must not do — signing back in needs
+  // the network they have not got.
+  ok("Chromium's wording is offline", isOffline("TypeError: Failed to fetch"));
+  ok("WebKit's wording is offline", isOffline("Load failed"));
+  ok("Firefox's wording is offline", isOffline("NetworkError when attempting to fetch resource."));
+  ok("React Native's wording is offline", isOffline("Network request failed"));
+  ok("Node's wording is offline", isOffline("fetch failed"));
+  ok("it is not case-sensitive", isOffline("failed to FETCH"));
+  ok("a real backend refusal is not offline", !isOffline('duplicate key value violates unique constraint "meetings_pkey"'));
+  ok("a missing workspace is not offline", !isOffline("This account has no workspace yet. Sign out and in again to create one."));
+  ok("a permission error is not offline", !isOffline("new row violates row-level security policy for table \"meetings\""));
+  ok("the offline message does not tell anyone to sign out", !/sign out/i.test(OFFLINE_MESSAGE));
+  ok("the offline message says the work is safe", /saved on this device/i.test(OFFLINE_MESSAGE));
 }

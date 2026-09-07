@@ -107,28 +107,48 @@ const isUuid = (s: string | undefined | null): s is string => Boolean(s && UUID.
 /** The backend either has migration 0007 or it does not; remembered per start. */
 let schema: "v7" | "legacy" | null = null;
 
-async function probeSchema(sb: SupabaseClient): Promise<"v7" | "legacy"> {
-  if (schema) return schema;
+/**
+ * Ask the backend which schema it has.
+ *
+ * `recheck` forces the question to be asked again. A backend does not usually
+ * grow columns underneath a running app, so the answer is cached — but the one
+ * time it does is when someone has just applied the migration the "Limited"
+ * notice told them to, and the very next thing they do is press Sync now. Left
+ * cached, that press reports "Limited" again and the only way out is to
+ * restart the app, which nothing tells them to do.
+ */
+async function probeSchema(sb: SupabaseClient, recheck = false): Promise<"v7" | "legacy"> {
+  if (schema && !recheck) return schema;
+  const before = schema;
   const { error } = await sb.from("meetings").select("updated_at").limit(1);
   schema = error && isSchemaError(error.message) ? "legacy" : "v7";
   if (schema === "legacy") log.warn(`backend has not had migration ${SYNC_MIGRATION}; syncing the old way`);
+  else if (before === "legacy") log.info(`backend now has migration ${SYNC_MIGRATION}; syncing everything`);
   return schema;
 }
 
 /** The workspace to sync into: the profile's default, else the first membership. */
+// Every query here is checked, not just read. Dropping the error made a device
+// with no network indistinguishable from an account with no workspace, and the
+// caller's answer to the latter is "sign out and in again" — the worst possible
+// advice for someone who is merely offline, since signing back in needs the
+// network they have not got.
 async function resolveOrg(sb: SupabaseClient, userId: string): Promise<{ id: string; defaultVisibility: "private" | "org" } | null> {
-  const { data: profile } = await sb.from("profiles").select("default_org_id").eq("id", userId).maybeSingle();
+  const { data: profile, error: profileError } = await sb.from("profiles").select("default_org_id").eq("id", userId).maybeSingle();
+  fail(profileError);
   const preferred = (profile as { default_org_id: string | null } | null)?.default_org_id;
   let q = sb.from("orgs").select("id, default_meeting_visibility").limit(1);
   if (preferred) q = q.eq("id", preferred);
-  const { data: org } = await q.maybeSingle();
+  const { data: org, error: orgError } = await q.maybeSingle();
+  fail(orgError);
   const row = org as { id: string; default_meeting_visibility: string } | null;
   if (!row && preferred) return resolveOrgAny(sb);
   return row ? { id: row.id, defaultVisibility: row.default_meeting_visibility === "org" ? "org" : "private" } : null;
 }
 
 async function resolveOrgAny(sb: SupabaseClient) {
-  const { data } = await sb.from("orgs").select("id, default_meeting_visibility").limit(1).maybeSingle();
+  const { data, error } = await sb.from("orgs").select("id, default_meeting_visibility").limit(1).maybeSingle();
+  fail(error);
   const row = data as { id: string; default_meeting_visibility: string } | null;
   return row ? { id: row.id, defaultVisibility: row.default_meeting_visibility === "org" ? ("org" as const) : ("private" as const) } : null;
 }
@@ -136,6 +156,19 @@ async function resolveOrgAny(sb: SupabaseClient) {
 const fail = (error: { message: string } | null): void => {
   if (error) throw new Error(error.message);
 };
+
+export const OFFLINE_MESSAGE = "No connection. Everything is saved on this device, and syncs by itself once you are back online.";
+
+/**
+ * Whether a failed sync is "this device has no network" rather than something
+ * the backend said. Browsers and webviews word this differently — Chromium
+ * "Failed to fetch", WebKit "Load failed", Firefox "NetworkError" — and none
+ * of them are worth showing to a person.
+ */
+export function isOffline(message: string): boolean {
+  if (typeof navigator !== "undefined" && navigator.onLine === false) return true;
+  return /failed to fetch|load failed|networkerror|network request failed|err_internet_disconnected|fetch failed/i.test(message);
+}
 
 /* ------------------------------------------------------------- push: meetings */
 
@@ -420,9 +453,16 @@ async function pullMeetings(ctx: PushCtx, since: string | null): Promise<{ pulle
 
 let running: Promise<SyncStatus> | null = null;
 let again = false;
+/** A person asked for this sync, so the next run re-asks what schema the
+ *  backend has. Set here and claimed by the run that serves the request. */
+let recheckSchema = false;
+
+/** Syncs a person asked for by hand, as opposed to the app's own. */
+export const isManualSync = (reason: string): boolean => reason === "manual";
 
 /** Sync now. Serialised: a call during a run queues one more run after it. */
 export function syncNow(reason: string): Promise<SyncStatus> {
+  if (isManualSync(reason)) recheckSchema = true;
   if (running) { again = true; return running; }
   running = (async () => {
     try {
@@ -447,7 +487,13 @@ async function runOnce(reason: string): Promise<void> {
   setStatus({ phase: "syncing", error: "" });
   log.info("sync start", { reason });
   try {
-    const mode = await probeSchema(sb);
+    // A person pressing Sync now is the one moment the schema is worth asking
+    // about again — see probeSchema. Claimed here rather than read from
+    // `reason`, because a press that arrives mid-run is served by a repeat of
+    // the run already going, under that run's reason.
+    const recheck = recheckSchema;
+    recheckSchema = false;
+    const mode = await probeSchema(sb, recheck);
     const org = await resolveOrg(sb, session.user.id);
     if (!org) throw new Error("This account has no workspace yet. Sign out and in again to create one.");
     const ctx: PushCtx = { sb, userId: session.user.id, orgId: org.id, defaultVisibility: org.defaultVisibility, v7: mode === "v7" };
@@ -470,7 +516,13 @@ async function runOnce(reason: string): Promise<void> {
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);
     log.error("sync failed", e);
-    setStatus({ phase: "error", error: message });
+    // A device with no connection is not a broken one, and "TypeError: Failed
+    // to fetch" is not something to put in front of a person. Nothing is lost
+    // meanwhile: everything is on the device, and the next run picks it up.
+    // The Realtime badge goes with it — there is no live channel without a
+    // network, whether or not the socket got around to telling us.
+    if (isOffline(message)) setStatus({ phase: "error", error: OFFLINE_MESSAGE, live: false });
+    else setStatus({ phase: "error", error: message });
   }
 }
 
@@ -544,6 +596,12 @@ export function startSync(): () => void {
 
   const onVisible = () => { if (document.visibilityState === "visible") schedule("visible"); };
   document.addEventListener("visibilitychange", onVisible);
+  // The radio coming back is the moment to try again. Without this, a phone
+  // that recorded on a train catches up on the next five-minute tick, and the
+  // "syncs by itself once you are back online" the failure promises is true
+  // but slow enough to look untrue.
+  const onOnline = () => schedule("online");
+  window.addEventListener("online", onOnline);
   const interval = setInterval(() => schedule("periodic"), PERIODIC_MS);
   // A save here (an edit, a new recording) reaches the cloud promptly, not
   // at the next tick — but only when the save was a person's, which is what
@@ -555,6 +613,7 @@ export function startSync(): () => void {
   return () => {
     auth.subscription.unsubscribe();
     document.removeEventListener("visibilitychange", onVisible);
+    window.removeEventListener("online", onOnline);
     clearInterval(interval);
     offStore();
     if (timer) clearTimeout(timer);

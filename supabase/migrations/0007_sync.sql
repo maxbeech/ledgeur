@@ -21,16 +21,21 @@
 --   * Realtime on the synced tables, so a second device updates without a
 --     refresh.
 
+--
+-- Every statement here is written to be safe to run twice: the app reports a
+-- "Limited" sync mode until this lands, so it gets applied by hand, and a
+-- half-applied migration must not be a dead end.
+
 -- ---------- meetings ----------
-alter table meetings add column updated_at  timestamptz not null default now();
-alter table meetings add column deleted_at  timestamptz;
-alter table meetings add column template_id text;
-create index meetings_updated_idx on meetings (org_id, updated_at desc);
+alter table meetings add column if not exists updated_at  timestamptz not null default now();
+alter table meetings add column if not exists deleted_at  timestamptz;
+alter table meetings add column if not exists template_id text;
+create index if not exists meetings_updated_idx on meetings (org_id, updated_at desc);
 
 -- ---------- spaces ----------
 -- Personal: a space is how one person files their own meetings. Sharing a
 -- space is a different feature (and a different policy), not this one.
-create table folders (
+create table if not exists folders (
   id         uuid primary key,                       -- device-supplied
   owner_id   uuid not null references profiles (id) on delete cascade,
   name       text not null,
@@ -39,15 +44,16 @@ create table folders (
   updated_at timestamptz not null default now(),
   deleted_at timestamptz
 );
-create index folders_owner_idx on folders (owner_id, updated_at desc);
+create index if not exists folders_owner_idx on folders (owner_id, updated_at desc);
 alter table folders enable row level security;
+drop policy if exists "folders: owner all" on folders;
 create policy "folders: owner all" on folders for all
   using (owner_id = auth.uid()) with check (owner_id = auth.uid());
 
-alter table meetings add column folder_id uuid references folders (id) on delete set null;
+alter table meetings add column if not exists folder_id uuid references folders (id) on delete set null;
 
 -- ---------- recipes ----------
-create table note_templates (
+create table if not exists note_templates (
   owner_id    uuid not null references profiles (id) on delete cascade,
   template_id text not null,                         -- the "custom:…" id the app uses
   name        text not null,
@@ -59,18 +65,33 @@ create table note_templates (
   deleted_at  timestamptz,
   primary key (owner_id, template_id)
 );
-create index note_templates_owner_idx on note_templates (owner_id, updated_at desc);
+create index if not exists note_templates_owner_idx on note_templates (owner_id, updated_at desc);
 alter table note_templates enable row level security;
+drop policy if exists "note_templates: owner all" on note_templates;
 create policy "note_templates: owner all" on note_templates for all
   using (owner_id = auth.uid()) with check (owner_id = auth.uid());
 
 -- ---------- notes ----------
-alter table meeting_notes add column manual_notes text not null default '';
+alter table meeting_notes add column if not exists manual_notes text not null default '';
 
 -- ---------- tasks ----------
-alter table action_items add column updated_at timestamptz not null default now();
+alter table action_items add column if not exists updated_at timestamptz not null default now();
 
 -- ---------- realtime ----------
 -- Row-level security applies to change events too, so a device only hears
 -- about rows it could have read.
-alter publication supabase_realtime add table meetings, meeting_notes, action_items, folders, note_templates;
+--
+-- `alter publication … add table` has no IF NOT EXISTS and errors once a table
+-- is already published, so each is added only when it is missing.
+do $$
+declare t text;
+begin
+  foreach t in array array['meetings', 'meeting_notes', 'action_items', 'folders', 'note_templates'] loop
+    if not exists (
+      select 1 from pg_publication_tables
+      where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = t
+    ) then
+      execute format('alter publication supabase_realtime add table public.%I', t);
+    end if;
+  end loop;
+end $$;

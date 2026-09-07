@@ -42,6 +42,9 @@ import { setAudioLevel } from "./audioLevel.ts";
 import { ensureTranscriber, ensureDiarizer, getEngineStatus } from "./asrEngine.ts";
 import { isSystemAudioTapAvailable, SystemAudioTap } from "./systemAudioTap.ts";
 import { createLogger } from "./logger.ts";
+import {
+  EMPTY_TRANSCRIPT_WARNING, emptyTranscriptInitial, onEmptySlice, onTranscribedSlice,
+} from "./emptyTranscript.ts";
 
 const log = createLogger("recorder");
 
@@ -153,8 +156,7 @@ export function useRecorder(getThreadMessages?: () => ChatMessage[]) {
    *  quiet room, both in the logs and, past a few in a row, as a visible note
    *  rather than a transcript that's just empty at the end. */
   const silentDrains = useRef(0);
-  const emptyResultStreak = useRef(0);
-  const emptyResultWarned = useRef(false);
+  const emptyTranscript = useRef(emptyTranscriptInitial());
 
   const patch = (p: Partial<RecorderState>) => setState((s) => {
     const next = { ...s, ...p };
@@ -243,19 +245,21 @@ export function useRecorder(getThreadMessages?: () => ChatMessage[]) {
           text: text.trim(), confidence: null, speakerConfidence: null,
         }];
         patch({ segments: segments.current });
-        emptyResultStreak.current = 0;
+        // Words are coming back, so retract the warning below rather than leave
+        // it contradicting the live "transcribing Ns behind" line.
+        const done = onTranscribedSlice(emptyTranscript.current);
+        emptyTranscript.current = done.state;
+        if (done.retract) patch({ error: "" });
       } else {
         // Audible audio (it passed the silence gate) that the model transcribed
         // as nothing. Once in a while that's just noise or a breath; several in
         // a row with real audio and zero words back is how "recorded fine,
         // transcript came out empty" happens silently — surface it instead of
         // only finding out at the end.
-        emptyResultStreak.current++;
-        log.warn("non-silent audio produced no transcript", { streak: emptyResultStreak.current });
-        if (emptyResultStreak.current >= 3 && !emptyResultWarned.current) {
-          emptyResultWarned.current = true;
-          patch({ error: "Audio is being picked up, but the speech model isn't returning any text. The recording is continuing — if the transcript is still empty at the end, try again or restart the app." });
-        }
+        const empty = onEmptySlice(emptyTranscript.current);
+        emptyTranscript.current = empty.state;
+        log.warn("non-silent audio produced no transcript", { streak: empty.state.streak });
+        if (empty.show) patch({ error: EMPTY_TRANSCRIPT_WARNING });
       }
 
       // Speakers are worked out in the background: a slow or failing speaker
@@ -326,7 +330,7 @@ export function useRecorder(getThreadMessages?: () => ChatMessage[]) {
     try {
       segments.current = []; fullAudio.current = []; fullLen.current = 0; capExceeded.current = false;
       asrChunks.current = []; slices.current = []; analysing.current = []; speakers.current = [];
-      silentDrains.current = 0; emptyResultStreak.current = 0; emptyResultWarned.current = false;
+      silentDrains.current = 0; emptyTranscript.current = emptyTranscriptInitial();
       transcribing.current = false; lastEngineRetry.current = 0;
       elapsedShown.current = -1; backlogShown.current = 0;
       lang.current = opts.lang ?? getSettings().transcriptionLang;
@@ -520,7 +524,7 @@ export function useRecorder(getThreadMessages?: () => ChatMessage[]) {
       // silently-failed one — these counts are the only way to tell which after
       // the fact, since neither one throws.
       log.warn("meeting ended with an empty transcript", {
-        silentDrains: silentDrains.current, emptyResultStreak: emptyResultStreak.current, native: native.current,
+        silentDrains: silentDrains.current, emptyResultStreak: emptyTranscript.current.streak, native: native.current,
       });
     }
     const manualNotes = notesRef.current.trim();
