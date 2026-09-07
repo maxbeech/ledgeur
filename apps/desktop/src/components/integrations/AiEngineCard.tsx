@@ -111,7 +111,8 @@ export function AiEngineCard() {
           ) : (
             <div className="mt-3 flex items-start gap-2 rounded-xl bg-warn-soft px-3 py-2 text-xs text-warn">
               <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
-              This build was compiled without the native engine. Rebuild with <code className="mx-1">--features native-ai</code> (see docs/NATIVE_AI.md); the webview model is used meanwhile.
+              This version doesn't include the on-device assistant, so questions asked during a meeting
+              can't be answered yet — transcription itself still runs on-device, via the webview model above.
             </div>
           )}
           {err && <ErrorNote className="mt-3">{err}</ErrorNote>}

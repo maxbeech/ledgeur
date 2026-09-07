@@ -2,6 +2,12 @@
 // external llama.cpp), used only when the in-process native engine isn't
 // available. Fails the same honest, actionable way everywhere instead of
 // leaking "Failed to fetch" — answers are never invented without a model.
+//
+// This helper doesn't know *why* the native engine wasn't used (not compiled
+// in, compiled but not downloaded yet, or genuinely just unreachable), so it
+// can't say which of those is true — callers that do know (see llm.ts)
+// produce the specific, actionable message instead. This is only the fallback
+// for whatever reaches here un-translated.
 
 export async function postToLocalModel(url: string, body: unknown, signal?: AbortSignal): Promise<Response> {
   try {
@@ -13,9 +19,6 @@ export async function postToLocalModel(url: string, body: unknown, signal?: Abor
     });
   } catch (e) {
     if (e instanceof DOMException && e.name === "AbortError") throw e;
-    throw new Error(
-      "The on-device model isn't ready yet. Open Settings → On-device AI to " +
-      "finish downloading it (a one-time ~1 GB download) — answers are never invented without it.",
-    );
+    throw new Error("Couldn't reach the AI model. Check its connection and try again.");
   }
 }

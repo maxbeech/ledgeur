@@ -157,6 +157,10 @@ export function useRecorder(getThreadMessages?: () => ChatMessage[]) {
    *  rather than a transcript that's just empty at the end. */
   const silentDrains = useRef(0);
   const emptyTranscript = useRef(emptyTranscriptInitial());
+  /** Loudest utterance seen all meeting, so an empty transcript can be told
+   *  apart from a genuinely-quiet capture (mic/permission/device problem)
+   *  rather than staying a total mystery — see the warning logged in stop(). */
+  const peakRms = useRef(0);
 
   const patch = (p: Partial<RecorderState>) => setState((s) => {
     const next = { ...s, ...p };
@@ -211,7 +215,9 @@ export function useRecorder(getThreadMessages?: () => ChatMessage[]) {
   const transcribeOne = useCallback(async (audio: Float32Array, startSample: number, endSample: number) => {
     const startMs = Math.round((startSample / WHISPER_SAMPLE_RATE) * 1000);
     const endMs = Math.round((endSample / WHISPER_SAMPLE_RATE) * 1000);
-    if (rms(audio) < SILENCE_RMS) { silentDrains.current++; return; }
+    const level = rms(audio);
+    if (level > peakRms.current) peakRms.current = level;
+    if (level < SILENCE_RMS) { silentDrains.current++; return; }
 
     try {
       if (native.current) {
@@ -330,7 +336,7 @@ export function useRecorder(getThreadMessages?: () => ChatMessage[]) {
     try {
       segments.current = []; fullAudio.current = []; fullLen.current = 0; capExceeded.current = false;
       asrChunks.current = []; slices.current = []; analysing.current = []; speakers.current = [];
-      silentDrains.current = 0; emptyTranscript.current = emptyTranscriptInitial();
+      silentDrains.current = 0; emptyTranscript.current = emptyTranscriptInitial(); peakRms.current = 0;
       transcribing.current = false; lastEngineRetry.current = 0;
       elapsedShown.current = -1; backlogShown.current = 0;
       lang.current = opts.lang ?? getSettings().transcriptionLang;
@@ -525,6 +531,11 @@ export function useRecorder(getThreadMessages?: () => ChatMessage[]) {
       // the fact, since neither one throws.
       log.warn("meeting ended with an empty transcript", {
         silentDrains: silentDrains.current, emptyResultStreak: emptyTranscript.current.streak, native: native.current,
+        // peakRms well under SILENCE_RMS means capture itself picked up
+        // near-nothing all meeting (mic/permission/input-device problem, not
+        // a transcription bug); comfortably above it means real speech was
+        // captured but never turned into text (a pipeline problem instead).
+        peakRms: peakRms.current, silenceThreshold: SILENCE_RMS, durationSeconds: Math.round((Date.now() - Date.parse(startedAt.current)) / 1000),
       });
     }
     const manualNotes = notesRef.current.trim();

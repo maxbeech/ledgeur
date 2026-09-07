@@ -115,6 +115,28 @@ async function httpChat(messages: ChatMessage[], opts: ChatOptions): Promise<str
 export async function chatComplete(messages: ChatMessage[], opts: ChatOptions = {}): Promise<string> {
   const native = await nativeChat(messages, opts);
   if (native != null) return native.trim();
+
+  // No native engine available. Without a configured cloud key there is no
+  // HTTP endpoint a person set up either — CONFIG.localLlmUrl is a developer
+  // convenience (a local llama.cpp server), not something that exists on a
+  // user's machine — so say exactly why nothing can answer instead of
+  // attempting that request and reporting its connection failure as if a
+  // download were merely still in progress.
+  if (!opts.http?.apiKey) {
+    const st = await llmStatus();
+    if (!st?.compiled) {
+      throw new Error(
+        "This build doesn't include the on-device assistant, and no cloud AI key is configured, " +
+        "so there's nothing to answer with. Answers are never invented without a model.",
+      );
+    }
+    if (!st.modelReady) {
+      throw new Error(
+        "The on-device model isn't downloaded yet. Open Settings → On-device AI to " +
+        "finish downloading it (a one-time ~1 GB download) — answers are never invented without it.",
+      );
+    }
+  }
   return (await httpChat(messages, opts)).trim();
 }
 
