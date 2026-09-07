@@ -84,6 +84,57 @@ network. All fixed, with tests where the logic is testable.
   silence before anyone speaks, it sat contradicting the live "transcribing
   50s behind" line for the rest of the meeting.
 
+### iOS App Store readiness
+
+`tauri ios build --export-method app-store-connect` now produces a correctly
+signed, submission-ready `.ipa`, verified by unzipping the output and
+checking the embedded provisioning profile and code signature rather than
+assuming the export succeeded.
+
+- Added `ITSAppUsesNonExemptEncryption: false` to the iOS `Info.plist`: the
+  app only uses standard HTTPS/TLS, so this answers the export-compliance
+  question automatically on every upload instead of asking each time.
+- Found and documented the same Homebrew-vs-rustup `PATH` conflict that
+  `release-macos.mjs` already works around: an iOS device build needs
+  rustup's toolchain first on `PATH`, or it fails with `can't find crate for
+  'core'`.
+- `docs/MOBILE.md` now has a "Publish to the App Store" section covering the
+  build command, where the signed `.ipa` lands, uploading it with
+  Transporter, and the App Store Connect steps that need a human signed in
+  (app record, privacy nutrition label, screenshots, TestFlight).
+- The app identifier changed from `com.ledgeur.app` to `com.maxbeech.ledgeur`
+  (the old one triggered a Tauri warning for conflicting with the `.app`
+  bundle extension on macOS, and the App Store Connect record needed to be
+  created fresh anyway). That meant deleting and regenerating both
+  `gen/apple` and `gen/android`, since Android's package name is baked into
+  Kotlin source paths, not just a config value. Custom `Info.plist` keys
+  (the microphone string, the encryption flag) were moved out of `gen/apple`
+  and into `apps/desktop/src-tauri/Info.ios.plist`, which Tauri merges in at
+  build time and which survives that kind of regeneration; hand-edits to
+  `gen/apple` do not. Re-verified end to end: the rebuilt `.ipa` carries the
+  new identifier, a freshly issued "iOS Team Store Provisioning Profile:
+  com.maxbeech.ledgeur", and the merged `Info.plist` keys.
+
+### New logo, everywhere
+
+Replaced the hand-drawn three-bar mark (a leftover from before the
+ParleyNotes → Ledgeur rebrand) with the real logo, end to end: the shared
+`Logo`/`LogoMark` primitives in `packages/ui` now render the actual
+`/logo.png` and `/logo_with_text.png` files rather than inline SVG bars, so
+every screen that uses them, the desktop sidebar, the "Ask anything" empty
+state, the assistant-message marker, and the marketing site's header and
+footer, picked it up automatically. Also regenerated from the same source:
+the macOS/iOS/Android app icons (`tauri icon`, with the iOS/App Store 1024
+icon re-flattened afterward to strip the alpha channel `--ios-color` leaves
+behind — App Store Connect rejects an icon that still carries one, even a
+fully opaque one), the site favicon and Apple touch icon, the PWA manifest
+icon, and the Open Graph image, which previously redrew the old mark by hand
+in `next/og` and now inlines the real PNG as a data URI instead.
+
+The UI's accent colour is still the iris purple from the pastel design
+system; the new mark is blue. Left as is since only the logo itself was in
+scope here, but worth a look before the brand fully settles.
+
 ### Sync
 
 - A meeting was pushed once, on stop, under a server id the device never
