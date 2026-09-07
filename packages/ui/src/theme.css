@@ -24,6 +24,18 @@
    see in a template — so the six fills are named here once. */
 @source inline("bg-iris bg-mint bg-peach bg-butter bg-sky bg-rose");
 
+/* The wordmark (logo.png + text baked into one PNG) has near-black text, so
+ * on a dark surface it swaps for a light-text variant — same asset, same
+ * mark, different text colour. Mirrors tokens.css's own light/dark rule so
+ * a manual theme override in Settings and the system preference both work. */
+.ldg-logo-dark { display: none; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .ldg-logo-light { display: none; }
+  :root:not([data-theme="light"]) .ldg-logo-dark { display: inline-block; }
+}
+[data-theme="dark"] .ldg-logo-light { display: none; }
+[data-theme="dark"] .ldg-logo-dark { display: inline-block; }
+
 * {
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
