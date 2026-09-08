@@ -13,6 +13,7 @@ import { runBrowserTests } from "./browser.mts";
 import { runLibraryTests } from "./library.mts";
 import { runAssembleTests } from "./assemble.mts";
 import { runAttributeTests } from "./attribute.mts";
+import { runNameTests, runSnippetTests } from "./names.mts";
 import { runSyncTests } from "./sync.mts";
 import { runFailureTests } from "./failures.mts";
 import { runSegmenterTests } from "./segmenter.mts";
@@ -176,6 +177,10 @@ runDiarizeTests(ok);
 // --- diarization assembly ---
 runAssembleTests(ok);
 runAttributeTests(ok);
+
+// --- naming a voice from what was said ---
+runNameTests(ok);
+runSnippetTests(ok);
 
 // --- meeting library ---
 runLibraryTests(ok);

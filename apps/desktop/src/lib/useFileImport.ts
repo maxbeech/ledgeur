@@ -19,6 +19,7 @@ import {
   AudioCapture, TranscriberController, DiarizerController, listVoiceProfiles,
 } from "@ledgeur/core/browser";
 import { saveMeeting, type LocalMeeting, type LocalSegment, type LocalSpeaker } from "./meetingsStore.ts";
+import { autoLabelSpeakers } from "./speakerNames.ts";
 import { generateMeetingNotes } from "./notes.ts";
 import { createLogger } from "./logger.ts";
 
@@ -105,7 +106,7 @@ export function useFileImport() {
       if (diarized.warning) log.warn("speaker labels unavailable", diarized.warning);
 
       const names = new Map(diarized.speakers.map((s) => [s.speaker, s]));
-      const segments: LocalSegment[] = (diarized.segments.length ? diarized.segments : timed.map((c) => ({
+      let segments: LocalSegment[] = (diarized.segments.length ? diarized.segments : timed.map((c) => ({
         startMs: Math.round(c.start * 1000),
         endMs: Math.round((c.end ?? c.start) * 1000),
         text: c.text,
@@ -123,6 +124,25 @@ export function useFileImport() {
           speakerConfidence: speaker?.confidence ?? null,
         };
       });
+
+      let speakers: LocalSpeaker[] = diarized.speakers.map((sp): LocalSpeaker => ({
+        label: sp.label,
+        confidence: sp.confidence,
+        embedding: sp.embedding,
+        speakingSeconds: sp.speakingSeconds,
+        ...(sp.profileId ? { nameSource: "matched" as const } : {}),
+      }));
+
+      // Who are these people? The same pass the recorder runs: the on-device
+      // model reads the transcript for introductions and greetings and names
+      // the voices it can prove. Marked as guesses, one click to change. The
+      // decoded audio is whole and contiguous here, so a voice sample can be
+      // cut straight out of it with no clock mapping.
+      patch({ step: "Working out who is who…" });
+      const named = await autoLabelSpeakers({ segments, speakers, audio, spans: [] });
+      segments = named.segments;
+      speakers = named.speakers;
+      if (named.error) log.info("speaker names were not inferred", { reason: named.error });
 
       patch({ step: "Writing the notes…" });
       const transcript = segments.map((s) => s.text).join(" ");
@@ -143,14 +163,7 @@ export function useFileImport() {
         status: "complete",
         lang,
         segments,
-        speakers: diarized.speakers.length
-          ? diarized.speakers.map((sp): LocalSpeaker => ({
-              label: sp.label,
-              confidence: sp.confidence,
-              embedding: sp.embedding,
-              speakingSeconds: sp.speakingSeconds,
-            }))
-          : undefined,
+        speakers: speakers.length ? speakers : undefined,
         summary: notes.summary,
         decisions: notes.decisions,
         questions: notes.questions,

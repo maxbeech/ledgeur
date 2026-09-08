@@ -74,15 +74,22 @@ export async function enrollProfile(name: string, samples: Float32Array): Promis
  * Only the webview store can accept this: a native profile holds a sherpa-onnx
  * embedding, and the vectors kept on a meeting come from WeSpeaker. Saving one
  * into the other would produce a profile that never matches anybody, which is
- * worse than saying so.
+ * worse than saying so. A native build keeps a few seconds of audio on the
+ * meeting instead (`LocalSpeaker.voiceSample`), which `enrollProfile` takes.
+ *
+ * Returns the profile id, so a name applied on the strength of a guess can be
+ * un-taught if the guess turns out to be wrong.
  */
-export async function enrollProfileFromEmbedding(name: string, embedding: readonly number[]): Promise<void> {
+export async function enrollProfileFromEmbedding(name: string, embedding: readonly number[]): Promise<string> {
   if ((await activeEngine()) === "native") {
     throw new Error(
       "This build recognises voices with the native engine, which needs a short recording rather than a stored print. Enrol them under Integrations, Voice profiles.",
     );
   }
-  await saveVoiceProfile({ name, embedding });
+  const saved = await saveVoiceProfile({ name, embedding });
+  const profile = saved.find((p) => p.name.toLowerCase() === name.trim().toLowerCase());
+  if (!profile) throw new Error("The voice was not saved.");
+  return profile.id;
 }
 
 export async function deleteProfile(id: string): Promise<void> {

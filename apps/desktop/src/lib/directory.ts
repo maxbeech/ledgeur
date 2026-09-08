@@ -33,6 +33,14 @@ export interface Person {
   /** True when this device has a voice print for them, so the next meeting
    *  recognises them without being asked. */
   enrolled: boolean;
+  /** True when this name has only ever been worked out by the app and never
+   *  confirmed by a person.
+   *
+   *  A directory is a list of people you know, so a name nobody has checked
+   *  cannot sit in it looking the same as one somebody typed. It stops being a
+   *  guess the moment any meeting has it confirmed — a person who said "yes,
+   *  that is Priya" once has answered the question for good. */
+  guessed: boolean;
 }
 
 export interface Directory {
@@ -74,6 +82,8 @@ export function buildDirectory(meetings: readonly LocalMeeting[], enrolledNames:
         // records — a real number from real data either way.
         ?? segments.reduce((n, s) => n + Math.max(0, s.endMs - s.startMs) / 1000, 0);
 
+      const guessedHere = m.speakers?.find((s) => s.label === label)?.nameSource === "inferred";
+
       const existing = byName.get(label);
       if (existing) {
         existing.meetingCount++;
@@ -81,6 +91,8 @@ export function buildDirectory(meetings: readonly LocalMeeting[], enrolledNames:
         existing.wordCount += words;
         existing.meetings.push({ id: m.id, title: m.title, createdAt: m.createdAt });
         if (m.createdAt > existing.lastSeen) existing.lastSeen = m.createdAt;
+        // One confirmed sighting settles it for every other.
+        if (!guessedHere) existing.guessed = false;
       } else {
         byName.set(label, {
           name: label,
@@ -90,6 +102,7 @@ export function buildDirectory(meetings: readonly LocalMeeting[], enrolledNames:
           lastSeen: m.createdAt,
           meetings: [{ id: m.id, title: m.title, createdAt: m.createdAt }],
           enrolled: enrolled.has(label.trim().toLowerCase()),
+          guessed: guessedHere,
         });
       }
     }

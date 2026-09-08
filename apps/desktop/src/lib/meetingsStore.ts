@@ -13,6 +13,8 @@
 // with `deletedAt` set) until the engine has told the cloud; without that, the
 // other device would push the meeting straight back.
 
+import type { NameSource } from "@ledgeur/core";
+
 export interface LocalSegment {
   id: string;
   speakerLabel: string;
@@ -67,6 +69,39 @@ export interface LocalSpeaker {
   /** Mean voice vector for this speaker across the meeting. */
   embedding?: number[];
   speakingSeconds: number;
+  /** Where the name came from. Absent on meetings recorded before names could
+   *  be inferred, which the UI reads as "not a guess" — correct, because back
+   *  then every name was either a voice-print match or typed by hand. */
+  nameSource?: NameSource;
+  /** The line that led to a guessed name. Shown next to the name, so "why does
+   *  it think that?" is answerable without rereading the transcript. */
+  nameEvidence?: string;
+  /** The voice profile this speaker taught, when a guess was confident enough
+   *  to enrol. Kept so correcting the guess can *un*-teach it — an auto-enrolled
+   *  print that survives its own correction would put the wrong name on every
+   *  later meeting. */
+  profileId?: string;
+  /** A few seconds of this person speaking, kept so they can be recognised in
+   *  future meetings even if they are named weeks later.
+   *
+   *  Chosen for blandness, not convenience — see `chooseVoiceSnippet` in
+   *  @ledgeur/core. Biometric data: never synced, never leaves this device, and
+   *  deleted with the meeting. */
+  voiceSample?: LocalVoiceSample;
+}
+
+/** Retained speech for one voice: 16 kHz mono, 16-bit, on the meeting clock. */
+export interface LocalVoiceSample {
+  /** Always 16 kHz — what both speaker engines expect. Stored rather than
+   *  assumed so a future change of rate cannot silently mis-enrol old samples. */
+  sampleRate: number;
+  startMs: number;
+  endMs: number;
+  /** What is said in it, so the UI can show exactly what was kept. */
+  text: string;
+  /** 0..1 from `sensitivityScore` — how risky that text looked. */
+  sensitivity: number;
+  pcm: Int16Array;
 }
 
 /** What the engine still has to send: nothing, the metadata, or everything. */

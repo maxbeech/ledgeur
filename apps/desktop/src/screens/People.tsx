@@ -5,7 +5,7 @@
 // Somebody appears here by having spoken in a meeting and been named once.
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Users, Search, Mic, MicOff, ChevronRight } from "lucide-react";
+import { Users, Search, Mic, MicOff, ChevronRight, Sparkles } from "lucide-react";
 import { relativeTime, cn } from "@ledgeur/ui";
 import { Page, PageHeader } from "../components/PageHeader.tsx";
 import { Avatar, Badge, Button, Card, EmptyState, ErrorNote, Input, Label, Spinner } from "../components/ui.tsx";
@@ -111,6 +111,14 @@ function PersonRow({ person, now, expanded, onToggle, onOpenMeeting }: {
             {person.enrolled
               ? <Badge tone="accent"><Mic className="h-3 w-3" /> Voice known</Badge>
               : <Badge><MicOff className="h-3 w-3" /> Not enrolled</Badge>}
+            {/* A name Ledgeur worked out and nobody has checked. Saying so here
+                matters more than it does on a transcript: the directory reads
+                as a list of people you know. */}
+            {person.guessed && (
+              <Badge title="Ledgeur worked this name out from what was said. Open a meeting to confirm or change it.">
+                <Sparkles className="h-3 w-3" /> Name guessed
+              </Badge>
+            )}
           </span>
           <span className="mt-0.5 block truncate text-xs text-faint">
             {person.meetingCount} meeting{person.meetingCount === 1 ? "" : "s"} · {duration(person.speakingSeconds)} speaking · {person.wordCount} words · last {relativeTime(person.lastSeen, now)}

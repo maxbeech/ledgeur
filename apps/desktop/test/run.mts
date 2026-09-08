@@ -13,6 +13,7 @@ import { runModelWarmupTests } from "./modelWarmup.mts";
 import { runGranolaDesktopTests } from "./granola.mts";
 import { runSyncStoreTests, runPullMappingTests } from "./sync.mts";
 import { runEmptyTranscriptTests } from "./emptyTranscript.mts";
+import { runSpeakerNameTests } from "./speakerNames.mts";
 
 let pass = 0, fail = 0;
 const ok = (name: string, cond: boolean, detail = "") => {
@@ -316,6 +317,7 @@ runGranolaDesktopTests(ok);
 runSyncStoreTests(ok);
 runPullMappingTests(ok);
 runEmptyTranscriptTests(ok);
+runSpeakerNameTests(ok);
 
 await runModelWarmupTests(ok);
 

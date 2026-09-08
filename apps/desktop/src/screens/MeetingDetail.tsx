@@ -18,10 +18,12 @@ import {
 import { formatElapsed, cn } from "@ledgeur/ui";
 import { attributeMeetingNotes, type AttributedNote, type AttributableLine } from "@ledgeur/core";
 import { Page } from "../components/PageHeader.tsx";
-import { Badge, Button, Card, ErrorNote, IconButton, Label, Notice, Segmented, SpeakerChip, Spinner } from "../components/ui.tsx";
+import { Badge, Button, Card, ErrorNote, IconButton, Label, Notice, Segmented, Spinner } from "../components/ui.tsx";
 import { FollowUpPanel } from "../components/meeting/FollowUpPanel.tsx";
+import { SpeakerPanel } from "../components/meeting/SpeakerPanel.tsx";
+import { TranscriptSpeaker } from "../components/meeting/TranscriptSpeaker.tsx";
 import { getMeeting, saveMeeting, deleteMeeting, subscribeMeetings, type LocalMeeting } from "../lib/meetingsStore.ts";
-import { renameSpeakerInMeeting } from "../lib/renameSpeaker.ts";
+import { reassignSegmentSpeaker } from "../lib/renameSpeaker.ts";
 import { getCloudMeeting, deleteCloudMeeting } from "../lib/cloudMeeting.ts";
 import { hasBackend } from "../lib/config.ts";
 import { saveMeetingToNotion } from "../lib/notion.ts";
@@ -44,9 +46,9 @@ export function MeetingDetail() {
   /** The same fact as `fromCloud`, readable from inside the load below
    *  without making it depend on a render. */
   const showingCloudCopy = useRef(false);
-  /** Which speaker is being renamed, and to what. */
+  /** Which voice the speaker panel is renaming. Held here rather than in the
+   *  panel so a line in the transcript can open it. */
   const [renaming, setRenaming] = useState<string | null>(null);
-  const [draftName, setDraftName] = useState("");
   const [renameNote, setRenameNote] = useState("");
   /** Transcript line to scroll to and highlight, set by clicking a citation. */
   const [jumpTo, setJumpTo] = useState<string | null>(null);
@@ -89,15 +91,22 @@ export function MeetingDetail() {
     return () => { cancelled = true; off(); };
   }, [id]);
 
-  const speakers = useMemo(() => {
+  /** Lines per voice, in the order they first speak. */
+  const speakerCounts = useMemo(() => {
     const seen = new Map<string, number>();
     for (const s of meeting?.segments ?? []) {
       // Unattributed lines are not a speaker anyone can rename.
       if (!s.speakerLabel.trim()) continue;
       seen.set(s.speakerLabel, (seen.get(s.speakerLabel) ?? 0) + 1);
     }
-    return [...seen.entries()];
+    return seen;
   }, [meeting]);
+  const speakerLabels = useMemo(() => [...speakerCounts.keys()], [speakerCounts]);
+  /** Which voices carry a name the app worked out rather than one it was told. */
+  const guessedLabels = useMemo(
+    () => new Set((meeting?.speakers ?? []).filter((s) => s.nameSource === "inferred").map((s) => s.label)),
+    [meeting],
+  );
 
   // Linking notes back to the transcript is pure and cheap, but it is O(notes ×
   // lines) over a whole meeting — memoised so switching tabs doesn't redo it.
@@ -121,24 +130,28 @@ export function MeetingDetail() {
   const openAt = (lineId: string) => { setTab("transcript"); setJumpTo(lineId); };
 
   /**
-   * Name a voice.
+   * Persist an edit to who said what.
    *
-   * Two things happen, and the second is the point: the label changes
-   * throughout this meeting, and the voice print is saved under that name so
-   * every later meeting recognises the person without being asked again. A
-   * cloud copy is read-only here — it belongs to whichever device recorded it.
+   * Renaming a voice, confirming or rejecting a guessed name, and moving a
+   * single line all end up here: the change is shown immediately and written to
+   * the library. A cloud copy is read-only — it belongs to whichever device
+   * recorded it — so it is shown but never saved back.
    */
-  async function commitRename(previous: string) {
-    const name = draftName.trim();
-    setRenaming(null);
-    if (!meeting || !name || name === previous) return;
-    const { meeting: updated, rememberError } = await renameSpeakerInMeeting(meeting, previous, name);
+  async function applySpeakerEdit(updated: LocalMeeting) {
     setMeeting(updated);
-    setRenameNote(rememberError);
-    if (!fromCloud) await saveMeeting(updated, "full").catch((e: unknown) => {
+    if (fromCloud) return;
+    await saveMeeting(updated, "full").catch((e: unknown) => {
       setRenameNote(e instanceof Error ? e.message : String(e));
     });
   }
+
+  /** Move one line to somebody else, without touching the voice store. */
+  async function moveLine(segmentId: string, toLabel: string) {
+    if (!meeting) return;
+    await applySpeakerEdit(reassignSegmentSpeaker(meeting, segmentId, toLabel));
+  }
+
+
 
   if (meeting === undefined) return <div className="flex items-center justify-center gap-2 py-20 text-sm text-muted"><Spinner /> Loading</div>;
   if (meeting === null) {
@@ -290,49 +303,15 @@ export function MeetingDetail() {
         </div>
       ) : (
         <Card className="ldg-prose p-5">
-          {speakers.length > 0 && (
-            <div className="mb-5 border-b border-hairline pb-4">
-              <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-                <Label>Speakers</Label>
-                {speakers.map(([label, count]) => (
-                  <span key={label} className="flex items-baseline gap-1.5">
-                    {renaming === label ? (
-                      <form
-                        onSubmit={(e) => { e.preventDefault(); void commitRename(label); }}
-                        className="flex items-center gap-1.5"
-                      >
-                        <input
-                          autoFocus
-                          value={draftName}
-                          onChange={(e) => setDraftName(e.target.value)}
-                          onKeyDown={(e) => { if (e.key === "Escape") setRenaming(null); }}
-                          aria-label={`Name for ${label}`}
-                          placeholder="Who is this?"
-                          className="h-8 w-40 rounded-full border border-hairline-strong bg-surface px-3 text-sm outline-none focus:border-brand"
-                        />
-                        <Button size="sm" type="submit">Save</Button>
-                      </form>
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={() => { setRenaming(label); setDraftName(label); setRenameNote(""); }}
-                        title="Say who this is — Ledgeur will recognise them next time"
-                        className="cursor-pointer"
-                      >
-                        <SpeakerChip label={label} />
-                      </button>
-                    )}
-                    <span className="ldg-num text-2xs text-faint">×{count}</span>
-                  </span>
-                ))}
-              </div>
-              <p className="mt-2 text-xs text-faint">
-                Click a name to say who it is. The voice print is saved on this device, and every
-                later meeting recognises them without being asked again.
-              </p>
-              {renameNote && <ErrorNote className="mt-3">{renameNote}</ErrorNote>}
-            </div>
-          )}
+          <SpeakerPanel
+            meeting={meeting}
+            counts={speakerCounts}
+            readOnly={fromCloud}
+            renaming={renaming}
+            onRenamingChange={setRenaming}
+            onChange={applySpeakerEdit}
+          />
+          {renameNote && <ErrorNote className="mb-4">{renameNote}</ErrorNote>}
           {meeting.segments.length === 0 ? (
             <p className="text-sm text-muted">No transcript captured.</p>
           ) : (
@@ -346,7 +325,17 @@ export function MeetingDetail() {
                   <span className="ldg-num w-11 shrink-0 pt-1 text-right text-xs text-faint">{formatElapsed(s.startMs / 1000)}</span>
                   <div className="min-w-0 flex-1">
                     {s.speakerLabel.trim() && (
-                      <div className="mb-1"><SpeakerChip label={s.speakerLabel} confidence={s.speakerConfidence} /></div>
+                      <div className="mb-1">
+                        <TranscriptSpeaker
+                          label={s.speakerLabel}
+                          confidence={s.speakerConfidence}
+                          guessed={guessedLabels.has(s.speakerLabel)}
+                          labels={speakerLabels}
+                          disabled={fromCloud}
+                          onReassign={(to) => { void moveLine(s.id, to); }}
+                          onRenameAll={() => { setRenameNote(""); setRenaming(s.speakerLabel); }}
+                        />
+                      </div>
                     )}
                     <p className="text-ink-text">{s.text}</p>
                   </div>

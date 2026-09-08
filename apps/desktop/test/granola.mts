@@ -54,6 +54,30 @@ export function runGranolaDesktopTests(ok: (name: string, cond: boolean, detail?
   ok("someone with no voice print is marked as such",
     dir.people.find((p) => p.name === "Ravi")?.enrolled === false);
   ok("meetings with speakers are counted", dir.meetingsWithSpeakers === 2);
+  ok("a name a person typed is not marked as a guess", dir.people.every((p) => !p.guessed));
+
+  // A directory reads as a list of people you know, so a name only the app has
+  // ever asserted has to say so — and stop saying so once anybody confirms it.
+  ok("a name the app worked out is marked as a guess", (() => {
+    const d = buildDirectory([meeting({
+      id: "g", segments: [segment("1", "Priya", 0, "hello there")],
+      speakers: [{ label: "Priya", confidence: 0.9, speakingSeconds: 3, nameSource: "inferred" }],
+    })], []);
+    return d.people[0].guessed === true;
+  })());
+  ok("one confirmed sighting settles the name across every meeting", (() => {
+    const d = buildDirectory([
+      meeting({
+        id: "g1", createdAt: "2026-09-01T10:00:00.000Z", segments: [segment("1", "Priya", 0, "hello there")],
+        speakers: [{ label: "Priya", confidence: 0.9, speakingSeconds: 3, nameSource: "inferred" }],
+      }),
+      meeting({
+        id: "g2", createdAt: "2026-09-02T10:00:00.000Z", segments: [segment("2", "Priya", 0, "hello again")],
+        speakers: [{ label: "Priya", confidence: null, speakingSeconds: 3, nameSource: "user" }],
+      }),
+    ], []);
+    return d.people[0].guessed === false;
+  })());
 
   ok("an empty library is an empty directory, not an error", (() => {
     const empty = buildDirectory([], []);

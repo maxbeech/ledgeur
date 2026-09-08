@@ -172,8 +172,15 @@ export function isOffline(message: string): boolean {
 
 /* ------------------------------------------------------------- push: meetings */
 
-/** A `speakers` row. No embedding — see the header. Do not add it. */
-function remoteSpeakers(m: LocalMeeting): { label: string; identified_name: string | null; identity_confidence: number | null }[] {
+/**
+ * A `speakers` row. No embedding and no voice sample — see the header. Do not
+ * add either.
+ *
+ * Exported only so the privacy guarantee can be asserted rather than commented:
+ * a person reading this file cannot tell whether a field added to
+ * `LocalSpeaker` next year quietly ends up on the wire, and the test can.
+ */
+export function remoteSpeakers(m: LocalMeeting): { label: string; identified_name: string | null; identity_confidence: number | null }[] {
   const labels = new Set<string>(m.segments.map((s) => s.speakerLabel));
   for (const s of m.speakers ?? []) labels.add(s.label);
   return [...labels].map((label) => {

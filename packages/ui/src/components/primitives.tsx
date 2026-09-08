@@ -134,13 +134,16 @@ const BADGE: Record<BadgeTone, string> = {
 
 /** A small pill of state. Pastel on its own tint, never bordered. */
 export function Badge({
-  children, tone = "neutral", className,
-}: { children: ReactNode; tone?: BadgeTone; className?: string }) {
+  children, tone = "neutral", className, title,
+}: { children: ReactNode; tone?: BadgeTone; className?: string; title?: string }) {
   return (
-    <span className={cn(
-      "inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold leading-5",
-      BADGE[tone], className,
-    )}>
+    <span
+      title={title}
+      className={cn(
+        "inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold leading-5",
+        BADGE[tone], className,
+      )}
+    >
       {children}
     </span>
   );
@@ -157,19 +160,29 @@ export function Badge({
  * person.
  */
 export function SpeakerChip({
-  label, confidence, className,
-}: { label: string; confidence?: number | null; className?: string }) {
+  label, confidence, guessed, className,
+}: { label: string; confidence?: number | null; guessed?: boolean; className?: string }) {
   // No label means nobody has worked out who is talking — during a live meeting
   // before there is enough speech to place a voice, most often. An empty chip
   // says less than nothing, and the previous behaviour (calling everybody
   // "Speaker 1") said something false.
   if (!label.trim()) return null;
   return (
-    <span className={cn(
-      `ldg-speaker ldg-speaker-${speakerIndex(label)}`,
-      "inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-semibold leading-5",
-      className,
-    )}>
+    <span
+      className={cn(
+        `ldg-speaker ldg-speaker-${speakerIndex(label)}`,
+        "inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-semibold leading-5",
+        guessed && "ring-1 ring-inset ring-current/30",
+        className,
+      )}
+      title={guessed
+        ? `Ledgeur worked this name out from what was said — it has not been confirmed. Click to change it.`
+        : undefined}
+    >
+      {/* A name the app decided has to look different from one a person typed,
+          everywhere it appears — otherwise a guess quietly becomes a fact the
+          moment somebody reads the transcript. */}
+      {guessed && <SparkMark />}
       {label}
       {/* A percentage only appears when the name was *guessed*. A name the user
           typed shows no number, because questioning it would be rude. */}
@@ -177,6 +190,20 @@ export function SpeakerChip({
         <span className="ldg-num text-2xs opacity-70">{Math.round(confidence * 100)}%</span>
       )}
     </span>
+  );
+}
+
+/** The "worked out, not told" mark. Inline rather than an icon dependency, so
+ *  this file stays hook-free and importable from the marketing site too. */
+function SparkMark({ className }: { className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 24 24" aria-hidden="true" focusable="false"
+      className={cn("h-3 w-3 shrink-0", className)}
+      fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+    >
+      <path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z" />
+    </svg>
   );
 }
 

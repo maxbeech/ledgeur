@@ -103,6 +103,39 @@ person" cannot be answered twenty seconds at a time.
 Voice prints live in IndexedDB and are **never synced**, not even on the paid
 plan — a voice print identifies a person after the transcript is deleted.
 
+### Putting names to the voices
+
+Separation gives you "Speaker 1" and "Speaker 2", which is useful once. Meetings
+usually say who is present, though — someone introduces themselves, or answers to
+their name — so when a recording finishes, the on-device model reads the
+transcript and names the voices it can prove.
+
+Nothing here guesses from patterns. There is deliberately no regex pulling
+"I'm X" out of a transcript: it cannot tell "I'm Max" from "I'm afraid not". The
+model proposes, and
+[`packages/core/src/diarize/names.ts`](packages/core/src/diarize/names.ts) then
+throws out anything it cannot check —
+
+* the name must actually be spoken in the transcript;
+* the model's quoted evidence must be a real line, and must be the line that
+  says the name;
+* it must clear a belief threshold (0.75 to label, 0.85 to teach the voice);
+* one name per voice, one voice per name.
+
+Every name that survives is shown **as a guess** — a mark on the chip, the belief,
+and the words it came from — everywhere it appears, and is one click to accept,
+change, or reject. Correcting a guess also *un*-teaches whatever it taught the
+voice store, so a wrong name cannot quietly propagate into later meetings. A
+single misattributed line can be moved on its own, without touching the voice.
+
+To recognise somebody next time, a few seconds of their speech is kept with the
+meeting — chosen for blandness rather than convenience. Every candidate window is
+scored for card numbers, credentials, salaries, health and the like
+([`snippet.ts`](packages/core/src/diarize/snippet.ts)), the least sensitive one
+wins, and if a person's every stretch looks sensitive, nothing is kept at all.
+Like voice prints, these samples never leave the device — asserted by a test, not
+just by this paragraph.
+
 ## Status
 
 Phases 0–5 are code-complete. The 2026-07 **"Library of Record" redesign**

@@ -143,3 +143,34 @@ export function speakersFromTurns(
     .map(([label, v]) => ({ label, speakingSeconds: v.seconds, confidence: v.confidence }))
     .sort((a, b) => b.speakingSeconds - a.speakingSeconds);
 }
+
+/**
+ * The inverse of {@link turnsToMeetingClock}: where a stretch of the meeting
+ * lives inside the retained audio.
+ *
+ * Needed to cut a voice sample out of the buffer, because the two clocks drift
+ * apart by the length of every silence the gate dropped. A range that straddles
+ * a cut comes back as several pieces, in order — joining them is correct, since
+ * what was cut out was silence.
+ *
+ * With no spans the buffer *is* the meeting and the range passes through, which
+ * is what the webview path (no retained audio, no spans) would want if it ever
+ * grew one.
+ */
+export function meetingRangeToAudio(
+  spans: readonly AudioSpan[],
+  startMs: number,
+  endMs: number,
+): { atMs: number; durationMs: number }[] {
+  if (endMs <= startMs) return [];
+  if (spans.length === 0) return [{ atMs: startMs, durationMs: endMs - startMs }];
+  const out: { atMs: number; durationMs: number }[] = [];
+  for (const span of [...spans].sort((a, b) => a.meetingMs - b.meetingMs)) {
+    const from = Math.max(startMs, span.meetingMs);
+    const to = Math.min(endMs, span.meetingMs + span.durationMs);
+    if (to <= from) continue;
+    const shift = span.atMs - span.meetingMs;
+    out.push({ atMs: from + shift, durationMs: to - from });
+  }
+  return out;
+}

@@ -40,6 +40,7 @@ import {
   type NativeSegment,
 } from "./nativeAI.ts";
 import { saveMeeting, type LocalMeeting, type LocalSegment, type LocalSpeaker, type ChatMessage } from "./meetingsStore.ts";
+import { autoLabelSpeakers } from "./speakerNames.ts";
 import { generateMeetingNotes } from "./notes.ts";
 import { getSettings } from "./settings.ts";
 import { setAudioLevel } from "./audioLevel.ts";
@@ -607,6 +608,10 @@ export function useRecorder(getThreadMessages?: () => ChatMessage[]) {
     // Only when we retained the FULL audio — if the meeting exceeded the
     // retention cap we keep the complete live transcript instead of overwriting
     // it with a diarized prefix (which would silently drop the tail).
+    // The retained audio, once the native pass has joined it up. Empty on the
+    // webview path, which never keeps the whole recording — there, a speaker's
+    // voice print comes from the vectors the diarizer produced instead.
+    let retained: Float32Array = new Float32Array(0);
     if (native.current && fullLen.current > 0 && !capExceeded.current) {
       // Report what the pass is doing while it runs. This is real work on a long
       // meeting, and it used to be entirely silent — the engine emits progress
@@ -625,7 +630,11 @@ export function useRecorder(getThreadMessages?: () => ChatMessage[]) {
         patch({ processingPhase: p.phase, processingProgress: p.percent }),
       );
       try {
-        const turns = await nativeDiarizeMeeting(concatFloat32(fullAudio.current));
+        // Joined once and kept: the same buffer is what the voice samples are
+        // cut out of below, and a one-hour meeting is not worth concatenating
+        // twice.
+        retained = concatFloat32(fullAudio.current);
+        const turns = await nativeDiarizeMeeting(retained);
         if (turns.length) {
           const attributed = turnsToMeetingClock(
             turns.map((t) => ({
@@ -684,6 +693,27 @@ export function useRecorder(getThreadMessages?: () => ChatMessage[]) {
       } catch (e) {
         log.error("speaker clustering failed, keeping the unlabelled transcript", e);
       }
+    }
+
+    // Who are these people? The on-device model reads the transcript for
+    // introductions and greetings, and names the voices it can prove. Every
+    // name it applies is marked as a guess, carries the line it came from, and
+    // is one click to change — see speakerNames.ts. Nothing here can fail the
+    // meeting: no model, a slow model or a model that ignored the contract all
+    // leave the transcript exactly as it was, with numbered speakers.
+    if (segments.current.length > 1) {
+      patch({ processingPhase: "identifying speakers", processingProgress: 0 });
+      const named = await autoLabelSpeakers({
+        segments: segments.current,
+        speakers: speakers.current,
+        audio: retained,
+        spans: audioSpans.current,
+      });
+      segments.current = named.segments;
+      speakers.current = named.speakers;
+      if (named.applied.length) patch({ segments: segments.current });
+      if (named.error) log.info("speaker names were not inferred", { reason: named.error });
+      patch({ processingPhase: "writing the notes", processingProgress: 0 });
     }
 
     const transcript = segments.current.map((s) => s.text).join(" ");

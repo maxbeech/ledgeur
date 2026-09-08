@@ -1,5 +1,98 @@
 # Changelog
 
+## Unreleased (2026-09-08) — Speakers that name themselves
+
+Speaker separation has always ended at "Speaker 1" and "Speaker 2". That is
+useful exactly once: next Tuesday's Speaker 1 is somebody else, and until a
+person sits down and names each voice, the transcript reads as a conversation
+between numbers.
+
+Meetings, though, routinely say who is in them:
+
+```
+Speaker 1: Hi, I'm Max, I look after product here.
+Speaker 2: Thanks for joining, Max. I'm Priya on the engineering side.
+```
+
+A person reading that knows both names. Now the on-device model does too. When a
+recording finishes — between separating the speakers and writing the notes — it
+reads the transcript and names the voices it can prove. Local model, no API, no
+audio and no transcript leaving the machine.
+
+### It is not allowed to guess
+
+There is deliberately no pattern matching here. A regex cannot tell "I'm Max"
+from "I'm afraid not" or "I'm Sarah's manager", and a wrong name on a transcript
+is a serious error, so if no model is available the meeting keeps its numbers and
+says why. The model proposes; `packages/core/src/diarize/names.ts` then refuses
+anything it cannot check against the transcript:
+
+* the name has to be spoken in the meeting — an invented one is dropped;
+* the model's quoted evidence has to be a real line, word for word;
+* that line has to be the line that says the name, which is what stops a real
+  quote being used to launder a plausible-sounding invention;
+* it has to clear a belief threshold — 0.75 to put a name on the transcript,
+  0.85 to teach the voice store, because one is undone by a click and the other
+  follows you into every future meeting;
+* one name per voice and one voice per name, strongest evidence winning.
+
+Fifty-odd tests in `packages/core/test/names.mts`, and most of them are about
+what gets **rejected**.
+
+### Every guessed name says it is a guess
+
+A name the app decided never looks like a name a person typed. It carries a mark
+on the chip, the belief behind it, and the words it came from — on the speaker
+list, on every transcript line, and in the People directory, which otherwise
+reads as a list of people you actually know.
+
+Three one-click answers, because there are three different things a person means:
+
+| | |
+|---|---|
+| **That's right** | Accept it. The name stops being a guess and the voice is enrolled. |
+| **Change** | It is somebody else. |
+| **Not them** | Reject it without offering a name — the voice goes back to a number. |
+
+Correcting a guess also **un-teaches** it: if the guess was confident enough to
+have written a voice print, that print is removed before the correction is
+saved. Without that, a wrong name arrives more confidently in every later
+meeting and the correction achieves nothing but a tidier transcript for one
+afternoon.
+
+A single line can be moved on its own, too — click the speaker on any line and
+pick who really said it. That fixes the other mistake, the one at every
+hand-over where two people talk over each other. Moving one line never touches
+the voice store: one misattributed sentence is no evidence about what anybody
+sounds like.
+
+### Remembering a voice, without remembering what it said
+
+To recognise somebody next time, the app now keeps a few seconds of them
+speaking with the meeting. This closes a real gap: the native engine builds
+profiles from audio, not from stored vectors, so on those builds naming a
+speaker a week later taught the app nothing at all.
+
+Keeping audio of somebody talking means keeping whatever they were talking
+about, so the sample is not "the first few seconds". Every candidate window is
+scored for card and account numbers, email addresses, sort codes, credentials,
+salaries and redundancies, health, and legal or deal terms
+(`packages/core/src/diarize/snippet.ts`); the blandest window wins, and if
+everything a person said looks sensitive, **nothing is kept**. A missing sample
+costs one manual enrolment; a kept one containing a card number is a different
+category of problem entirely.
+
+The samples are 16 kHz, capped at eight seconds, and never leave the device —
+the same rule voice prints have always had, and now asserted by a test over the
+actual sync payload rather than by a comment.
+
+### Also
+
+* `Suggest names` in a meeting's speaker list, for recordings made before this
+  existed or finished before the model had downloaded. "No model" and "nobody
+  said a name" are reported as the different answers they are.
+* Imported recordings go through the same pass as live ones.
+
 ## Unreleased (2026-09-08) — The assistant stops taking the app down with it
 
 0.3.5 was the first build in which the on-device assistant actually ran: until

@@ -4,5 +4,7 @@ export * from "./types.ts";
 export * from "./cluster.ts";
 export * from "./turns.ts";
 export * from "./voiceprints.ts";
+export * from "./names.ts";
+export * from "./snippet.ts";
 export * from "./assemble.ts";
 export * from "./attribute.ts";
