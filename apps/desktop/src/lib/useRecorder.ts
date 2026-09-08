@@ -437,13 +437,18 @@ export function useRecorder(getThreadMessages?: () => ChatMessage[]) {
             log.info("system audio fell back to the screen-share picker");
           } catch (fallbackError) {
             log.error("screen-share fallback also failed", fallbackError);
+            // Whatever happens, capture has to be running: a meeting recording
+            // only this device's mic still beats one recording nothing. With the
+            // mic off too there is nothing left to fall back to, and saying so
+            // is the only honest option — the alternative is a running clock
+            // over a recording of silence.
+            const micOnly = opts.mic && await cap.start({ mic: true, system: false }).then(() => true, () => false);
             patch({
               systemAudio: "failed",
-              error: "Couldn't capture the other people in this meeting — only your microphone is being recorded.",
+              error: micOnly
+                ? "Couldn't capture the other people in this meeting. Only your microphone is being recorded."
+                : "Couldn't start recording: neither your microphone nor the other people's audio is available.",
             });
-            // Whatever happens, capture has to be running: a meeting recording
-            // only this device's mic still beats one recording nothing.
-            if (opts.mic) await cap.start({ mic: true, system: false }).catch(() => {});
           }
         }
       }

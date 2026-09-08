@@ -106,7 +106,20 @@ Transcription/diarization models (`download_models`):
 |---|---|
 | `ggml-base.en.bin` | huggingface.co/ggerganov/whisper.cpp |
 | `pyannote-segmentation-3.0.onnx` | sherpa-onnx pyannote segmentation |
-| `speaker-embedding.onnx` | sherpa-onnx 3D-Speaker embedding |
+| `speaker-embedding-en-campplus.onnx` | WeSpeaker CAM++, VoxCeleb (English) |
+
+The embedding model is English-specific on purpose. It was previously
+3D-Speaker's `..._sv_zh-cn_...`, which is trained on Mandarin. That model
+separated English speakers poorly: voices that sound obviously different landed
+close enough together for the clusterer to merge them into one person. It was
+also several times more expensive to run, and this model is evaluated once per
+diarization window. Superseded files are deleted on the next download, so an
+install that has been through an upgrade does not keep carrying old weights.
+
+Both diarization models run with `num_threads` set from the machine's core
+count. `sherpa_rs::diarize::Diarize` hardcodes 1 and exposes no way to change
+it, so `src/ai/engine.rs` builds the sherpa-onnx config against the C API
+directly. That is the only reason it uses the raw bindings.
 
 Copilot LLM (`download_llm`, one tap in **Settings → On-device AI → Download
 assistant**, or the inline prompt the first time you use the copilot):

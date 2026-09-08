@@ -174,10 +174,17 @@ fn samples_from_request(request: &tauri::ipc::Request<'_>) -> Result<Vec<f32>, S
     let tauri::ipc::InvokeBody::Raw(bytes) = request.body() else {
         return Err("Expected raw audio bytes, not JSON.".into());
     };
+    samples_from_bytes(bytes)
+}
+
+/// The decode itself, split out so it is unit-testable: a silent endianness or
+/// alignment mistake here would not fail, it would transcribe noise.
+pub fn samples_from_bytes(bytes: &[u8]) -> Result<Vec<f32>, String> {
     if bytes.len() % 4 != 0 {
         return Err("Audio payload is not a whole number of 32-bit samples.".into());
     }
-    // Every platform we ship a webview on is little-endian.
+    // Every platform we ship a webview on is little-endian, which is also the
+    // byte order a JS Float32Array has in memory.
     Ok(bytes
         .chunks_exact(4)
         .map(|b| f32::from_le_bytes([b[0], b[1], b[2], b[3]]))
@@ -271,6 +278,33 @@ mod tests {
     fn seg(start_ms: i64, end_ms: i64) -> TranscriptSegment {
         TranscriptSegment { start_ms, end_ms, text: "x".into(), confidence: 0.9, speaker_label: "Speaker 1".into(), speaker_confidence: None }
     }
+    #[test]
+    fn decodes_a_float32array_from_its_bytes() {
+        // Exactly what the webview hands over: the raw memory of a
+        // Float32Array, little-endian.
+        let wave: Vec<f32> = vec![0.0, 1.0, -1.0, 0.5, -0.000_123, f32::MIN_POSITIVE];
+        let bytes: Vec<u8> = wave.iter().flat_map(|s| s.to_le_bytes()).collect();
+        assert_eq!(samples_from_bytes(&bytes).unwrap(), wave);
+        assert_eq!(samples_from_bytes(&[]).unwrap(), Vec::<f32>::new());
+    }
+
+    #[test]
+    fn rejects_a_truncated_sample() {
+        // A short read must be an error, not three good samples and a garbage
+        // one: silently transcribing noise is worse than refusing.
+        assert!(samples_from_bytes(&[0, 0, 0, 0, 1]).is_err());
+        assert!(samples_from_bytes(&[1, 2, 3]).is_err());
+    }
+
+    #[test]
+    fn a_known_byte_pattern_decodes_to_the_expected_value() {
+        // 1.0f32 is 0x3F800000; little-endian on the wire is 00 00 80 3F. Pinned
+        // as a literal so a byte-order regression cannot pass by symmetry with
+        // whatever `to_le_bytes` happens to do.
+        assert_eq!(samples_from_bytes(&[0x00, 0x00, 0x80, 0x3F]).unwrap(), vec![1.0f32]);
+        assert_eq!(samples_from_bytes(&[0x00, 0x00, 0x80, 0xBF]).unwrap(), vec![-1.0f32]);
+    }
+
     #[test]
     fn picks_greatest_overlap() {
         let diar = vec![

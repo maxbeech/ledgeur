@@ -29,10 +29,24 @@ core. Three separate things were making that happen.
 
 The speaker-embedding model was `3dspeaker_..._sv_zh-cn_...` — trained on
 Mandarin, and being asked to tell English speakers apart. It is now WeSpeaker's
-English CAM++, which is also several times cheaper to run, and the clustering
-threshold is sherpa-onnx's own default for it rather than a value carried over
-from the webview path's different model. The stale weights are deleted on the
-next model download.
+English CAM++, which is also several times cheaper to run. The stale weights are
+deleted on the next model download.
+
+The clustering threshold was then **measured** rather than chosen, by sweeping
+it over a 60-second two-speaker interview clip:
+
+```
+threshold   0.05  0.10  0.15  0.20  0.25  0.30  0.35  0.40 … 0.70
+speakers       7     4     3     2     2     2     2     1 …    1
+```
+
+Two speakers hold from 0.20 to 0.35, so the value is 0.28, the middle of that
+plateau. Every value that looked reasonable on paper is on the wrong side of the
+cliff at 0.40: sherpa-onnx's own default is 0.5, and the previous value, 0.70,
+came from a threshold that *was* measured but against the webview path's
+different embedding model. Both put the interviewer and the guest in one person,
+which is the reported symptom exactly. The sweep is a checked-in test, so the
+next model change gets measured too instead of inheriting a number.
 
 ### Summaries that read like the transcript
 

@@ -48,7 +48,7 @@ mod inner {
     /// Capped at 8 rather than taken as-is: past the performance-core count the
     /// extra threads contend more than they help, and the headroom keeps audio
     /// capture and the UI responsive while a meeting is still being written up.
-    fn inference_threads() -> i32 {
+    pub(super) fn inference_threads() -> i32 {
         std::thread::available_parallelism().map(|n| n.get()).unwrap_or(4).clamp(2, 8) as i32
     }
 
@@ -125,16 +125,28 @@ mod inner {
     /// `fast-clustering.cc` in the vendored source), so a LOWER number splits
     /// speakers apart more readily and a higher one merges them.
     ///
-    /// 0.5 is sherpa-onnx's own default, tuned against the embedding models it
-    /// publishes — including the CAM++ one we download. The previous value
-    /// (0.70) was carried over from `MERGE_SIMILARITY` in
-    /// `packages/core/src/diarize/cluster.ts`, which was measured against the
-    /// webview path's entirely different embedding model; at that distance two
-    /// different people comfortably landed in one cluster, which is exactly the
-    /// "thinks people are the same who aren't" symptom. If real recordings still
-    /// split wrongly, sweep this the way `packages/asr/verify/diarize.mjs` did
-    /// and record the measured value here.
-    const DIARIZE_DISTANCE_THRESHOLD: f32 = 0.5;
+    /// MEASURED, not chosen. `sweeps_the_clustering_threshold` over
+    /// `ted_60.wav` (a 60 s interview: one long-form speaker, one asking short
+    /// questions) with the CAM++ model this build downloads:
+    ///
+    /// ```text
+    ///   threshold   0.05  0.10  0.15  0.20  0.25  0.30  0.35  0.40 … 0.70
+    ///   speakers       7     4     3     2     2     2     2     1 …    1
+    /// ```
+    ///
+    /// Two speakers hold from 0.20 to 0.35; 0.28 sits in the middle of that
+    /// plateau, roughly equidistant from over-splitting and from the cliff at
+    /// 0.40 where both voices collapse into one person.
+    ///
+    /// Every previously plausible-looking value is on the wrong side of that
+    /// cliff. sherpa-onnx's own default is 0.5. The value before it, 0.70, came
+    /// from `MERGE_SIMILARITY` in `packages/core/src/diarize/cluster.ts`, which
+    /// was measured — but against the webview path's completely different
+    /// embedding model, whose space has different geometry. Both give ONE
+    /// speaker here, which is exactly the "thinks people are the same who
+    /// aren't" report. Re-measure with the sweep whenever the embedding model
+    /// changes; do not carry a number across models.
+    pub(super) const DIARIZE_DISTANCE_THRESHOLD: f32 = 0.28;
 
     /// Owns the C-side diarizer so it is destroyed on every path, error included.
     struct Diarizer(*const sherpa_rs_sys::SherpaOnnxOfflineSpeakerDiarization);
@@ -160,16 +172,32 @@ mod inner {
         app: &tauri::AppHandle,
         samples: &[f32],
         rate: u32,
-        mut progress: impl FnMut(i32, i32),
+        progress: impl FnMut(i32, i32),
     ) -> Result<Vec<DiarSegment>, String> {
-        let audio = resample_16k(samples, rate);
-        if audio.is_empty() {
-            return Ok(Vec::new());
-        }
         let seg = models_dir(app).join(SEG_MODEL);
         let emb = models_dir(app).join(EMBED_MODEL);
         if !seg.exists() || !emb.exists() {
             return Err("Diarization models missing. Run download first.".into());
+        }
+        run_diarization(&seg, &emb, samples, rate, DIARIZE_DISTANCE_THRESHOLD, progress)
+    }
+
+    /// The pass itself, against explicit model paths.
+    ///
+    /// Split from `diarize` only so it can be exercised without an AppHandle:
+    /// this is hand-written FFI against a C struct, and "it compiles" says
+    /// nothing about whether the layout is right. See `diarizes_two_speakers`.
+    pub(super) fn run_diarization(
+        seg: &std::path::Path,
+        emb: &std::path::Path,
+        samples: &[f32],
+        rate: u32,
+        threshold: f32,
+        progress: impl FnMut(i32, i32),
+    ) -> Result<Vec<DiarSegment>, String> {
+        let audio = resample_16k(samples, rate);
+        if audio.is_empty() {
+            return Ok(Vec::new());
         }
         // These must outlive the config: it borrows the pointers, not the data.
         let seg_c = CString::new(seg.to_string_lossy().as_ref()).map_err(|e| e.to_string())?;
@@ -198,7 +226,7 @@ mod inner {
             // every meeting — one speaker or ten — came out as exactly four.
             clustering: sherpa_rs_sys::SherpaOnnxFastClusteringConfig {
                 num_clusters: -1,
-                threshold: DIARIZE_DISTANCE_THRESHOLD,
+                threshold,
             },
             min_duration_on: 0.0,
             min_duration_off: 0.0,
@@ -367,3 +395,139 @@ mod inner {
 }
 
 pub use inner::{diarize, download_models, embed_voice, identify_speakers, transcribe};
+
+/// Runs the real sherpa-onnx pipeline against the downloaded models.
+///
+/// Ignored by default: it needs the models on disk and a speech clip, neither of
+/// which belongs in the repo. It exists because everything in `diarize` below
+/// the Rust layer is hand-written FFI against a C struct — a wrong field order
+/// there compiles perfectly and then either segfaults or silently diarizes
+/// garbage, and no amount of unit testing around it would notice.
+///
+///   curl -sL https://huggingface.co/datasets/Xenova/transformers.js-docs/resolve/main/ted_60.wav -o /tmp/ted.wav
+///   LEDGEUR_TEST_WAV=/tmp/ted.wav cargo test --features native-ai -- --ignored --nocapture
+#[cfg(all(test, feature = "native-ai"))]
+mod integration {
+    use super::*;
+    use crate::ai::{EMBED_MODEL, SEG_MODEL};
+
+
+    fn models_dir_for_test() -> std::path::PathBuf {
+        std::env::var("LEDGEUR_MODELS_DIR").map(std::path::PathBuf::from).unwrap_or_else(|_| {
+            let home = std::env::var("HOME").expect("HOME");
+            std::path::PathBuf::from(home).join("Library/Application Support/com.maxbeech.ledgeur/models")
+        })
+    }
+
+    /// Minimal 16-bit PCM WAV reader — enough for the verification clip.
+    fn read_wav(path: &str) -> (Vec<f32>, u32) {
+        let bytes = std::fs::read(path).expect("read wav");
+        let u16at = |o: usize| u16::from_le_bytes([bytes[o], bytes[o + 1]]);
+        let u32at = |o: usize| u32::from_le_bytes([bytes[o], bytes[o + 1], bytes[o + 2], bytes[o + 3]]);
+        let (mut channels, mut rate, mut at) = (1u16, 16000u32, 12usize);
+        while at + 8 <= bytes.len() {
+            let id = &bytes[at..at + 4];
+            let len = u32at(at + 4) as usize;
+            let body = at + 8;
+            if id == b"fmt " {
+                channels = u16at(body + 2);
+                rate = u32at(body + 4);
+            } else if id == b"data" {
+                let end = (body + len).min(bytes.len());
+                // Interleaved i16 to mono f32.
+                let frames: Vec<f32> = bytes[body..end]
+                    .chunks_exact(2)
+                    .map(|s| i16::from_le_bytes([s[0], s[1]]) as f32 / 32768.0)
+                    .collect();
+                let mono = frames
+                    .chunks(channels as usize)
+                    .map(|f| f.iter().sum::<f32>() / channels as f32)
+                    .collect();
+                return (mono, rate);
+            }
+            at = body + len + (len & 1);
+        }
+        panic!("no data chunk in {path}");
+    }
+
+
+    /// Sweeps the clustering threshold over a known two-speaker clip and prints
+    /// what each value produces. This is how `DIARIZE_DISTANCE_THRESHOLD` was
+    /// chosen: sherpa-onnx's own default (0.5) merged the interviewer and the
+    /// guest into one speaker on this clip, which is the exact symptom being
+    /// fixed, so the value had to be measured rather than inherited.
+    ///
+    ///   LEDGEUR_TEST_WAV=/tmp/ted.wav cargo test --features native-ai \
+    ///     sweeps_the_clustering_threshold -- --ignored --nocapture
+    #[test]
+    #[ignore = "measurement, not an assertion — run by hand when the model changes"]
+    fn sweeps_the_clustering_threshold() {
+        let Ok(wav) = std::env::var("LEDGEUR_TEST_WAV") else { return };
+        let dir = models_dir_for_test();
+        let (audio, rate) = read_wav(&wav);
+        println!("threshold  speakers  segments  time");
+        for step in 1..=14 {
+            let threshold = step as f32 * 0.05;
+            let started = std::time::Instant::now();
+            let segments = inner::run_diarization(
+                &dir.join(SEG_MODEL), &dir.join(EMBED_MODEL), &audio, rate, threshold, |_, _| {},
+            )
+            .expect("diarization runs");
+            let speakers: std::collections::BTreeSet<i32> = segments.iter().map(|s| s.speaker).collect();
+            println!(
+                "{threshold:>9.2}  {:>8}  {:>8}  {:?}",
+                speakers.len(), segments.len(), started.elapsed(),
+            );
+        }
+    }
+
+    #[test]
+    #[ignore = "needs downloaded models and LEDGEUR_TEST_WAV"]
+    fn diarizes_two_speakers() {
+        let Ok(wav) = std::env::var("LEDGEUR_TEST_WAV") else { return };
+        let dir = models_dir_for_test();
+        let (audio, rate) = read_wav(&wav);
+        println!("audio: {:.1}s at {rate} Hz", audio.len() as f32 / rate as f32);
+
+        let mut ticks = 0;
+        let started = std::time::Instant::now();
+        let segments = inner::run_diarization(
+            &dir.join(SEG_MODEL),
+            &dir.join(EMBED_MODEL),
+            &audio,
+            rate,
+            inner::DIARIZE_DISTANCE_THRESHOLD,
+            |_done, _total| ticks += 1,
+        )
+        .expect("diarization runs");
+        let elapsed = started.elapsed();
+
+        let speakers: std::collections::BTreeSet<i32> = segments.iter().map(|s| s.speaker).collect();
+        println!(
+            "{} segments, {} speakers, in {elapsed:?} ({} progress callbacks, {} threads)",
+            segments.len(), speakers.len(), ticks, inner::inference_threads(),
+        );
+        for s in segments.iter().take(12) {
+            println!("  speaker {} {:>6}ms → {:>6}ms", s.speaker, s.start_ms, s.end_ms);
+        }
+
+        // The FFI is sound: a wrong struct layout gives a null diarizer or a
+        // crash, and neither reaches here.
+        assert!(!segments.is_empty(), "no speaker turns found at all");
+        assert!(ticks > 0, "progress callback never fired");
+        // ted_60.wav is an interview: an interviewer and a guest. The point of
+        // the fix is that it stops being forced to exactly 4 clusters, and stops
+        // collapsing distinct voices into one.
+        assert!(
+            (2..=4).contains(&speakers.len()),
+            "expected roughly two speakers in the interview clip, got {}", speakers.len(),
+        );
+        assert!(segments.windows(2).all(|w| w[0].start_ms <= w[1].start_ms), "segments must be time-ordered");
+        // Real-time factor: this used to be far slower than the audio itself.
+        let audio_seconds = audio.len() as f32 / rate as f32;
+        assert!(
+            elapsed.as_secs_f32() < audio_seconds,
+            "diarization took {elapsed:?} for {audio_seconds:.0}s of audio — slower than real time",
+        );
+    }
+}
