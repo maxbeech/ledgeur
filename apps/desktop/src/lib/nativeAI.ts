@@ -9,8 +9,28 @@ export interface NativeSegment {
   end_ms: number;
   text: string;
   confidence: number;
-  speaker_label: string;
+  /**
+   * Who said it, or null when the engine could not place the voice.
+   *
+   * Null is a real answer, not a gap to paper over: the live path only
+   * attributes an utterance with at least a few seconds of speech in it (see
+   * MIN_EMBED_SECONDS in src-tauri/src/ai/engine.rs), because below that the
+   * speaker embedding carries no identity and any label is a coin flip. This
+   * used to be a plain string that every live chunk filled in with "Speaker 1",
+   * which rendered a two-person meeting as one person talking to themselves.
+   */
+  speaker_label: string | null;
   speaker_confidence: number | null;
+}
+
+/** One stretch of the meeting attributed to one person by the pass on Stop. */
+export interface NativeSpeakerTurn {
+  start_ms: number;
+  end_ms: number;
+  /** An enrolled person's name, or "Speaker N". */
+  label: string;
+  /** Set only when the label came from matching an enrolled voice. */
+  confidence: number | null;
 }
 
 export interface NativeAiStatus {
@@ -71,9 +91,28 @@ export async function nativeTranscribeChunk(samples: Float32Array): Promise<Nati
   return invokeWithAudio<NativeSegment[]>("transcribe_chunk", samples);
 }
 
-/** Full pass over the whole meeting: transcription + diarization + voice ID. */
-export async function nativeTranscribeDiarize(samples: Float32Array): Promise<NativeSegment[]> {
-  return invokeWithAudio<NativeSegment[]>("transcribe_diarize", samples);
+/**
+ * Speaker pass over the whole meeting: diarization + enrolled-voice matching.
+ *
+ * Returns turns to lay over the transcript the caller already has, rather than
+ * a transcript of its own. It used to re-transcribe the entire recording first
+ * — measured at 228 s for 99 s of audio on an M1 Pro, on top of the speaker
+ * work — to arrive at much the same words the live pass had already produced.
+ */
+export async function nativeDiarizeMeeting(samples: Float32Array): Promise<NativeSpeakerTurn[]> {
+  return invokeWithAudio<NativeSpeakerTurn[]>("diarize_meeting", samples);
+}
+
+/** Forget the voices heard in the previous take. Called when one starts:
+ *  speaker numbering only means anything within a single meeting. */
+export async function resetLiveSpeakers(): Promise<void> {
+  if (!isTauri()) return;
+  try {
+    await invoke<void>("reset_live_speakers");
+  } catch {
+    // Never worth failing a recording over — at worst the first utterances of
+    // this meeting are matched against the last meeting's voices.
+  }
 }
 
 /** Progress of the post-meeting pass, mirrored from `DIARIZE_PROGRESS_EVENT`. */

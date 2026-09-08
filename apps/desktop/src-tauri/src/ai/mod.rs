@@ -9,6 +9,7 @@ use std::path::PathBuf;
 use tauri::{Emitter, Manager};
 
 pub mod engine;
+pub mod live_speakers;
 pub mod llm;
 pub mod voices;
 
@@ -18,7 +19,16 @@ pub struct TranscriptSegment {
     pub end_ms: i64,
     pub text: String,
     pub confidence: f32,
-    pub speaker_label: String,
+    /// Who said it, or `None` when nobody has been worked out yet.
+    ///
+    /// This was a `String` that every live chunk filled in with a flat
+    /// "Speaker 1", because the live path had no speaker model in it at all —
+    /// so a two-person meeting was rendered, confidently, as one person talking
+    /// to themselves for its whole duration. There is now a real answer for the
+    /// live path (`engine::live_speaker`), and `None` for the cases where there
+    /// honestly isn't one: too little speech to place, or no embedding model on
+    /// disk. The UI leaves those lines unattributed rather than inventing a name.
+    pub speaker_label: Option<String>,
     pub speaker_confidence: Option<f32>,
 }
 
@@ -70,42 +80,68 @@ pub fn models_dir(app: &tauri::AppHandle) -> PathBuf {
         .join("models")
 }
 
+/// Ask macOS to run this thread at the speed a person is waiting at.
+///
+/// macOS schedules by quality-of-service class, and a QoS class decides which
+/// *cores* a thread is allowed on: `BACKGROUND` is confined to the efficiency
+/// cores. A thread also inherits the class of whichever thread created it, so
+/// CPU-bound work handed to a pool thread — which is exactly what
+/// `spawn_blocking` does — can end up pinned to the two slowest cores on the
+/// machine without anything in the code saying so.
+///
+/// That is not a theoretical worry, it is the measurement. Transcribing 99 s of
+/// audio took 228 s inside the shipped app and 8 s in a test on the same
+/// machine, over the same models, with the same thread count: a ~25x gap that
+/// nothing in the pipeline accounted for. `measures_qos_effect_on_inference` in
+/// engine.rs reproduces it from either side.
+///
+/// `USER_INITIATED` rather than `USER_INTERACTIVE`: the user is waiting for
+/// this, but it is not the window's redraw, and it must not outrank it.
+pub fn run_at_user_speed() {
+    #[cfg(target_os = "macos")]
+    // SAFETY: sets a scheduling hint on the calling thread; it cannot fail in a
+    // way that matters, and a non-zero return only means the class was refused.
+    unsafe {
+        libc::pthread_set_qos_class_self_np(libc::qos_class_t::QOS_CLASS_USER_INITIATED, 0);
+    }
+}
+
 fn feature_compiled() -> bool {
     cfg!(feature = "native-ai")
 }
 
-/// The diarized speaker with the greatest temporal overlap for a segment.
-/// Pure — unit-tested. Returns None if no diarization segment overlaps.
-pub fn best_overlap_speaker(seg_start: i64, seg_end: i64, diar: &[DiarSegment]) -> Option<i32> {
-    let mut best: Option<(i64, i32)> = None;
-    for d in diar {
-        let overlap = seg_end.min(d.end_ms) - seg_start.max(d.start_ms);
-        if overlap > 0 && best.map_or(true, |(bo, _)| overlap > bo) {
-            best = Some((overlap, d.speaker));
-        }
-    }
-    best.map(|(_, s)| s)
+/// One stretch of the meeting attributed to one person — what the pass on Stop
+/// returns, for the caller to lay over the transcript it already has.
+#[derive(Serialize, Clone, Debug)]
+pub struct SpeakerTurn {
+    pub start_ms: i64,
+    pub end_ms: i64,
+    /// The enrolled person's name where a voice profile matched, "Speaker N"
+    /// otherwise.
+    pub label: String,
+    /// Set only when the label came from matching an enrolled voice — a number
+    /// next to a name the user typed themselves would be impertinent.
+    pub confidence: Option<f32>,
 }
 
-/// Merge a transcript with diarization: label each segment by its dominant
-/// speaker, using the enrolled identity (name + confidence) where one matched
-/// and an anonymous "Speaker N" otherwise. Pure — unit-tested.
-pub fn merge_speakers(
-    mut transcript: Vec<TranscriptSegment>,
-    diar: &[DiarSegment],
-    identities: &HashMap<i32, (String, f32)>,
-) -> Vec<TranscriptSegment> {
-    for seg in transcript.iter_mut() {
-        if let Some(spk) = best_overlap_speaker(seg.start_ms, seg.end_ms, diar) {
-            if let Some((name, sim)) = identities.get(&spk) {
-                seg.speaker_label = name.clone();
-                seg.speaker_confidence = Some(*sim);
-            } else {
-                seg.speaker_label = format!("Speaker {}", spk + 1);
-            }
-        }
-    }
-    transcript
+/// Name each diarized speaker: the enrolled identity where one matched, an
+/// anonymous "Speaker N" otherwise. Pure — unit-tested.
+pub fn label_turns(diar: &[DiarSegment], identities: &HashMap<i32, (String, f32)>) -> Vec<SpeakerTurn> {
+    diar.iter()
+        .map(|d| match identities.get(&d.speaker) {
+            Some((name, sim)) => SpeakerTurn {
+                start_ms: d.start_ms, end_ms: d.end_ms, label: name.clone(), confidence: Some(*sim),
+            },
+            // One place produces the "Speaker N" wording, shared with the live
+            // path, so the two cannot number people differently.
+            None => SpeakerTurn {
+                start_ms: d.start_ms,
+                end_ms: d.end_ms,
+                label: live_speakers::speaker_label(d.speaker.max(0) as usize),
+                confidence: None,
+            },
+        })
+        .collect()
 }
 
 // ---------- Tauri commands ----------
@@ -155,7 +191,12 @@ pub async fn download_llm(app: tauri::AppHandle) -> Result<(), String> {
 
 #[tauri::command]
 pub async fn llm_chat(app: tauri::AppHandle, messages: Vec<llm::ChatMsg>, temperature: f32, max_tokens: u32) -> Result<String, String> {
-    tauri::async_runtime::spawn_blocking(move || llm::chat(&app, &messages, temperature, max_tokens))
+    tauri::async_runtime::spawn_blocking(move || {
+        // Same reason as transcription: the copilot is answering a question
+        // somebody is sitting and waiting for.
+        run_at_user_speed();
+        llm::chat(&app, &messages, temperature, max_tokens)
+    })
         .await
         .map_err(|e| e.to_string())?
         .inspect_err(|e| log::error!("llm_chat failed: {e}"))
@@ -206,48 +247,75 @@ pub async fn transcribe_chunk(
     request: tauri::ipc::Request<'_>,
 ) -> Result<Vec<TranscriptSegment>, String> {
     let samples = samples_from_request(&request)?;
-    tauri::async_runtime::spawn_blocking(move || engine::transcribe(&app, &samples, IPC_SAMPLE_RATE))
-        .await
-        .map_err(|e| e.to_string())?
-        .inspect_err(|e| log::error!("transcribe_chunk failed: {e}"))
+    tauri::async_runtime::spawn_blocking(move || {
+        run_at_user_speed();
+        let mut segments = engine::transcribe(&app, &samples, IPC_SAMPLE_RATE)?;
+        // Who said it, worked out from this one utterance against the voices
+        // heard so far in this recording. Deliberately after transcription and
+        // deliberately non-fatal: `live_speaker` returns None rather than
+        // erroring, and unattributed lines are a fine outcome — a wrong name is
+        // not. See engine::live_speaker and ai/live_speakers.rs.
+        if !segments.is_empty() {
+            if let Some((label, confidence)) = engine::live_speaker(&app, &samples, IPC_SAMPLE_RATE) {
+                for seg in segments.iter_mut() {
+                    seg.speaker_label = Some(label.clone());
+                    seg.speaker_confidence = confidence;
+                }
+            }
+        }
+        Ok(segments)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+    .inspect_err(|e: &String| log::error!("transcribe_chunk failed: {e}"))
 }
 
-/// Full pass, run on stop: transcribe + diarize + identify enrolled voices +
-/// merge speaker labels (with identity confidence where a voice matched).
-///
-/// Runs on a blocking thread — see `transcribe_chunk` above. This one matters
-/// even more: it re-transcribes and diarizes the *entire* meeting, so on the
-/// main thread it froze the app for the whole duration of that pass with no
-/// way to tell it apart from a genuine hang.
-///
-/// It also reports progress (`DIARIZE_PROGRESS_EVENT`) and logs how long each
-/// step took. Both exist because "is it working or has it hung?" was previously
-/// unanswerable from either side of the window.
+/// Forget the voices heard in the previous recording. Called when one starts:
+/// speaker indices only mean anything within a single meeting.
 #[tauri::command]
-pub async fn transcribe_diarize(
+pub fn reset_live_speakers() {
+    engine::reset_live_speakers();
+}
+
+/// The pass on Stop: diarize the whole recording, identify enrolled voices, and
+/// return the speaker turns for the caller to lay over the transcript it
+/// already has.
+///
+/// It used to re-transcribe the entire meeting first, and that was the single
+/// most expensive thing the app did. Measured on an M1 Pro from a real
+/// recording (`transcribe_diarize: starting full pass (99s of audio)` in the
+/// app log): 228 s to re-transcribe 99 s of audio, then 306 s to diarize it —
+/// nearly nine minutes of "Finishing up" for a meeting that lasted a minute and
+/// a half. The re-transcription bought very little: it is the same model over
+/// the same audio the live pass already ran, differing only in where the chunk
+/// boundaries fall, and the live transcript is the one the user has been
+/// watching appear. Dropping it removes that 228 s outright.
+///
+/// Runs on a blocking thread — see `transcribe_chunk` above. It also reports
+/// progress (`DIARIZE_PROGRESS_EVENT`) and logs how long the pass took, because
+/// "is it working or has it hung?" was previously unanswerable from either side
+/// of the window.
+#[tauri::command]
+pub async fn diarize_meeting(
     app: tauri::AppHandle,
     request: tauri::ipc::Request<'_>,
-) -> Result<Vec<TranscriptSegment>, String> {
+) -> Result<Vec<SpeakerTurn>, String> {
     let samples = samples_from_request(&request)?;
     let seconds = samples.len() as f32 / IPC_SAMPLE_RATE as f32;
-    log::info!("transcribe_diarize: starting full pass ({seconds:.0}s of audio)");
+    log::info!("diarize_meeting: starting speaker pass ({seconds:.0}s of audio)");
 
     tauri::async_runtime::spawn_blocking(move || {
+        run_at_user_speed();
         let emit = |percent: u32, phase: &'static str| {
             let _ = app.emit(DIARIZE_PROGRESS_EVENT, DiarizeProgress { percent, phase });
         };
 
-        emit(0, "transcribing");
-        let t0 = std::time::Instant::now();
-        let transcript = engine::transcribe(&app, &samples, IPC_SAMPLE_RATE)
-            .inspect_err(|e| log::error!("transcribe_diarize: transcribe step failed: {e}"))?;
-        log::info!("transcribe_diarize: transcribed in {:?}", t0.elapsed());
-
         // Only re-emit on a whole-percent change: sherpa-onnx calls back per
         // window, which is thousands of times on a long meeting, and every event
         // is a hop to the main thread.
-        let t1 = std::time::Instant::now();
+        let t0 = std::time::Instant::now();
         let mut last = u32::MAX;
+        emit(0, "separating speakers");
         let diar = engine::diarize(&app, &samples, IPC_SAMPLE_RATE, |done, total| {
             let percent = if total > 0 { (done.max(0) as u32 * 100) / total as u32 } else { 0 };
             if percent != last {
@@ -255,10 +323,10 @@ pub async fn transcribe_diarize(
                 emit(percent, "separating speakers");
             }
         })
-        .inspect_err(|e| log::error!("transcribe_diarize: diarize step failed: {e}"))?;
+        .inspect_err(|e| log::error!("diarize_meeting: diarize step failed: {e}"))?;
         log::info!(
-            "transcribe_diarize: diarized in {:?} ({} segments, {} speakers)",
-            t1.elapsed(),
+            "diarize_meeting: diarized in {:?} ({} turns, {} speakers)",
+            t0.elapsed(),
             diar.len(),
             diar.iter().map(|d| d.speaker).collect::<std::collections::BTreeSet<_>>().len(),
         );
@@ -266,7 +334,7 @@ pub async fn transcribe_diarize(
         emit(100, "matching voices");
         let profiles = voices::load_profiles(&app);
         let identities = engine::identify_speakers(&app, &samples, IPC_SAMPLE_RATE, &diar, &profiles);
-        Ok(merge_speakers(transcript, &diar, &identities))
+        Ok(label_turns(&diar, &identities))
     })
     .await
     .map_err(|e| e.to_string())?
@@ -275,9 +343,7 @@ pub async fn transcribe_diarize(
 #[cfg(test)]
 mod tests {
     use super::*;
-    fn seg(start_ms: i64, end_ms: i64) -> TranscriptSegment {
-        TranscriptSegment { start_ms, end_ms, text: "x".into(), confidence: 0.9, speaker_label: "Speaker 1".into(), speaker_confidence: None }
-    }
+
     #[test]
     fn decodes_a_float32array_from_its_bytes() {
         // Exactly what the webview hands over: the raw memory of a
@@ -306,33 +372,33 @@ mod tests {
     }
 
     #[test]
-    fn picks_greatest_overlap() {
+    fn labels_turns_with_anonymous_speakers() {
         let diar = vec![
             DiarSegment { start_ms: 0, end_ms: 1000, speaker: 0 },
-            DiarSegment { start_ms: 1000, end_ms: 3000, speaker: 1 },
+            DiarSegment { start_ms: 1000, end_ms: 3000, speaker: 2 },
         ];
-        assert_eq!(best_overlap_speaker(1200, 2800, &diar), Some(1));
-        assert_eq!(best_overlap_speaker(0, 400, &diar), Some(0));
-        assert_eq!(best_overlap_speaker(5000, 6000, &diar), None);
+        let turns = label_turns(&diar, &HashMap::new());
+        assert_eq!(turns.len(), 2);
+        // 1-based on screen: sherpa counts speakers from zero, people do not.
+        assert_eq!(turns[0].label, "Speaker 1");
+        assert_eq!(turns[1].label, "Speaker 3");
+        assert!(turns.iter().all(|t| t.confidence.is_none()));
     }
+
     #[test]
-    fn merge_labels_by_speaker() {
-        let diar = vec![DiarSegment { start_ms: 0, end_ms: 5000, speaker: 2 }];
-        let out = merge_speakers(vec![seg(100, 900)], &diar, &HashMap::new());
-        assert_eq!(out[0].speaker_label, "Speaker 3");
-        assert_eq!(out[0].speaker_confidence, None);
-    }
-    #[test]
-    fn merge_uses_identified_name_and_confidence() {
+    fn labels_turns_with_an_identified_name_and_confidence() {
         let diar = vec![
             DiarSegment { start_ms: 0, end_ms: 1000, speaker: 0 },
             DiarSegment { start_ms: 1000, end_ms: 3000, speaker: 1 },
         ];
         let mut ids = HashMap::new();
         ids.insert(1, ("Max Beech".to_string(), 0.87f32));
-        let out = merge_speakers(vec![seg(100, 900), seg(1200, 2800)], &diar, &ids);
-        assert_eq!(out[0].speaker_label, "Speaker 1");
-        assert_eq!(out[1].speaker_label, "Max Beech");
-        assert_eq!(out[1].speaker_confidence, Some(0.87));
+        let turns = label_turns(&diar, &ids);
+        assert_eq!(turns[0].label, "Speaker 1");
+        assert_eq!(turns[0].confidence, None);
+        assert_eq!(turns[1].label, "Max Beech");
+        assert_eq!(turns[1].confidence, Some(0.87));
+        // Timings must survive untouched — they are what the caller matches on.
+        assert_eq!((turns[1].start_ms, turns[1].end_ms), (1000, 3000));
     }
 }

@@ -69,7 +69,6 @@ export function LiveMeeting({ onStop }: { onStop: () => void }) {
         <TranscriberStatus
           phase={state.modelPhase}
           progress={state.modelProgress}
-          device={state.device}
           backlogSeconds={state.backlogSeconds}
         />
 
@@ -111,10 +110,9 @@ export function LiveMeeting({ onStop }: { onStop: () => void }) {
  * A single quiet line about the speech pipeline — and nothing at all in the
  * normal case, where it was warmed at launch and is already live.
  */
-function TranscriberStatus({ phase, progress, device, backlogSeconds }: {
+function TranscriberStatus({ phase, progress, backlogSeconds }: {
   phase: "loading" | "ready" | "failed";
   progress: number;
-  device: string;
   backlogSeconds: number;
 }) {
   if (phase === "failed") {
@@ -140,8 +138,11 @@ function TranscriberStatus({ phase, progress, device, backlogSeconds }: {
   if (backlogSeconds > 0) {
     return (
       <Notice className="mb-3" icon={<Spinner className="h-4 w-4 text-brand-strong" />}>
-        Transcribing {backlogSeconds}s behind on this device{device ? ` (${device})` : ""}. It catches up during
-        quiet moments, and everything is captured either way.
+        {/* Which model is doing it is ours to worry about, not the user's —
+            naming the engine here read as an implementation detail leaking out
+            of the product. What they need to know is that nothing is lost. */}
+        Transcribing {backlogSeconds}s behind. It catches up during quiet moments, and everything is captured
+        either way.
       </Notice>
     );
   }

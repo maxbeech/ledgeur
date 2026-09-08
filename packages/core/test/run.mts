@@ -12,6 +12,7 @@ import { runDiarizeTests } from "./diarize.mts";
 import { runBrowserTests } from "./browser.mts";
 import { runLibraryTests } from "./library.mts";
 import { runAssembleTests } from "./assemble.mts";
+import { runAttributeTests } from "./attribute.mts";
 import { runSyncTests } from "./sync.mts";
 import { runFailureTests } from "./failures.mts";
 import { runSegmenterTests } from "./segmenter.mts";
@@ -174,6 +175,7 @@ runDiarizeTests(ok);
 
 // --- diarization assembly ---
 runAssembleTests(ok);
+runAttributeTests(ok);
 
 // --- meeting library ---
 runLibraryTests(ok);

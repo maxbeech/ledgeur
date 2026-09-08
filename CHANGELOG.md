@@ -1,5 +1,118 @@
 # Changelog
 
+## Unreleased (2026-09-08) — The model stops reloading itself
+
+Five more things came back from a production build. Four of them turned out to
+be two causes, and the app's own log had the numbers all along:
+
+```
+transcribe_diarize: starting full pass (99s of audio)
+transcribe_diarize: transcribed in 227.752728583s
+transcribe_diarize: diarized in 306.191162375s
+```
+
+Nearly nine minutes of "Finishing up" for a meeting that lasted a minute and a
+half, on an M1 Pro.
+
+### The live transcript kept up
+
+`engine::transcribe` built a whole new `WhisperContext` on every call — reading
+and preparing the 148 MB `ggml-base.en.bin` once per utterance of a live
+recording, dwarfing the inference it was setting up for. That is the whole of
+"Transcribing 171s behind": the backlog could only grow.
+
+The model and its decoding state are now loaded once and kept for the life of
+the process, and the same was done for the 29 MB speaker-embedding model.
+Measured over a 60-second clip on an M1 Pro (`measures_transcription_speed`):
+
+```
+pass 1 (cold, includes loading the weights)  15.8s   3.8x real time
+pass 2                                        7.0s   8.6x
+pass 3                                        3.3s  18.0x
+```
+
+Replaying a clip the way the recorder actually does — utterance by utterance,
+one pass at a time, live speaker labelling included — now runs at **4.0x real
+time including the cold start** (`measures_the_live_loop`). The old path paid
+that cold start on every chunk.
+
+The status line also no longer names the engine. Which model is doing the work
+is ours to worry about, not the user's.
+
+### Stop stopped re-transcribing the whole meeting
+
+The pass on Stop re-transcribed the entire recording before it started on
+speakers — the same model over the same audio the live pass had already
+transcribed, differing only in where the chunk boundaries fell. It is now a
+speaker pass only (`diarize_meeting`), returning turns for the transcript the
+user has been watching appear, so only the names on it change. That removes
+228 s of a measured 534 s outright; diarization itself runs at 6–8x real time.
+
+Two smaller things were making Stop worse than it needed to be:
+
+- **The live drain loop never stood down.** `pumpTranscription` exits when the
+  status leaves "recording" *or* "processing" — and Stop immediately sets
+  "processing". So a pass already in flight carried on chewing through the
+  entire backlog, in parallel with Stop's own budgeted drain and then with the
+  speaker pass, competing for the same cores at exactly the moment somebody is
+  waiting. Stop now takes the loop off the audio first and lets the pass in
+  flight finish.
+- **The two halves were on different clocks.** Utterances the silence gate
+  rejects were never appended to the audio held back for the speaker pass, so
+  that buffer is the meeting with its quiet parts cut out. Nothing noticed while
+  the pass also re-transcribed that same buffer — both halves agreed with each
+  other, and the saved transcript just had timestamps that quietly disagreed
+  with the recording. `turnsToMeetingClock` now reconciles them, splitting any
+  turn that straddles a cut.
+
+### Live speaker labels, or none at all
+
+Every live line was stamped "Speaker 1", because the live path had no speaker
+model in it — so a two-person meeting was rendered, confidently, as one person
+talking to themselves for its whole duration.
+
+Each utterance is now embedded once and matched against the running centroid of
+every voice heard so far in the meeting, so an index, once handed out, belongs
+to that voice for the rest of the take. An enrolled voice gets its real name.
+
+Both numbers governing that were measured, and the first guess at them was
+wrong in the most embarrassing way available — 0.45 collapses every voice in the
+test clip into one speaker, which is the exact bug being fixed.
+`measures_speaker_separability` pools each speaker's audio and reports how far
+apart CAM++ puts two clips of the same person versus two of different people:
+
+```
+window      same person    different people
+   1 s          0.334            0.368        indistinguishable
+   2 s          0.223            0.292
+   3 s          0.158            0.248
+   5 s          0.075            0.197
+```
+
+So: at least **3 seconds** of speech before attributing anything, and a distance
+ceiling of **0.20**. Below that bar the engine returns no speaker and the line
+renders with no chip at all. An unlabelled line costs the reader nothing; a
+confidently wrong name costs them the transcript. The full pass on Stop
+re-labels everything from a global view regardless.
+
+### The copilot was never actually available
+
+`LlmStatus` was serialised with Rust's snake_case field names while the UI has
+always read `modelReady` and `modelName`. Readiness was therefore permanently
+`undefined` with the weights sitting on disk — one missing serde attribute,
+three reported bugs:
+
+- the "download the copilot" banner never went away;
+- its Download button did nothing visible, because `download_llm` correctly
+  returns at once when the file is already there (the app log is eight
+  consecutive `weights already present` lines, one per click);
+- and `nativeChat` refused to run at all, so **every** meeting fell back to the
+  extractive summariser and said the assistant "wasn't available when this
+  meeting ended".
+
+The wire names are now pinned by a test that asserts the JSON keys rather than
+the struct, because both sides compile perfectly either way.
+
 ## Unreleased (2026-09-08) — Writing up a meeting, at a speed a meeting takes
 
 Six things were reported after testing a production build on a Mac. They came

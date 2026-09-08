@@ -38,7 +38,7 @@ export function ThreadBubble({ item, onQuote }: { item: ThreadItem; onQuote?: (i
       <div className="group flex gap-3">
         <span className="ldg-num w-11 shrink-0 pt-1 text-right text-xs text-faint">{formatElapsed(item.atMs / 1000)}</span>
         <div className="min-w-0 flex-1">
-          <div className="mb-1 flex items-center gap-2">
+          <div className="mb-1 flex items-center gap-2 empty:hidden">
             <SpeakerChip label={item.speakerLabel} confidence={item.speakerConfidence} />
             {(asr === "medium" || asr === "low") && (
               <span className="text-2xs font-medium text-faint">{asr === "medium" ? "unsure" : "low confidence"}</span>

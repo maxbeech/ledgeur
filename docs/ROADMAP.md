@@ -29,7 +29,7 @@ lands. Legend: ✅ done · 🟡 in progress · ⬜ planned.
 - ✅ sherpa-onnx diarization (sherpa-rs) → per-speaker segments; merge labels onto transcript (Rust-tested)
 - ✅ Recorder auto-selects native engine when compiled + models present; webview fallback otherwise
 - ✅ Model download command + Integrations "On-device AI" status card
-- ✅ Voice-print enrolment + identification: `enroll_voice`/`list_voice_profiles`/`delete_voice_profile` commands (sherpa-onnx embeddings, cosine match, tested); `transcribe_diarize` labels transcripts with enrolled names + confidence; enrolment UI in Settings
+- ✅ Voice-print enrolment + identification: `enroll_voice`/`list_voice_profiles`/`delete_voice_profile` commands (sherpa-onnx embeddings, cosine match, tested); `diarize_meeting` labels transcripts with enrolled names + confidence; enrolment UI in Settings
 - ✅ llama.cpp OpenAI-compatible endpoint (`:8081/v1`) used for chat + embeddings (documented in docs/NATIVE_AI.md)
 
 ## Phase 3 — Chat & RAG (task #9)

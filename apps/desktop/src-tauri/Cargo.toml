@@ -65,6 +65,12 @@ tauri-plugin-process = "2"
 # `wry` already pulls in objc2/objc2-core-foundation at these versions for its
 # own webview glue, so this adds no duplicate copies.
 [target."cfg(target_os = \"macos\")".dependencies]
+# Quality-of-service for the threads that run inference. macOS decides which
+# cores a thread may use from its QoS class, and a thread inherits the class of
+# whichever thread created it — so CPU-bound work handed to a background pool
+# quietly runs on the efficiency cores at a fraction of the speed. See
+# `run_at_user_speed` in src/ai/mod.rs.
+libc = "0.2"
 objc2 = { version = "0.6", optional = true }
 objc2-core-audio = { version = "0.3", features = ["AudioHardware"], optional = true }
 objc2-core-audio-types = { version = "0.3", features = ["CoreAudioBaseTypes"], optional = true }

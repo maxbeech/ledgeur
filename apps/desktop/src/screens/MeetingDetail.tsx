@@ -91,7 +91,11 @@ export function MeetingDetail() {
 
   const speakers = useMemo(() => {
     const seen = new Map<string, number>();
-    for (const s of meeting?.segments ?? []) seen.set(s.speakerLabel, (seen.get(s.speakerLabel) ?? 0) + 1);
+    for (const s of meeting?.segments ?? []) {
+      // Unattributed lines are not a speaker anyone can rename.
+      if (!s.speakerLabel.trim()) continue;
+      seen.set(s.speakerLabel, (seen.get(s.speakerLabel) ?? 0) + 1);
+    }
     return [...seen.entries()];
   }, [meeting]);
 
@@ -341,7 +345,9 @@ export function MeetingDetail() {
                 >
                   <span className="ldg-num w-11 shrink-0 pt-1 text-right text-xs text-faint">{formatElapsed(s.startMs / 1000)}</span>
                   <div className="min-w-0 flex-1">
-                    <div className="mb-1"><SpeakerChip label={s.speakerLabel} confidence={s.speakerConfidence} /></div>
+                    {s.speakerLabel.trim() && (
+                      <div className="mb-1"><SpeakerChip label={s.speakerLabel} confidence={s.speakerConfidence} /></div>
+                    )}
                     <p className="text-ink-text">{s.text}</p>
                   </div>
                 </div>

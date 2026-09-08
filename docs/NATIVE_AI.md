@@ -42,9 +42,10 @@ the reasoning that produced the first, wrong guess.
 
 | Capability | Engine | Where |
 |---|---|---|
-| Real-time transcription | **whisper.cpp** (`whisper-rs`) | Rust command `transcribe_chunk` |
-| Speaker diarization + confidence | **sherpa-onnx** (`sherpa-rs`) | Rust command `transcribe_diarize` |
-| Speaker **identification** (named voices) | **sherpa-onnx** speaker embeddings + cosine match | `enroll_voice` / `list_voice_profiles` / `delete_voice_profile`; applied inside `transcribe_diarize` |
+| Real-time transcription | **whisper.cpp** (`whisper-rs`) | Rust command `transcribe_chunk` — the model is loaded once per process, not per chunk |
+| Live speaker labels | **sherpa-onnx** speaker embeddings + running centroids | Inside `transcribe_chunk`; `reset_live_speakers` clears them between takes |
+| Speaker diarization + confidence | **sherpa-onnx** (`sherpa-rs`) | Rust command `diarize_meeting` — speaker turns only; it does not re-transcribe |
+| Speaker **identification** (named voices) | **sherpa-onnx** speaker embeddings + cosine match | `enroll_voice` / `list_voice_profiles` / `delete_voice_profile`; applied inside `diarize_meeting` |
 | Copilot chat · coaching suggestions · post-meeting notes | **llama.cpp in-process** (`llama-cpp-2`) | Rust commands `llm_chat` / `llm_status` / `download_llm` — no server, no third-party app |
 | RAG embeddings (Ask semantic search) | OpenAI-compatible HTTP endpoint | `VITE_LOCAL_LLM_URL` (BYO key or external llama.cpp) — optional; Ask falls back to keyword search |
 
@@ -52,11 +53,47 @@ the reasoning that produced the first, wrong guess.
 
 Enrol a voice in **Settings → On-device AI → Voice profiles** (~10 s of clear
 speech). The embedding is stored in `voices.json` in the app data dir — voice
-prints never leave the device. On stop, `transcribe_diarize` embeds each
+prints never leave the device. On stop, `diarize_meeting` embeds each
 diarized speaker's audio (up to 12 s) and cosine-matches against enrolled
 profiles; matches at ≥ 0.5 similarity label the transcript with the real name
 and a confidence figure (`speaker_confidence`). Unmatched speakers stay
 anonymous "Speaker N" — identity is never guessed.
+
+### Live speakers vs. the pass on stop
+
+Two different problems, solved two different ways.
+
+The pass on stop sees the whole recording and can cluster globally. Live, the
+only thing in hand is the utterance that just finished, so each one is embedded
+once and matched against the running centroid of every voice heard so far in the
+meeting (`src-tauri/src/ai/live_speakers.rs`). An index, once handed out,
+belongs to that voice for the rest of the take.
+
+Both thresholds are **measured, not chosen**, and they do not transfer between
+these two uses even though both are cosine distances over the same model — see
+`DIARIZE_DISTANCE_THRESHOLD` and `LIVE_SPEAKER_DISTANCE` in `engine.rs` for the
+data and the sweeps that produced them. In particular, a clip shorter than
+about three seconds carries no usable speaker identity at all, so utterances
+below that are left unattributed and render with no speaker chip. The pass on
+stop re-labels the transcript from a global view regardless.
+
+### Measuring it
+
+The transcription path has a set of `#[ignore]`d measurements next to it, run by
+hand against the real models and a real speech clip:
+
+```bash
+curl -sL https://huggingface.co/datasets/Xenova/transformers.js-docs/resolve/main/ted_60.wav -o /tmp/ted.wav
+cd apps/desktop/src-tauri
+LEDGEUR_TEST_WAV=/tmp/ted.wav cargo test --release --features native-ai \
+  measures_the_live_loop -- --ignored --nocapture
+```
+
+`measures_transcription_speed`, `measures_the_live_loop`,
+`measures_speaker_separability`, `assignment_threshold_sweep` and
+`sweeps_the_clustering_threshold` are all there. Run them before and after
+touching anything in this path — every number quoted in the comments came from
+one of them, and the ones that were guessed instead were wrong.
 
 The webview fallback (transformers.js Whisper) is used automatically when the
 native engine isn't compiled/available, so the app always works.

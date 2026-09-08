@@ -135,18 +135,37 @@ These cannot be driven headlessly, so they are the manual list:
    recordings of the same real person. The logic is unit-tested and the
    thresholds are measured, but the round trip through IndexedDB has only been
    tested with synthetic vectors.
-3. **Drag a real Zoom/Teams export in.** Decoding depends on the browser's own
+3. **The packaged desktop app's live transcription, with a real microphone and
+   two real people.** The engine numbers are measured against the real models
+   (`measures_the_live_loop` and friends — see docs/NATIVE_AI.md), and the whole
+   record → stop → notes flow was driven end to end through the browser path
+   with a speech clip fed in where the mic would be. What that cannot show is
+   the packaged `native-ai` build against live audio. Check, in order:
+   - the "Transcribing Ns behind" line stays away, or clears quickly — it should
+     no longer name the engine either;
+   - live lines from two different voices get **different** speaker chips once
+     each person has said a few seconds, and short utterances show no chip at
+     all rather than a wrong one;
+   - Stop settles in roughly a sixth of the meeting's length, not minutes, and
+     the phase reads "separating speakers" (there is no re-transcription step
+     any more);
+   - the saved transcript's timestamps still line up with when things were
+     actually said, including after a long silence mid-meeting;
+   - the notes are written by the assistant — no "pulled out of the transcript"
+     banner — and the copilot's "Download" prompt is absent with the weights on
+     disk.
+4. **Drag a real Zoom/Teams export in.** Decoding depends on the browser's own
    codec support, which varies. Try an `.mp4`, an `.m4a` and a `.webm`.
-4. **A real purchase, end to end.** Buy on a test card, then confirm `/account`
+5. **A real purchase, end to end.** Buy on a test card, then confirm `/account`
    flips to the Team plan within a few seconds, generate an access token, and
    call `/api/mcp` with it. Then cancel from the billing portal and confirm the
    plan reverts. This needs live Stripe keys and the webhook wired — see
    `docs/DEPLOYMENT.md`.
-5. ~~`SUPABASE_SERVICE_ROLE_KEY` in production.~~ Set, and the endpoint is
+6. ~~`SUPABASE_SERVICE_ROLE_KEY` in production.~~ Set, and the endpoint is
    verified working — see above.
-6. **A long meeting.** The live path is designed to keep memory flat by
+7. **A long meeting.** The live path is designed to keep memory flat by
    discarding audio behind the models; an hour-long recording would confirm it.
-7. **Safari and Firefox.** The load ladder has rungs for them, and the fallback
+8. **Safari and Firefox.** The load ladder has rungs for them, and the fallback
    logic is tested, but the models have only been driven in Chromium here.
 
 ## Production readiness (2026-08-17)

@@ -5,3 +5,4 @@ export * from "./cluster.ts";
 export * from "./turns.ts";
 export * from "./voiceprints.ts";
 export * from "./assemble.ts";
+export * from "./attribute.ts";

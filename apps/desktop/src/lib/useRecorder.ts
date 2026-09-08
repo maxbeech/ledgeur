@@ -31,10 +31,14 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   resample, WHISPER_SAMPLE_RATE, rms, concatFloat32, mixFloat32, notesToMarkdown,
-  defaultSpeakerLabel, UtteranceSegmenter, type AsrChunk,
+  defaultSpeakerLabel, UtteranceSegmenter, attributeSpeakers, speakersFromTurns,
+  turnsToMeetingClock, type AsrChunk, type AudioSpan,
 } from "@ledgeur/core";
 import { AudioCapture, DiarizerController, listVoiceProfiles, type AnalysedSlice } from "@ledgeur/core/browser";
-import { aiStatus, nativeTranscribeChunk, nativeTranscribeDiarize, onDiarizeProgress, type NativeSegment } from "./nativeAI.ts";
+import {
+  aiStatus, nativeTranscribeChunk, nativeDiarizeMeeting, onDiarizeProgress, resetLiveSpeakers,
+  type NativeSegment,
+} from "./nativeAI.ts";
 import { saveMeeting, type LocalMeeting, type LocalSegment, type LocalSpeaker, type ChatMessage } from "./meetingsStore.ts";
 import { generateMeetingNotes } from "./notes.ts";
 import { getSettings } from "./settings.ts";
@@ -135,8 +139,11 @@ const MAX_BACKLOG_SECONDS = 300;
 
 const delay = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 const uid = () => (crypto?.randomUUID ? crypto.randomUUID() : `id-${Date.now()}-${Math.round(Math.random() * 1e6)}`);
+// An empty label means "nobody has worked out who this is", and the transcript
+// renders it without a speaker chip. The engine returns null for exactly that
+// case rather than guessing — see `speaker_label` in nativeAI.ts.
 const toLocal = (s: NativeSegment, offsetMs: number): LocalSegment => ({
-  id: uid(), speakerLabel: s.speaker_label, startMs: offsetMs + s.start_ms, endMs: offsetMs + s.end_ms,
+  id: uid(), speakerLabel: s.speaker_label ?? "", startMs: offsetMs + s.start_ms, endMs: offsetMs + s.end_ms,
   text: s.text, confidence: s.confidence, speakerConfidence: s.speaker_confidence,
 });
 
@@ -176,10 +183,35 @@ export function useRecorder(getThreadMessages?: () => ChatMessage[]) {
   threadRef.current = getThreadMessages;
   const fullAudio = useRef<Float32Array[]>([]);
   const fullLen = useRef(0);
+  /**
+   * Where each retained utterance sits in `fullAudio` and where it sits in the
+   * meeting — the two are not the same clock.
+   *
+   * Utterances the silence gate rejects are never appended, so `fullAudio` is
+   * the meeting with its quiet parts cut out. The speaker pass reads that
+   * buffer and reports turns against it; the transcript is on the meeting
+   * clock. Without this mapping the two are out by the length of every silence
+   * so far, and the pass would attribute each line to whoever was talking some
+   * minutes later. See `turnsToMeetingClock` in @ledgeur/core.
+   */
+  const audioSpans = useRef<AudioSpan[]>([]);
   const capExceeded = useRef(false); // true once we stop retaining full audio (>cap)
   const statusRef = useRef<RecorderStatus>("idle");
   /** True while a model pass is in flight, so only one ever runs at a time. */
   const transcribing = useRef(false);
+  /**
+   * Set the moment stop() begins, to take the live drain loop off the audio.
+   *
+   * Clearing the pump interval was not enough. `pumpTranscription` is a loop
+   * that keeps taking utterances until the segmenter is empty, and its only
+   * exit condition was the status leaving "recording" *or* "processing" — which
+   * stop() immediately sets to "processing". So a pass already in flight when
+   * Stop was pressed carried on chewing through the entire backlog, in
+   * parallel with stop()'s own budgeted drain and then with the speaker pass,
+   * competing for the same cores. On a machine already minutes behind, that is
+   * a large amount of work arriving at exactly the moment the user is waiting.
+   */
+  const stopping = useRef(false);
   /** When the failed pipeline was last retried — see ENGINE_RETRY_MS. */
   const lastEngineRetry = useRef(0);
   const elapsedShown = useRef(-1);
@@ -270,8 +302,17 @@ export function useRecorder(getThreadMessages?: () => ChatMessage[]) {
           segments.current = [...segments.current, ...segs.map((s) => toLocal(s, startMs))];
           patch({ segments: segments.current });
         }
-        if (fullLen.current < MAX_DIARIZE_SAMPLES) { fullAudio.current.push(audio); fullLen.current += audio.length; }
-        else { capExceeded.current = true; }
+        if (fullLen.current < MAX_DIARIZE_SAMPLES) {
+          // Recorded before the append, so `atMs` is this utterance's offset in
+          // the retained buffer rather than the next one's.
+          audioSpans.current.push({
+            atMs: Math.round((fullLen.current / WHISPER_SAMPLE_RATE) * 1000),
+            durationMs: Math.round((audio.length / WHISPER_SAMPLE_RATE) * 1000),
+            meetingMs: startMs,
+          });
+          fullAudio.current.push(audio);
+          fullLen.current += audio.length;
+        } else { capExceeded.current = true; }
         return;
       }
 
@@ -291,7 +332,11 @@ export function useRecorder(getThreadMessages?: () => ChatMessage[]) {
       }
       if (text.trim()) {
         segments.current = [...segments.current, {
-          id: uid(), speakerLabel: defaultSpeakerLabel(0), startMs, endMs,
+          // Unattributed, not "Speaker 1". Nothing has looked at who is talking
+          // yet on this path — the speaker models run when the meeting ends —
+          // and labelling every line with the same name made a room full of
+          // people read as one person. The line gets its real speaker below.
+          id: uid(), speakerLabel: "", startMs, endMs,
           text: text.trim(), confidence: null, speakerConfidence: null,
         }];
         patch({ segments: segments.current });
@@ -368,6 +413,10 @@ export function useRecorder(getThreadMessages?: () => ChatMessage[]) {
         const next = seg.take();
         if (!next) break;
         await transcribeOne(next.audio, next.startSample, next.endSample);
+        // stop() drains the rest itself, on a budget. Two loops pulling from
+        // one segmenter is not twice the throughput, it is the same work split
+        // across contending model passes.
+        if (stopping.current) break;
         if (statusRef.current !== "recording" && statusRef.current !== "processing") break;
       }
     } finally {
@@ -378,10 +427,14 @@ export function useRecorder(getThreadMessages?: () => ChatMessage[]) {
   const start = useCallback(async (opts: { mic: boolean; system: boolean; lang?: string; template?: string }) => {
     log.info("start requested", opts);
     try {
-      segments.current = []; fullAudio.current = []; fullLen.current = 0; capExceeded.current = false;
+      segments.current = []; fullAudio.current = []; fullLen.current = 0; audioSpans.current = [];
+      capExceeded.current = false;
       asrChunks.current = []; slices.current = []; analysing.current = []; speakers.current = [];
       silentDrains.current = 0; emptyTranscript.current = emptyTranscriptInitial(); peakRms.current = 0;
-      transcribing.current = false; lastEngineRetry.current = 0;
+      transcribing.current = false; stopping.current = false; lastEngineRetry.current = 0;
+      // Speaker numbering is per-meeting; without this a new recording opens
+      // already believing it recognises the last meeting's voices.
+      void resetLiveSpeakers();
       elapsedShown.current = -1; backlogShown.current = 0;
       lang.current = opts.lang ?? getSettings().transcriptionLang;
       template.current = opts.template ?? getSettings().noteTemplate;
@@ -497,7 +550,11 @@ export function useRecorder(getThreadMessages?: () => ChatMessage[]) {
   const stop = useCallback(async (title: string): Promise<string | null> => {
     log.info("stop requested", { title, segments: segments.current.length });
     if (pumpTimer.current) { clearInterval(pumpTimer.current); pumpTimer.current = null; }
+    // Take the live loop off the audio before doing anything else, and let a
+    // pass already in flight finish rather than racing it — see `stopping`.
+    stopping.current = true;
     patch({ status: "processing" });
+    for (let i = 0; transcribing.current && i < 100; i++) await delay(50);
 
     // Take one last pass over the capture buffers, then stop the sources. The
     // tap is stopped before the final pump so nothing it delivered in the
@@ -551,19 +608,42 @@ export function useRecorder(getThreadMessages?: () => ChatMessage[]) {
     // retention cap we keep the complete live transcript instead of overwriting
     // it with a diarized prefix (which would silently drop the tail).
     if (native.current && fullLen.current > 0 && !capExceeded.current) {
-      // Report what the pass is doing while it runs. This is minutes of work on
-      // a long meeting, and it used to be entirely silent — the engine emits
-      // progress now, and showing it is the difference between "still going"
-      // and "the app has hung", which is how it was reported.
-      patch({ processingPhase: "transcribing", processingProgress: 0 });
+      // Report what the pass is doing while it runs. This is real work on a long
+      // meeting, and it used to be entirely silent — the engine emits progress
+      // now, and showing it is the difference between "still going" and "the app
+      // has hung", which is how it was reported.
+      //
+      // The pass separates speakers and puts names to the ones this device
+      // recognises; it does NOT re-transcribe. It used to, and that was the
+      // single most expensive thing the app did: 228 s to re-transcribe 99 s of
+      // audio on an M1 Pro, before the speaker work had even started, to arrive
+      // at approximately the words the live pass had already produced from the
+      // same model and the same audio. The transcript the user watched appear is
+      // the transcript they keep; only the names on it change.
+      patch({ processingPhase: "separating speakers", processingProgress: 0 });
       const unlisten = await onDiarizeProgress((p) =>
         patch({ processingPhase: p.phase, processingProgress: p.percent }),
       );
       try {
-        const finalSegs = await nativeTranscribeDiarize(concatFloat32(fullAudio.current));
-        if (finalSegs.length) { segments.current = finalSegs.map((s) => toLocal(s, 0)); patch({ segments: segments.current }); }
+        const turns = await nativeDiarizeMeeting(concatFloat32(fullAudio.current));
+        if (turns.length) {
+          const attributed = turnsToMeetingClock(
+            turns.map((t) => ({
+              startMs: t.start_ms, endMs: t.end_ms, label: t.label, confidence: t.confidence,
+            })),
+            audioSpans.current,
+          );
+          segments.current = attributeSpeakers(segments.current, attributed);
+          // No `embedding`: the native pass returns turns, not voice vectors.
+          // An empty array would look like one and quietly poison any later
+          // cosine match, so the field is left absent, which it is allowed to be.
+          speakers.current = speakersFromTurns(attributed).map((sp) => ({
+            label: sp.label, confidence: sp.confidence, speakingSeconds: sp.speakingSeconds,
+          }));
+          patch({ segments: segments.current });
+        }
       } catch (e) {
-        log.error("diarization pass failed, keeping live transcript", e);
+        log.error("speaker pass failed, keeping the live transcript", e);
       } finally {
         unlisten();
         patch({ processingPhase: "writing the notes", processingProgress: 0 });
@@ -648,7 +728,7 @@ export function useRecorder(getThreadMessages?: () => ChatMessage[]) {
     // The pipeline is process-wide and deliberately NOT disposed here: disposing
     // it is what made every recording after the first pay a full model reload.
     diarizer.current = null;
-    fullAudio.current = []; fullLen.current = 0;
+    fullAudio.current = []; fullLen.current = 0; audioSpans.current = [];
     asrChunks.current = []; slices.current = []; analysing.current = []; speakers.current = [];
     setAudioLevel(0);
     patch({ status: "complete", meetingId: id });
@@ -661,9 +741,11 @@ export function useRecorder(getThreadMessages?: () => ChatMessage[]) {
     void capture.current?.stop();
     void systemTap.current?.stop();
     capture.current = null; systemTap.current = null; diarizer.current = null; segmenter.current = null;
-    segments.current = []; fullAudio.current = []; fullLen.current = 0; notesRef.current = "";
+    segments.current = []; fullAudio.current = []; fullLen.current = 0; audioSpans.current = [];
+    notesRef.current = "";
     asrChunks.current = []; slices.current = []; analysing.current = [];
     statusRef.current = "idle";
+    transcribing.current = false; stopping.current = false;
     setAudioLevel(0);
     systemAudioHeard.current = false;
     setState({

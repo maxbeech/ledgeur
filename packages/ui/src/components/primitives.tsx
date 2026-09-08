@@ -159,6 +159,11 @@ export function Badge({
 export function SpeakerChip({
   label, confidence, className,
 }: { label: string; confidence?: number | null; className?: string }) {
+  // No label means nobody has worked out who is talking — during a live meeting
+  // before there is enough speech to place a voice, most often. An empty chip
+  // says less than nothing, and the previous behaviour (calling everybody
+  // "Speaker 1") said something false.
+  if (!label.trim()) return null;
   return (
     <span className={cn(
       `ldg-speaker ldg-speaker-${speakerIndex(label)}`,

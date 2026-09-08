@@ -2398,6 +2398,7 @@ dependencies = [
  "block2",
  "dotenvy",
  "encoding_rs",
+ "libc",
  "llama-cpp-2",
  "log",
  "objc2",

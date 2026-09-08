@@ -22,7 +22,19 @@ const LLM_URL: &str = "https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct-GGUF/re
 static DOWNLOADING: AtomicBool = AtomicBool::new(false);
 static PROGRESS: AtomicU32 = AtomicU32::new(0); // 0..=1000 (tenths of a percent)
 
+/// Field names are camelCase on the wire.
+///
+/// They were not, and every one of these was read as `undefined` by the UI: the
+/// TypeScript side (`LlmStatus` in src/lib/llm.ts) has always read `modelReady`
+/// and `modelName`, so `model_ready` never reached it. `ready` was therefore
+/// permanently false with the weights sitting on disk, which is three separate
+/// reported bugs in one: the "download the copilot" banner never went away, its
+/// button did nothing visible (the command correctly returns at once when the
+/// file is already there), and `nativeChat` refused to run at all — so every
+/// meeting fell back to the extractive summariser and said the assistant
+/// "wasn't available". Pinned by `status_is_camel_case_on_the_wire` below.
 #[derive(Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
 pub struct LlmStatus {
     /// Built with `--features native-ai` (the engine is compiled in).
     pub compiled: bool,
@@ -320,6 +332,31 @@ mod tests {
             format!("{}{}", render_chatml_turns(&all[..split]), render_chatml(&all[split..])),
             render_chatml(&all)
         );
+    }
+
+    /// The names the UI actually reads. `LlmStatus` was serialised with Rust's
+    /// snake_case field names while src/lib/llm.ts read `modelReady` and
+    /// `modelName`, so readiness was permanently `undefined` — the copilot
+    /// banner never cleared, its Download button looked dead, and note-writing
+    /// fell back to the extractive summariser on every meeting. Asserting the
+    /// wire names (not the struct) is the only thing that catches it: both
+    /// sides compile perfectly either way.
+    #[test]
+    fn status_is_camel_case_on_the_wire() {
+        let json = serde_json::to_value(LlmStatus {
+            compiled: true,
+            model_ready: true,
+            downloading: false,
+            progress: 12.5,
+            model_name: LLM_MODEL_NAME.to_string(),
+        })
+        .expect("status serialises");
+        let obj = json.as_object().expect("an object");
+        for key in ["compiled", "modelReady", "downloading", "progress", "modelName"] {
+            assert!(obj.contains_key(key), "missing wire field {key} in {json}");
+        }
+        assert_eq!(obj.len(), 5, "unexpected extra fields in {json}");
+        assert_eq!(json["modelReady"], serde_json::json!(true));
     }
 
     #[test]

@@ -20,18 +20,27 @@ mod inner {
     pub fn identify_speakers(
         _a: &tauri::AppHandle, _s: &[f32], _r: u32, _d: &[DiarSegment], _p: &[VoiceProfile],
     ) -> HashMap<i32, (String, f32)> { HashMap::new() }
+    pub fn reset_live_speakers() {}
+    pub fn live_speaker(
+        _a: &tauri::AppHandle, _s: &[f32], _r: u32,
+    ) -> Option<(String, Option<f32>)> { None }
 }
 
 #[cfg(feature = "native-ai")]
 mod inner {
     use super::*;
+    use crate::ai::live_speakers::{speaker_label, LiveSpeakers};
     use crate::ai::voices::{best_match, VoiceProfile};
     use crate::ai::{models_dir, EMBED_MODEL, SEG_MODEL, WHISPER_MODEL};
     use std::collections::HashMap;
     use std::ffi::{c_void, CString};
     use std::fs;
     use std::io::Write;
-    use whisper_rs::{FullParams, SamplingStrategy, WhisperContext, WhisperContextParameters};
+    use std::path::{Path, PathBuf};
+    use std::sync::{Mutex, OnceLock};
+    use whisper_rs::{
+        FullParams, SamplingStrategy, WhisperContext, WhisperContextParameters, WhisperState,
+    };
     use sherpa_rs::sherpa_rs_sys;
     use sherpa_rs::speaker_id::{EmbeddingExtractor, ExtractorConfig};
 
@@ -70,19 +79,74 @@ mod inner {
         out
     }
 
+    /// The loaded speech model and its decoding state, kept for the life of the
+    /// process.
+    ///
+    /// This used to be built per call: `WhisperContext::new_with_params`
+    /// followed by `create_state`, on every single utterance of a live
+    /// recording. That is reading and preparing the 148 MB `ggml-base.en.bin`
+    /// once per chunk — work that dwarfed the inference it was setting up for,
+    /// and it is the bulk of why the live transcript fell minutes behind a
+    /// meeting and never caught up. The model does not change while the app is
+    /// running, so it is loaded once and reused.
+    ///
+    /// A `WhisperState` owns an `Arc` of the context rather than borrowing it,
+    /// so keeping the state alone keeps the weights alive. The `Mutex` is not
+    /// incidental: one decode at a time is exactly the discipline the rest of
+    /// the recorder already keeps (see `pumpTranscription` in useRecorder.ts),
+    /// and two concurrent passes would not go faster, they would split the same
+    /// cores and make both late.
+    struct Speech {
+        path: PathBuf,
+        state: WhisperState,
+    }
+    static SPEECH: OnceLock<Mutex<Option<Speech>>> = OnceLock::new();
+
     pub fn transcribe(app: &tauri::AppHandle, samples: &[f32], rate: u32) -> Result<Vec<TranscriptSegment>, String> {
-        let audio = resample_16k(samples, rate);
         let model = models_dir(app).join(WHISPER_MODEL);
         if !model.exists() {
             return Err(format!("Whisper model missing at {}. Run download first.", model.display()));
         }
-        let ctx = WhisperContext::new_with_params(model.to_string_lossy().as_ref(), WhisperContextParameters::default())
+        transcribe_at(&model, samples, rate)
+    }
+
+    /// The transcription itself, against an explicit model path — split out so
+    /// it can be measured and tested without an AppHandle, the same way
+    /// `run_diarization` and `llm::chat_at` are.
+    pub(super) fn transcribe_at(
+        model: &Path, samples: &[f32], rate: u32,
+    ) -> Result<Vec<TranscriptSegment>, String> {
+        let audio = resample_16k(samples, rate);
+        if audio.is_empty() {
+            return Ok(Vec::new());
+        }
+        let cell = SPEECH.get_or_init(|| Mutex::new(None));
+        let mut guard = cell.lock().map_err(|_| "speech engine lock poisoned".to_string())?;
+        if guard.as_ref().map_or(true, |s| s.path != model) {
+            let ctx = WhisperContext::new_with_params(
+                model.to_string_lossy().as_ref(),
+                // `use_gpu` defaults to whether a GPU backend was compiled in,
+                // so this picks up Metal on Apple silicon and stays CPU-only
+                // everywhere else without a branch here.
+                WhisperContextParameters::default(),
+            )
             .map_err(|e| e.to_string())?;
-        let mut state = ctx.create_state().map_err(|e| e.to_string())?;
+            let state = ctx.create_state().map_err(|e| e.to_string())?;
+            *guard = Some(Speech { path: model.to_path_buf(), state });
+        }
+        let state = &mut guard.as_mut().expect("just loaded above").state;
+
         let mut params = FullParams::new(SamplingStrategy::Greedy { best_of: 1 });
         // whisper.cpp's own default is min(4, cores) regardless of the machine.
         params.set_n_threads(inference_threads());
         params.set_language(Some("en"));
+        // The state is reused now, and whisper.cpp otherwise seeds each pass
+        // with the previous one's tokens. Across a live recording that is not
+        // continuity, it is one utterance's words being offered as context for
+        // the next unrelated one — the classic way whisper starts repeating a
+        // phrase forever. Each chunk is decoded on its own, exactly as it was
+        // when every call got a fresh state.
+        params.set_no_context(true);
         params.set_print_special(false);
         params.set_print_progress(false);
         params.set_print_realtime(false);
@@ -113,7 +177,11 @@ mod inner {
                 end_ms: t1 * 10,
                 text,
                 confidence: if cnt > 0.0 { sum / cnt } else { 0.0 },
-                speaker_label: "Speaker 1".into(),
+                // Filled in by the caller when a voice can be placed — see
+                // `live_speaker` below and `merge_speakers` in mod.rs. It is not
+                // this function's job to guess, and it used to guess "Speaker 1"
+                // for every line of every meeting.
+                speaker_label: None,
                 speaker_confidence: None,
             });
         }
@@ -273,21 +341,140 @@ mod inner {
         }
     }
 
+    /// The loaded speaker-embedding model, kept like the speech model above.
+    ///
+    /// `EmbeddingExtractor` is a raw sherpa-onnx pointer and so is not `Send` on
+    /// its own; the `Mutex` is what makes "one caller at a time" true rather
+    /// than merely assumed, and the wrapper is where that claim is written down.
+    struct Embedder(EmbeddingExtractor);
+    // SAFETY: the extractor is only ever reached through the Mutex below, so it
+    // is used from one thread at a time, which is sherpa-onnx's requirement.
+    unsafe impl Send for Embedder {}
+    struct Embed {
+        path: PathBuf,
+        embedder: Embedder,
+    }
+    static EMBED: OnceLock<Mutex<Option<Embed>>> = OnceLock::new();
+
     /// Speaker embedding for a stretch of speech (voice enrolment + identification).
     pub fn embed_voice(app: &tauri::AppHandle, samples: &[f32], rate: u32) -> Result<Vec<f32>, String> {
-        let audio = resample_16k(samples, rate);
         let model = models_dir(app).join(EMBED_MODEL);
         if !model.exists() {
             return Err("Speaker-embedding model missing. Run download first.".into());
         }
-        let mut extractor = EmbeddingExtractor::new(ExtractorConfig {
-            model: model.to_string_lossy().to_string(),
-            // ExtractorConfig::default() is 1 thread, same trap as diarization.
-            num_threads: Some(inference_threads() as usize),
-            ..Default::default()
-        })
-        .map_err(|e| e.to_string())?;
-        extractor.compute_speaker_embedding(audio, 16000).map_err(|e| e.to_string())
+        embed_at(&model, samples, rate)
+    }
+
+    /// The embedding itself, against an explicit model path.
+    ///
+    /// Loading the 29 MB CAM++ weights was previously part of every call. That
+    /// was tolerable when this ran once per speaker at the end of a meeting; it
+    /// is not now that it runs once per utterance to keep live speaker labels
+    /// (see `live_speakers.rs`).
+    pub(super) fn embed_at(model: &Path, samples: &[f32], rate: u32) -> Result<Vec<f32>, String> {
+        let audio = resample_16k(samples, rate);
+        if audio.is_empty() {
+            return Err("No audio to embed.".into());
+        }
+        let cell = EMBED.get_or_init(|| Mutex::new(None));
+        let mut guard = cell.lock().map_err(|_| "speaker engine lock poisoned".to_string())?;
+        if guard.as_ref().map_or(true, |e| e.path != model) {
+            let extractor = EmbeddingExtractor::new(ExtractorConfig {
+                model: model.to_string_lossy().to_string(),
+                // ExtractorConfig::default() is 1 thread, same trap as diarization.
+                num_threads: Some(inference_threads() as usize),
+                ..Default::default()
+            })
+            .map_err(|e| e.to_string())?;
+            *guard = Some(Embed { path: model.to_path_buf(), embedder: Embedder(extractor) });
+        }
+        let embedder = &mut guard.as_mut().expect("just loaded above").embedder;
+        embedder.0.compute_speaker_embedding(audio, 16000).map_err(|e| e.to_string())
+    }
+
+    /// Cosine-distance ceiling for attributing one live utterance to a speaker
+    /// already heard in this meeting.
+    ///
+    /// MEASURED, and emphatically not carried over from
+    /// `DIARIZE_DISTANCE_THRESHOLD` — the two answer different questions over
+    /// different inputs and do not transfer. `measures_speaker_separability`
+    /// pools each speaker's audio from `ted_60.wav`, cuts it into windows and
+    /// reports how far apart CAM++ puts two clips of the same person versus two
+    /// clips of different people:
+    ///
+    /// ```text
+    ///   window      same person    different people
+    ///      1 s          0.334            0.368        indistinguishable
+    ///      2 s          0.223            0.292
+    ///      3 s          0.158            0.248
+    ///      5 s          0.075            0.197
+    /// ```
+    ///
+    /// 0.20 sits in the gap at 3 s and comfortably inside it at 5 s. The first
+    /// attempt at this constant was a guessed 0.45, which the sweep showed
+    /// collapses every voice in the clip into one speaker — the exact bug this
+    /// code is here to fix, reintroduced by picking a plausible-looking number.
+    /// Re-run `assignment_threshold_sweep` when the embedding model changes.
+    pub(super) const LIVE_SPEAKER_DISTANCE: f32 = 0.20;
+
+    /// Shortest utterance worth attributing to anybody.
+    ///
+    /// Also measured, and the more important half of the pair: the table above
+    /// shows a one-second clip carries essentially no speaker identity at all
+    /// (0.334 vs 0.368 — noise), so any threshold applied to one is a coin
+    /// flip wearing a number. Three seconds is where the two distributions come
+    /// apart. Below it `live_speaker` returns None and the line stays
+    /// unattributed, which is the honest answer: an unlabelled line costs the
+    /// reader nothing, and a confidently wrong name costs them the transcript.
+    const MIN_EMBED_SECONDS: f32 = 3.0;
+
+    static LIVE: OnceLock<Mutex<LiveSpeakers>> = OnceLock::new();
+
+    fn live() -> &'static Mutex<LiveSpeakers> {
+        LIVE.get_or_init(|| Mutex::new(LiveSpeakers::new()))
+    }
+
+    /// Forget the voices from the previous take. Called when a recording starts:
+    /// speaker indices are only meaningful within one meeting, and carrying them
+    /// over would open a new meeting already believing it knows four people.
+    pub fn reset_live_speakers() {
+        if let Ok(mut guard) = live().lock() {
+            *guard = LiveSpeakers::new();
+        }
+    }
+
+    /// Who is speaking in this utterance, for the live transcript.
+    ///
+    /// Returns the label and, when the voice matched somebody enrolled, that
+    /// match's confidence. `None` means we genuinely do not know — too little
+    /// speech, or the model is unavailable — and the caller leaves the line
+    /// unattributed rather than claiming a speaker. Never fatal: a live
+    /// transcript with no names on it is still a live transcript, and the pass
+    /// on Stop re-labels everything from a global view anyway.
+    pub fn live_speaker(
+        app: &tauri::AppHandle, samples: &[f32], rate: u32,
+    ) -> Option<(String, Option<f32>)> {
+        if (samples.len() as f32 / rate as f32) < MIN_EMBED_SECONDS {
+            return None;
+        }
+        let model = models_dir(app).join(EMBED_MODEL);
+        if !model.exists() {
+            return None;
+        }
+        let embedding = embed_at(&model, samples, rate)
+            .map_err(|e| log::warn!("live speaker embedding failed: {e}"))
+            .ok()?;
+        // An enrolled voice outranks an anonymous index: if this device knows
+        // who this is, saying so live is the whole point of having enrolled them.
+        if let Some((profile, sim)) = best_match(&embedding, &crate::ai::voices::load_profiles(app)) {
+            // Still fold it into the running centroids, so the same voice keeps
+            // one identity whether or not the profile matches on a given
+            // utterance.
+            let _ = live().lock().ok()?.assign(&embedding, LIVE_SPEAKER_DISTANCE);
+            return Some((profile.name.clone(), Some(sim)));
+        }
+        let index = live().lock().ok()?.assign(&embedding, LIVE_SPEAKER_DISTANCE)?;
+        Some((speaker_label(index), None))
     }
 
     /// Match each diarized speaker against enrolled voice profiles. Collects up
@@ -394,7 +581,10 @@ mod inner {
     }
 }
 
-pub use inner::{diarize, download_models, embed_voice, identify_speakers, transcribe};
+pub use inner::{
+    diarize, download_models, embed_voice, identify_speakers, live_speaker,
+    reset_live_speakers, transcribe,
+};
 
 /// Runs the real sherpa-onnx pipeline against the downloaded models.
 ///
@@ -450,6 +640,363 @@ mod integration {
         panic!("no data chunk in {path}");
     }
 
+
+    /// How fast the speech model actually is on this machine, per pass.
+    ///
+    /// The numbers this exists to keep honest came out of a real recording on an
+    /// M1 Pro, from the app's own log: 99 s of audio took 228 s to transcribe
+    /// and 306 s to diarize. Both are worse than real time, which is the whole
+    /// of "the live transcript is minutes behind" and "Stop takes five minutes".
+    /// Run this before and after touching anything in the transcription path.
+    ///
+    ///   LEDGEUR_TEST_WAV=/tmp/ted.wav cargo test --release --features native-ai \
+    ///     measures_transcription_speed -- --ignored --nocapture
+    #[test]
+    #[ignore = "measurement, not an assertion — run by hand when the pipeline changes"]
+    fn measures_transcription_speed() {
+        let Ok(wav) = std::env::var("LEDGEUR_TEST_WAV") else { return };
+        let dir = models_dir_for_test();
+        let (audio, rate) = read_wav(&wav);
+        let seconds = audio.len() as f32 / rate as f32;
+        let model = dir.join(crate::ai::WHISPER_MODEL);
+        println!("{seconds:.1}s of audio at {rate} Hz, {} threads", inner::inference_threads());
+
+        // Three passes: the first pays for loading the weights, the rest do not.
+        // That gap is the point — it is what every live chunk used to pay.
+        for pass in 1..=3 {
+            let started = std::time::Instant::now();
+            let segments = inner::transcribe_at(&model, &audio, rate).expect("transcribes");
+            let elapsed = started.elapsed();
+            println!(
+                "  pass {pass}: {elapsed:?}  ({:.2}x real time, {} segments)",
+                seconds / elapsed.as_secs_f32(),
+                segments.len(),
+            );
+        }
+    }
+
+    /// Can the live path keep up with a meeting?
+    ///
+    /// The question the "Transcribing 171s behind" report actually asks. Replays
+    /// a clip the way the recorder does — one utterance at a time, one model
+    /// pass at a time — and reports the total model time against the length of
+    /// the audio. Anything at or above 1.0x real time falls behind for the rest
+    /// of the meeting and never recovers.
+    ///
+    ///   LEDGEUR_TEST_WAV=/tmp/ted.wav cargo test --release --features native-ai \
+    ///     measures_the_live_loop -- --ignored --nocapture
+    #[test]
+    #[ignore = "measurement, not an assertion"]
+    fn measures_the_live_loop() {
+        let Ok(wav) = std::env::var("LEDGEUR_TEST_WAV") else { return };
+        let dir = models_dir_for_test();
+        let (audio, rate) = read_wav(&wav);
+        let model = dir.join(crate::ai::WHISPER_MODEL);
+        let embed_model = dir.join(EMBED_MODEL);
+        let seconds = audio.len() as f32 / rate as f32;
+
+        // 8-second utterances, about what the segmenter produces when it cuts on
+        // a natural pause.
+        let chunk = (8.0 * rate as f32) as usize;
+        let started = std::time::Instant::now();
+        let (mut transcribe_total, mut speaker_total) = (
+            std::time::Duration::ZERO, std::time::Duration::ZERO,
+        );
+        let mut chunks = 0;
+        for utterance in audio.chunks(chunk) {
+            let t = std::time::Instant::now();
+            inner::transcribe_at(&model, utterance, rate).expect("transcribes");
+            transcribe_total += t.elapsed();
+            let t = std::time::Instant::now();
+            let _ = inner::embed_at(&embed_model, utterance, rate);
+            speaker_total += t.elapsed();
+            chunks += 1;
+        }
+        let total = started.elapsed();
+        println!(
+            "{chunks} utterances over {seconds:.0}s of audio\n\
+             \x20 transcription  {transcribe_total:?}\n\
+             \x20 live speakers  {speaker_total:?}\n\
+             \x20 total          {total:?}  ({:.2}x real time)",
+            seconds / total.as_secs_f32(),
+        );
+        println!(
+            "  the first pass includes loading the weights; a live meeting pays that once, not per chunk",
+        );
+    }
+
+    /// Whether thread QoS is what made the shipped app so much slower than this
+    /// test — and whether `run_at_user_speed` fixes it.
+    ///
+    /// The shipped app transcribed 99 s of audio in 228 s. The same models, the
+    /// same thread count and the same machine do it in about 8 s here. The one
+    /// thing the app does that a test does not is run the work on a pool thread
+    /// it did not create, inheriting that thread's QoS class — and on macOS a
+    /// QoS class decides which cores a thread may use at all.
+    ///
+    ///   LEDGEUR_TEST_WAV=/tmp/ted.wav cargo test --release --features native-ai \
+    ///     measures_qos_effect_on_inference -- --ignored --nocapture
+    #[test]
+    #[ignore = "measurement, not an assertion"]
+    fn measures_qos_effect_on_inference() {
+        let Ok(wav) = std::env::var("LEDGEUR_TEST_WAV") else { return };
+        let dir = models_dir_for_test();
+        let (audio, rate) = read_wav(&wav);
+        let seconds = audio.len() as f32 / rate as f32;
+        let model = dir.join(crate::ai::WHISPER_MODEL);
+
+        // Warm the weights first, so this measures inference and not loading.
+        inner::transcribe_at(&model, &audio, rate).expect("transcribes");
+
+        let run = |label: &str, background: bool, boost: bool| {
+            let (model, audio) = (model.clone(), audio.clone());
+            std::thread::spawn(move || {
+                #[cfg(target_os = "macos")]
+                if background {
+                    // What a thread inherited from a background pool looks like.
+                    unsafe {
+                        libc::pthread_set_qos_class_self_np(libc::qos_class_t::QOS_CLASS_BACKGROUND, 0);
+                    }
+                }
+                if boost {
+                    crate::ai::run_at_user_speed();
+                }
+                let started = std::time::Instant::now();
+                inner::transcribe_at(&model, &audio, rate).expect("transcribes");
+                started.elapsed()
+            })
+            .join()
+            .map(|e| println!("  {label:<34} {e:?}  ({:.2}x real time)", seconds / e.as_secs_f32()))
+            .expect("thread finishes");
+        };
+
+        run("default QoS", false, false);
+        run("background QoS (the bug)", true, false);
+        run("background QoS + run_at_user_speed", true, true);
+    }
+
+    /// How fast one live utterance is placed against the voices heard so far.
+    ///
+    ///   LEDGEUR_TEST_WAV=/tmp/ted.wav cargo test --release --features native-ai \
+    ///     measures_live_speaker_speed -- --ignored --nocapture
+    #[test]
+    #[ignore = "measurement, not an assertion"]
+    fn measures_live_speaker_speed() {
+        let Ok(wav) = std::env::var("LEDGEUR_TEST_WAV") else { return };
+        let dir = models_dir_for_test();
+        let (audio, rate) = read_wav(&wav);
+        let model = dir.join(EMBED_MODEL);
+        // A five-second utterance, the sort the segmenter hands over.
+        let five = &audio[..(5.0 * rate as f32) as usize];
+        for pass in 1..=3 {
+            let started = std::time::Instant::now();
+            let embedding = inner::embed_at(&model, five, rate).expect("embeds");
+            println!("  pass {pass}: {:?} ({} dims)", started.elapsed(), embedding.len());
+        }
+    }
+
+    /// Can this embedding model tell these two people apart at all, and at what
+    /// clip length?
+    ///
+    /// `assignment_threshold_sweep` said no at utterance length: over `ted_60`,
+    /// same-speaker distances (min 0.04, median 0.21, max 0.38) and
+    /// different-speaker distances (min 0.06, median 0.20, max 0.42) sit on top
+    /// of each other, so no threshold separates them. This asks the prior
+    /// question — whether that is the model failing outright, or short clips
+    /// failing — by pooling each speaker's audio and cutting it into windows of
+    /// several lengths. A model that discriminates will show the two halves of
+    /// one speaker much closer to each other than to the other speaker.
+    ///
+    ///   LEDGEUR_TEST_WAV=/tmp/ted.wav cargo test --release --features native-ai \
+    ///     measures_speaker_separability -- --ignored --nocapture
+    #[test]
+    #[ignore = "measurement, not an assertion"]
+    fn measures_speaker_separability() {
+        let Ok(wav) = std::env::var("LEDGEUR_TEST_WAV") else { return };
+        let dir = models_dir_for_test();
+        let (audio, rate) = read_wav(&wav);
+        let embed_model = dir.join(EMBED_MODEL);
+        let truth = inner::run_diarization(
+            &dir.join(SEG_MODEL), &dir.join(EMBED_MODEL), &audio, rate,
+            inner::DIARIZE_DISTANCE_THRESHOLD, |_, _| {},
+        )
+        .expect("diarization runs");
+
+        // All of each speaker's audio, end to end.
+        let mut pooled: std::collections::BTreeMap<i32, Vec<f32>> = Default::default();
+        for t in &truth {
+            let per_ms = rate as usize / 1000;
+            let a = ((t.start_ms.max(0) as usize) * per_ms).min(audio.len());
+            let b = ((t.end_ms.max(0) as usize) * per_ms).min(audio.len());
+            if b > a {
+                pooled.entry(t.speaker).or_default().extend_from_slice(&audio[a..b]);
+            }
+        }
+        for (spk, a) in &pooled {
+            println!("speaker {spk}: {:.1}s of pooled audio", a.len() as f32 / rate as f32);
+        }
+        let speakers: Vec<i32> = pooled.keys().copied().collect();
+        if speakers.len() < 2 {
+            println!("need two speakers in the clip");
+            return;
+        }
+
+        println!("\nwindow   within-speaker distance   between-speaker distance");
+        for window_seconds in [1.0f32, 2.0, 3.0, 5.0, 8.0] {
+            let n = (window_seconds * rate as f32) as usize;
+            // Embed every window of every speaker.
+            let mut by_speaker: Vec<(i32, Vec<Vec<f32>>)> = Vec::new();
+            for (spk, a) in &pooled {
+                let mut embeddings = Vec::new();
+                for chunk in a.chunks(n) {
+                    if chunk.len() < n {
+                        break;
+                    }
+                    if let Ok(e) = inner::embed_at(&embed_model, chunk, rate) {
+                        embeddings.push(e);
+                    }
+                }
+                by_speaker.push((*spk, embeddings));
+            }
+            let (mut within, mut between) = (Vec::new(), Vec::new());
+            for (i, (_, ea)) in by_speaker.iter().enumerate() {
+                for (x, a) in ea.iter().enumerate() {
+                    for b in ea.iter().skip(x + 1) {
+                        within.push(1.0 - crate::ai::voices::cosine(a, b));
+                    }
+                    for (_, eb) in by_speaker.iter().skip(i + 1) {
+                        for b in eb {
+                            between.push(1.0 - crate::ai::voices::cosine(a, b));
+                        }
+                    }
+                }
+            }
+            let mean = |v: &[f32]| if v.is_empty() { f32::NAN } else { v.iter().sum::<f32>() / v.len() as f32 };
+            println!(
+                "{window_seconds:>5.0}s   mean {:.3} (n={:<4})     mean {:.3} (n={})",
+                mean(&within), within.len(), mean(&between), between.len(),
+            );
+        }
+    }
+
+    /// Picks `LIVE_SPEAKER_DISTANCE` from data rather than from the value that
+    /// happens to be next to it in the file.
+    ///
+    /// The full diarization pass is the ground truth: it sees the whole clip at
+    /// once and is what the transcript is re-labelled with on Stop. This replays
+    /// the same clip the way the live path sees it — one turn at a time, no
+    /// hindsight — and reports, for each candidate threshold, how many speakers
+    /// the incremental tracker ends up with and how often it agrees with the
+    /// full pass about who is talking.
+    ///
+    /// Agreement is measured up to a renaming of the speakers, because the two
+    /// passes have no reason to number people in the same order: the live
+    /// tracker names people in the order they first speak. The score is the
+    /// share of turns covered by the best one-to-one pairing of live speaker to
+    /// true speaker.
+    ///
+    ///   LEDGEUR_TEST_WAV=/tmp/ted.wav cargo test --release --features native-ai \
+    ///     assignment_threshold_sweep -- --ignored --nocapture
+    #[test]
+    #[ignore = "measurement, not an assertion — re-run when the embedding model changes"]
+    fn assignment_threshold_sweep() {
+        use crate::ai::live_speakers::LiveSpeakers;
+        use std::collections::BTreeMap;
+
+        let Ok(wav) = std::env::var("LEDGEUR_TEST_WAV") else { return };
+        let dir = models_dir_for_test();
+        let (audio, rate) = read_wav(&wav);
+
+        // Ground truth, and also the turn boundaries: the segmenter cuts on
+        // silence, which is close enough to a turn for this purpose and means
+        // the sweep is not also measuring a hand-rolled chunker.
+        let truth = inner::run_diarization(
+            &dir.join(SEG_MODEL), &dir.join(EMBED_MODEL), &audio, rate,
+            inner::DIARIZE_DISTANCE_THRESHOLD, |_, _| {},
+        )
+        .expect("diarization runs");
+        let true_speakers: std::collections::BTreeSet<i32> = truth.iter().map(|t| t.speaker).collect();
+        println!("ground truth: {} turns, {} speakers", truth.len(), true_speakers.len());
+
+        // Embed each turn once; the sweep then costs nothing per threshold.
+        let embed_model = dir.join(EMBED_MODEL);
+        let mut turns: Vec<(i32, Vec<f32>)> = Vec::new();
+        for t in &truth {
+            let a = ((t.start_ms.max(0) as usize) * (rate as usize / 1000)).min(audio.len());
+            let b = ((t.end_ms.max(0) as usize) * (rate as usize / 1000)).min(audio.len());
+            // Match what the live path will actually attempt, so the sweep
+            // measures the decision the app makes rather than a different one.
+            if b <= a || ((b - a) as f32 / rate as f32) < 3.0 {
+                continue;
+            }
+            match inner::embed_at(&embed_model, &audio[a..b], rate) {
+                Ok(e) => turns.push((t.speaker, e)),
+                Err(e) => println!("  (skipped a turn: {e})"),
+            }
+        }
+        println!("{} turns of at least a second to place\n", turns.len());
+
+        // The raw distances first: same-speaker pairs must sit closer than
+        // different-speaker pairs, or no threshold can separate them and the
+        // problem is the embedding, not the number.
+        let (mut same, mut different) = (Vec::new(), Vec::new());
+        for (i, (a_spk, a)) in turns.iter().enumerate() {
+            for (b_spk, b) in turns.iter().skip(i + 1) {
+                let d = 1.0 - crate::ai::voices::cosine(a, b);
+                if a_spk == b_spk { same.push(d) } else { different.push(d) }
+            }
+        }
+        let stats = |v: &mut Vec<f32>| {
+            v.sort_by(|a, b| a.partial_cmp(b).unwrap());
+            (v[0], v[v.len() / 2], v[v.len() - 1])
+        };
+        let (s_min, s_med, s_max) = stats(&mut same);
+        let (d_min, d_med, d_max) = stats(&mut different);
+        println!("same speaker    distance min {s_min:.2}  median {s_med:.2}  max {s_max:.2}");
+        println!("different       distance min {d_min:.2}  median {d_med:.2}  max {d_max:.2}\n");
+
+        println!("distance  live speakers  agreement  assignment vs truth");
+        for step in 1..=20 {
+            let threshold = step as f32 * 0.025;
+            let mut live = LiveSpeakers::new();
+            // pairing[(live index, true speaker)] = how many turns
+            let mut pairing: BTreeMap<(usize, i32), usize> = BTreeMap::new();
+            for (speaker, embedding) in &turns {
+                if let Some(i) = live.assign(embedding, threshold) {
+                    *pairing.entry((i, *speaker)).or_default() += 1;
+                }
+            }
+            // Greedy best one-to-one pairing: take the biggest cell, strike out
+            // its row and column, repeat. Optimal enough at these sizes.
+            // Replayed a second time only to print the sequence; the tracker is
+            // cheap once the embeddings exist.
+            let mut replay = LiveSpeakers::new();
+            let shown: String = turns
+                .iter()
+                .map(|(spk, e)| match replay.assign(e, threshold) {
+                    Some(i) => format!("{}{} ", (b'A' + (i as u8 % 26)) as char, spk),
+                    None => "?? ".to_string(),
+                })
+                .collect();
+            let mut cells: Vec<((usize, i32), usize)> = pairing.into_iter().collect();
+            cells.sort_by(|a, b| b.1.cmp(&a.1));
+            let (mut used_live, mut used_true) = (Vec::new(), Vec::new());
+            let mut agreed = 0usize;
+            for ((l, t), n) in cells {
+                if used_live.contains(&l) || used_true.contains(&t) {
+                    continue;
+                }
+                used_live.push(l);
+                used_true.push(t);
+                agreed += n;
+            }
+            println!(
+                "{threshold:>8.3}  {:>13}  {:>8.0}%  {shown}",
+                live.len(),
+                100.0 * agreed as f32 / turns.len().max(1) as f32,
+            );
+        }
+    }
 
     /// Sweeps the clustering threshold over a known two-speaker clip and prints
     /// what each value produces. This is how `DIARIZE_DISTANCE_THRESHOLD` was

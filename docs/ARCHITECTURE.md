@@ -197,10 +197,16 @@ verified.
 
 Tauri commands (real when built with `--features native-ai`; explicit errors otherwise):
 
-- `transcribe_chunk(pcm) -> segments` (whisper.cpp, per-segment confidence)
-- `transcribe_diarize(pcm) -> segments` — full pass: transcription + sherpa-onnx
+- `transcribe_chunk(pcm) -> segments` (whisper.cpp, per-segment confidence, and
+  a live speaker label where the utterance carries enough speech to place one —
+  `speaker_label` is null rather than guessed when it does not)
+- `reset_live_speakers()` — forget the previous take's voices; speaker numbering
+  only means anything within one meeting
+- `diarize_meeting(pcm) -> speaker turns` — the pass on stop: sherpa-onnx
   diarization + voice identification against enrolled profiles (named labels
-  with `speaker_confidence`, anonymous "Speaker N" otherwise)
+  with `confidence`, anonymous "Speaker N" otherwise). It returns turns for the
+  caller to lay over the live transcript (`attributeSpeakers` in
+  `@ledgeur/core`); it deliberately does not re-transcribe
 - `enroll_voice(name, pcm)` / `list_voice_profiles()` / `delete_voice_profile(id)`
   — on-device voice prints (`voices.json`), cosine matching (tested)
 - Chat / embeddings / suggestions speak to llama.cpp (OpenAI-compatible, `:8081/v1`)
