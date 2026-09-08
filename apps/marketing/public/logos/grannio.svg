@@ -1,0 +1,11 @@
+<svg style="width:100%;height:100%;display:block" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="grannio-bg" x1="0" y1="0" x2="48" y2="48" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#0f766e"/>
+      <stop offset="1" stop-color="#059669"/>
+    </linearGradient>
+  </defs>
+  <rect width="48" height="48" rx="11" fill="url(#grannio-bg)"/>
+  <path d="M8 20L19 9L30 20V37H8V20Z" fill="#ECFDF5"/>
+  <path d="M25 25L33 17L41 25V37H25V25Z" fill="#FBBF24"/>
+</svg>

@@ -9,6 +9,7 @@ import { PLATFORMS } from "@/lib/platforms";
 import { Section, SectionHead } from "@/components/site/Chrome";
 import { TranscriptPreview } from "@/components/site/TranscriptPreview";
 import { ComparisonTable } from "@/components/site/ComparisonTable";
+import { CustomerLogos } from "@/components/site/CustomerLogos";
 
 // Fully static. Nothing on this page is personalised or time-sensitive, so it
 // is prerendered once at build and served from the edge cache — the cheapest
@@ -53,6 +54,9 @@ export default function Home() {
         </p>
         <TranscriptPreview className="ldg-rise mx-auto mt-14 max-w-4xl text-left" />
       </section>
+
+      {/* -------------------------------------------------------- customers */}
+      <CustomerLogos />
 
       {/* ------------------------------------------------------ value props */}
       <Section>

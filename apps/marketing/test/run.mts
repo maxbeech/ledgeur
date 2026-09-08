@@ -18,6 +18,7 @@ import { COMPETITORS } from "../lib/competitors.ts";
 import { PLATFORMS } from "../lib/platforms.ts";
 import { USE_CASES } from "../lib/usecases.ts";
 import { POSTS } from "../lib/posts.ts";
+import { CUSTOMERS } from "../lib/customers.ts";
 import {
   classifyAsset, toRelease, assetsFor, formatBytes, repoPath, latestReleaseApiUrl,
   DOWNLOAD_REVALIDATE_SECONDS,
@@ -114,6 +115,17 @@ ok("platforms populated", PLATFORMS.length >= 6 && PLATFORMS.every((p) => p.tips
 ok("usecases populated", USE_CASES.length >= 8 && USE_CASES.every((u) => u.captures.length >= 3));
 ok("posts well-formed", POSTS.every((p) => /^\d{4}-\d{2}-\d{2}$/.test(p.date) && p.body.length >= 4 && p.title.length > 5));
 ok("slugs are url-safe", [...COMPETITORS, ...PLATFORMS].every((x) => /^[a-z0-9-]+$/.test(x.slug)) && POSTS.every((p) => /^[a-z0-9-]+$/.test(p.slug)));
+
+// --- customer logos ---
+ok("customer names unique", uniq(CUSTOMERS.map((c) => c.name)));
+ok("customer urls unique", uniq(CUSTOMERS.map((c) => c.url)));
+ok("customer urls are https", CUSTOMERS.every((c) => c.url.startsWith("https://")));
+ok("svg/img customers declare a logo file", CUSTOMERS.every((c) => c.kind === "text" || !!c.logo));
+ok("text customers declare no logo file", CUSTOMERS.every((c) => c.kind !== "text" || !c.logo));
+ok(
+  "every referenced logo file exists in public/logos",
+  CUSTOMERS.filter((c) => c.logo).every((c) => existsSync(new URL(`../public/logos/${c.logo}`, import.meta.url))),
+);
 
 // --- transcription language options ---
 // The picker and the speech-model load plan must agree: a value the plan does

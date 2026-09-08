@@ -92,3 +92,34 @@ body {
   padding-left: 1rem;
   color: var(--color-muted);
 }
+
+/* ---- Customer logo marquee ------------------------------------------- */
+/* The strip is two copies of the same track back to back, sliding left by
+ * exactly half its width. The moment it finishes, the second copy is sat
+ * exactly where the first started, so the loop never has to jump or reset. */
+.ldg-marquee-mask {
+  overflow: hidden;
+  -webkit-mask-image: linear-gradient(to right, transparent, black 6%, black 94%, transparent);
+  mask-image: linear-gradient(to right, transparent, black 6%, black 94%, transparent);
+}
+@keyframes ldg-marquee {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+.ldg-marquee {
+  animation: ldg-marquee 90s linear infinite;
+}
+.ldg-marquee:hover,
+.ldg-marquee:focus-within {
+  animation-play-state: paused;
+}
+@media (prefers-reduced-motion: reduce) {
+  .ldg-marquee {
+    animation: none;
+    flex-wrap: wrap;
+    width: auto;
+  }
+  .ldg-marquee > [aria-hidden="true"] {
+    display: none;
+  }
+}
