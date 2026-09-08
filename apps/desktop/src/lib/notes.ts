@@ -61,15 +61,36 @@ function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
   });
 }
 
+/**
+ * Measured against the shipped 1.5B model, not written and hoped for. See the
+ * `writes_parseable_notes` test in `src-tauri/src/ai/llm.rs`, which runs a real
+ * transcript through the real weights.
+ *
+ * The previous version of this prompt described the four fields in a sentence
+ * each. A 1.5B model given that produced fluent notes that were *wrong*: a
+ * meeting that agreed a price of 29 came back as "the pricing decision is
+ * pending" and "the audit log option is being considered", with the number gone
+ * entirely — plausible, ungrounded, and the exact failure the "never invent"
+ * line was there to prevent. Naming each field in capitals, giving it a test
+ * ("something the group settled on", "someone committed to"), and asking
+ * explicitly for the figures and owners to survive is what fixed it. Re-run
+ * that test if this wording changes.
+ */
 const BASE_SYSTEM =
-  "You are an expert meeting-notes writer. From a raw speech-to-text transcript, " +
-  "extract structured notes. Be faithful to the transcript — never invent facts, " +
-  "names, numbers or commitments that are not present. Reply with ONLY a JSON object " +
-  'of this exact shape: {"summary": string[], "actionItems": string[], "decisions": ' +
-  'string[], "questions": string[]}. "summary" is 3–6 concise bullet points. ' +
-  '"actionItems" are concrete follow-ups (include an owner where stated). ' +
-  '"decisions" are things the group agreed. "questions" are open questions raised. ' +
-  "Use empty arrays for sections with no content.";
+  "You are an expert meeting-notes writer. You are given a speech-to-text transcript " +
+  "where each line is `[time] Speaker: what they said`.\n\n" +
+  "Rules:\n" +
+  "- Be faithful. Never invent facts, names, numbers or commitments that are not in the transcript.\n" +
+  "- Keep exact figures, prices, percentages, dates and names exactly as they were said.\n" +
+  "- A DECISION is something the group settled on. Write what was agreed, including the " +
+  "number or date they agreed. Do not write that something was discussed or considered.\n" +
+  "- An ACTION ITEM is a concrete follow-up someone committed to. Name who owns it.\n" +
+  "- An OPEN QUESTION is something explicitly left unresolved, parked or deferred.\n" +
+  "- Write in the past tense, about what happened.\n\n" +
+  "Reply with ONLY a JSON object of this exact shape, and nothing else:\n" +
+  '{"summary": string[], "actionItems": string[], "decisions": string[], "questions": string[]}\n\n' +
+  '"summary" is 3-6 short bullets covering what the meeting was about and what came out ' +
+  "of it. Use an empty array for any section the transcript does not cover.";
 
 /** Appended only when the user actually typed something. */
 const NOTES_SYSTEM =

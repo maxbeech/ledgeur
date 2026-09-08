@@ -73,7 +73,12 @@ ok("parseAiNotes throws on empty summary", (() => {
   // A template may only ADD. The JSON contract and the never-invent rule are
   // what keep notes parseable and grounded, and no template may weaken them.
   ok("a template keeps the JSON contract", sales[0].content.includes('"actionItems"'));
-  ok("a template keeps the never-invent rule", sales[0].content.includes("never invent facts"));
+  // Case-insensitive: the rule is what matters, not where in a sentence it sits.
+  ok("a template keeps the never-invent rule", /never invent facts/i.test(sales[0].content));
+  // The measured wording that made a 1.5B model keep the actual figures and
+  // owners, rather than writing fluent notes that had lost both. See BASE_SYSTEM.
+  ok("a template keeps the keep-the-figures rule", /exact figures/i.test(sales[0].content));
+  ok("a template keeps the decision definition", /group settled on/i.test(sales[0].content));
   ok("an unknown template id degrades to the general prompt",
     buildNotesPrompt("transcript", "", "nope")[0].content === general[0].content);
   ok("no template id degrades to the general prompt",

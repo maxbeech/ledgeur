@@ -69,8 +69,18 @@ job. Four things were making it fire, or making its output worse:
 - The 45-second timeout did not cover loading a 1.1 GB model off disk, so the
   first meeting after launch tended to fall back.
 
-Notes now record whether a model or the extractor wrote them, and the reason for
-any fallback is logged.
+Then the prompt itself was measured against the real weights, and it needed
+work. Given a transcript where a team agreed a price of 29, the old prompt got
+back fluent notes saying the decision was "pending" and the audit log was "being
+considered" — the number gone entirely. Plausible, ungrounded, and exactly what
+the "never invent" line was there to stop. Naming each field, giving it a test
+("something the group settled on", "someone committed to") and asking explicitly
+for figures and owners to survive fixed it: the same transcript now yields the
+decision with its number and date, and both action items with their owners. That
+run is a checked-in test, so the next prompt edit gets measured too.
+
+A meeting whose notes came from the extractor now says so, rather than leaving
+transcript lines to look like a model doing a bad job.
 
 ### Live transcript arrives as it is spoken
 

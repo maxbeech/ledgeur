@@ -190,7 +190,17 @@ mod inner {
         if !path.exists() {
             return Err("The on-device model isn't downloaded yet. Open Settings → On-device AI.".into());
         }
-        let engine = engine(&path)?;
+        chat_at(&path, messages, temperature, max_tokens)
+    }
+
+    /// The generation itself, against an explicit weights path. Split from
+    /// `chat` so the notes prompt can be run end to end without an AppHandle:
+    /// whether this model actually returns the JSON the notes parser expects is
+    /// not something reading the code can answer. See `writes_parseable_notes`.
+    pub(in crate::ai) fn chat_at(
+        path: &std::path::Path, messages: &[ChatMsg], temperature: f32, max_tokens: u32,
+    ) -> Result<String, String> {
+        let engine = engine(path)?;
         let guard = engine.lock().map_err(|_| "engine lock poisoned".to_string())?;
         let model = &guard.model;
         let backend = &guard.backend;
@@ -323,5 +333,93 @@ mod tests {
         assert_eq!(system_prefix_len(&msgs), 1);
         assert_eq!(system_prefix_len(&[]), 0);
         assert_eq!(system_prefix_len(&msgs[1..]), 0);
+    }
+}
+
+/// Runs the real notes prompt through the real weights.
+///
+/// Ignored by default: it needs the ~1.1 GB GGUF on disk. It exists because the
+/// only question that matters for post-meeting notes cannot be answered by
+/// reading code or by any unit test — does THIS model, at this size, actually
+/// return the JSON object the parser expects, for a transcript shaped like a
+/// real one? When it does not, the app falls back to lifting sentences out of
+/// the transcript, which is what "the summary makes no sense" turned out to be.
+///
+///   cargo test --features native-ai writes_parseable_notes -- --ignored --nocapture
+#[cfg(all(test, feature = "native-ai"))]
+mod notes_integration {
+    use super::*;
+
+    /// Kept in step with BASE_SYSTEM in apps/desktop/src/lib/notes.ts.
+    const NOTES_SYSTEM: &str = concat!(
+        "You are an expert meeting-notes writer. You are given a speech-to-text transcript ",
+        "where each line is `[time] Speaker: what they said`.\n\n",
+        "Rules:\n",
+        "- Be faithful. Never invent facts, names, numbers or commitments that are not in the transcript.\n",
+        "- Keep exact figures, prices, percentages, dates and names exactly as they were said.\n",
+        "- A DECISION is something the group settled on. Write what was agreed, including the ",
+        "number or date they agreed. Do not write that something was discussed or considered.\n",
+        "- An ACTION ITEM is a concrete follow-up someone committed to. Name who owns it.\n",
+        "- An OPEN QUESTION is something explicitly left unresolved, parked or deferred.\n",
+        "- Write in the past tense, about what happened.\n\n",
+        "Reply with ONLY a JSON object of this exact shape, and nothing else:\n",
+        r#"{"summary": string[], "actionItems": string[], "decisions": string[], "questions": string[]}"#,
+        "\n\n\"summary\" is 3-6 short bullets covering what the meeting was about and what came out ",
+        "of it. Use an empty array for any section the transcript does not cover.",
+    );
+
+    /// Speaker- and time-labelled, the way the recorder now sends it.
+    const TRANSCRIPT: &str = "\
+[00:03] Priya: Right, the pricing page. We said we'd decide today whether the team tier goes to 29 or stays at 24.
+[00:14] Sam: I still think 29 is too steep for what's in it. Churn on the small accounts is already 4 percent.
+[00:26] Priya: The margin at 24 doesn't cover support though. Marco, you had the numbers.
+[00:35] Marco: At 24 we're at about 61 percent gross. At 29 it's 68. Support is the whole difference.
+[00:48] Sam: Okay. What if we go to 29 but add the audit log, so it's not a bare price rise?
+[01:02] Priya: I like that. Let's do 29 with audit log included, from the first of next month.
+[01:11] Marco: I'll update the pricing page and the Stripe products before Friday.
+[01:19] Sam: And I'll write to the twelve accounts on the old plan and explain the grandfathering.
+[01:30] Priya: One thing we haven't settled is whether annual gets the same treatment. Park it for now.";
+
+    #[test]
+    #[ignore = "needs the on-device model downloaded"]
+    fn writes_parseable_notes() {
+        let home = std::env::var("HOME").expect("HOME");
+        let path = std::path::PathBuf::from(home)
+            .join("Library/Application Support/com.maxbeech.ledgeur/models")
+            .join(LLM_MODEL);
+        if !path.exists() {
+            eprintln!("skipping: no weights at {}", path.display());
+            return;
+        }
+        let messages = vec![
+            ChatMsg { role: "system".into(), content: NOTES_SYSTEM.into() },
+            ChatMsg { role: "user".into(), content: format!("Transcript:\n\n{TRANSCRIPT}") },
+        ];
+
+        let started = std::time::Instant::now();
+        let reply = inner::chat_at(&path, &messages, 0.2, 768).expect("the model answers");
+        println!("--- {:?} ---\n{reply}\n---", started.elapsed());
+
+        // parseAiNotes (notes.ts) takes the first {...} span and requires a
+        // non-empty summary; anything else falls back to the extractor.
+        let start = reply.find('{').expect("reply contains a JSON object");
+        let end = reply.rfind('}').expect("reply closes the JSON object");
+        let parsed: serde_json::Value =
+            serde_json::from_str(&reply[start..=end]).expect("the JSON parses");
+        for key in ["summary", "actionItems", "decisions", "questions"] {
+            assert!(parsed.get(key).is_some_and(|v| v.is_array()), "missing array field {key}");
+        }
+        let summary = parsed["summary"].as_array().unwrap();
+        assert!(!summary.is_empty(), "an empty summary is treated as a failure");
+
+        // Grounded in what was actually said, not lifted from it verbatim.
+        let flat = parsed.to_string().to_lowercase();
+        assert!(flat.contains("29"), "the decision's actual number should survive: {flat}");
+        assert!(
+            !summary.iter().any(|s| TRANSCRIPT.contains(s.as_str().unwrap_or("\0"))),
+            "summary bullets are copied verbatim out of the transcript",
+        );
+        // The whole meeting has to fit: the last line is where the open question is.
+        println!("summary points: {}, actions: {}", summary.len(), parsed["actionItems"].as_array().unwrap().len());
     }
 }

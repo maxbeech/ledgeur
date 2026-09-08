@@ -641,7 +641,7 @@ export function useRecorder(getThreadMessages?: () => ChatMessage[]) {
       manualNotes,
       messages: messages.length ? messages : undefined,
       noteMarkdown: notesToMarkdown(title || "Untitled meeting", now.slice(0, 10), notes, transcript, manualNotes),
-      wordCount: notes.wordCount, synced: false, updatedAt: now,
+      wordCount: notes.wordCount, notesGenerator: notes.generator, synced: false, updatedAt: now,
       templateId: template.current,
     };
     await saveMeeting(meeting, "none");

@@ -103,6 +103,12 @@ export interface LocalMeeting {
   /** Which note template wrote the notes, kept so the meeting can say so and
    *  so notes can be regenerated the same way. */
   templateId?: string;
+  /** Whether the on-device model wrote these notes or the heuristic extractor
+   *  did. Absent on meetings recorded before this was tracked. The extractor
+   *  lifts sentences straight out of the transcript, which reads as a model
+   *  doing a bad job rather than as no model having run — so the meeting says
+   *  which it was. */
+  notesGenerator?: "model" | "extractive";
   /** When this device last edited it — the stamp the cloud compares. */
   updatedAt?: string;
   /** A tombstone: deleted here, not yet told to the cloud. */

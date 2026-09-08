@@ -232,6 +232,16 @@ export function MeetingDetail() {
 
       {tab === "notes" ? (
         <div className="ldg-prose space-y-4">
+          {/* The extractive summariser lifts sentences straight out of the
+              transcript. That is honest behaviour but it reads as a model
+              having done a poor job, so say which one wrote these. */}
+          {meeting.notesGenerator === "extractive" && (
+            <Notice tone="warn" icon={<TriangleAlert className="h-4 w-4" />}>
+              These notes were pulled out of the transcript rather than written by the
+              assistant, which wasn&rsquo;t available when this meeting ended. They are
+              real lines that were said, not a summary.
+            </Notice>
+          )}
           <NoteBlock title="Summary" items={attributed?.summary ?? []} onJump={openAt} />
           {meeting.manualNotes?.trim() && (
             <Card className="border-brand/40 p-5">
