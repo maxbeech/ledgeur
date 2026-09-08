@@ -15,6 +15,17 @@ export interface Release {
 
 export const RELEASES: readonly Release[] = [
   {
+    date: "2026-09-08",
+    title: "Keep a thought, and spaces that hold a whole project",
+    changes: [
+      { kind: "new", text: "There is now somewhere to put the thought you have on the way out of a meeting. Press ⌘⇧K on the desktop, or tap Keep on your phone, then type it or say it. One action, and it is kept." },
+      { kind: "new", text: "Ledgeur works out whether what you kept is a task or a note, and which of your spaces it is about. It is never allowed to invent a space, it has to quote the words it decided on, and it has to be sure: anything it is unsure about stays in your inbox as a note rather than being filed somewhere wrong. Every guess is labelled as one and takes a single tap to correct." },
+      { kind: "new", text: "A space is now a project rather than a filter. It has its own page holding its meetings, its tasks and its notes together, and a meeting files itself into the right one when it finishes." },
+      { kind: "new", text: "On the phone there is a home-screen widget and a lock-screen widget. The lock-screen one is a microphone: one tap from a locked phone to a listening capture box, which is about as long as a thought lasts." },
+      { kind: "changed", text: "The thought is saved before anything looks at it, so a slow or missing model can only change where it ends up, never whether it survived. If nothing could sort it, it is kept anyway and says why." },
+    ],
+  },
+  {
     date: "2026-09-07",
     title: "Sync switched fully on, and the phone apps tested on real phones",
     changes: [

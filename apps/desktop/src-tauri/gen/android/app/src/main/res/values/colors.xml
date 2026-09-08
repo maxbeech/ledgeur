@@ -7,4 +7,14 @@
     <color name="teal_700">#FF018786</color>
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
+
+    <!-- Widget palette. Taken from the app's own tokens (packages/ui/src/tokens.css)
+         so the thing on the home screen is recognisably the same product: surface,
+         a muted label, the ink text, and the brand blue for the fast path. -->
+    <color name="widget_surface">#FFFFFFFF</color>
+    <color name="widget_tile">#FFF1F2F4</color>
+    <color name="widget_ink">#FF171A1F</color>
+    <color name="widget_muted">#FF6B7280</color>
+    <color name="widget_accent">#FF1F5EFF</color>
+    <color name="widget_on_accent">#FFFFFFFF</color>
 </resources>

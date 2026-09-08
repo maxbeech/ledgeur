@@ -15,3 +15,4 @@ export * from "./rag/chunk.ts";
 export * from "./calendar/schedule.ts";
 export * from "./text/tokens.ts";
 export * from "./context/index.ts";
+export * from "./capture/index.ts";

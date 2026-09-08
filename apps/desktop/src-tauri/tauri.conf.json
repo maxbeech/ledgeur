@@ -49,6 +49,17 @@
     }
   },
   "plugins": {
+    "deep-link": {
+      "mobile": [
+        {
+          "scheme": ["ledgeur"],
+          "appLink": false
+        }
+      ],
+      "desktop": {
+        "schemes": ["ledgeur"]
+      }
+    },
     "updater": {
       "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEVDQUM5NDEyMzQ4NjMwRjYKUldUMk1JWTBFcFNzN0pLbDhnSUhyd1dGQmdBVXdlWmUzbHAzVjBKOWJMSFJkd2tIVERSc1hEV2IK",
       "endpoints": [

@@ -21,6 +21,10 @@ dotenvy = "0.15"
 tauri = { version = "2", features = [] }
 tauri-plugin-notification = "2"
 tauri-plugin-opener = "2"
+# Custom-scheme links (`ledgeur://capture`), which is the only way a home-screen
+# or lock-screen widget can reach the app: a widget renders and can open a URL,
+# and that is the entire extent of what it may do.
+tauri-plugin-deep-link = "2"
 # Local dev logs (terminal + webview devtools console) and prod crash reporting.
 tauri-plugin-log = "2"
 log = "0.4"

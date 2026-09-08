@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The widget's declaration.
+
+  `updatePeriodMillis="0"` because there is nothing to update: the widget shows
+  three fixed buttons, so waking the app to redraw them would spend battery to
+  change nothing. `targetCellWidth/Height` are the Android 12+ way of asking for
+  a size; minWidth/minHeight are what older launchers read, so both are here.
+-->
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    android:initialLayout="@layout/widget_capture"
+    android:previewLayout="@layout/widget_capture"
+    android:minWidth="180dp"
+    android:minHeight="80dp"
+    android:targetCellWidth="4"
+    android:targetCellHeight="1"
+    android:resizeMode="horizontal"
+    android:widgetCategory="home_screen"
+    android:description="@string/widget_description"
+    android:updatePeriodMillis="0" />

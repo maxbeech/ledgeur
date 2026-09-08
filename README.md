@@ -177,6 +177,19 @@ every edit, pulls every change, honours deletions, and listens for the other
 device over Realtime. See [`docs/REDESIGN.md`](docs/REDESIGN.md) and
 [`docs/MOBILE.md`](docs/MOBILE.md).
 
+The 2026-09-08 **capture pass** gave the product a second way in. Recording a
+meeting was the only one, so the thought you have on the way out of one went
+nowhere. There is now a box for it (`⌘⇧K`, a phone tab, a home-screen and
+lock-screen widget) that takes a thought typed or spoken and keeps it in one
+action. The on-device model then decides whether it was a task or a note and
+which space it belongs to, under the same rules speaker naming works by: it may
+only choose a space you already have, it has to quote the words it decided on,
+and it has to clear a belief threshold or leave the thought in the inbox. The
+thought is on disk before any of that runs, so a missing or wrong model can
+change where it lands but never whether it survived. Spaces became projects in
+the same pass: a space now has its own page holding its meetings, its tasks and
+its notes, and a finished meeting files itself into one.
+
 Earlier: editorial design system, ⌘K palette, mobile tab bar, recordings that
 survive navigation. See [`docs/ROADMAP.md`](docs/ROADMAP.md) for what's next,
 [`docs/NATIVE_AI.md`](docs/NATIVE_AI.md) for the on-device engine, and

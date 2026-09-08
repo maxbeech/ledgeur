@@ -1,4 +1,13 @@
 <resources>
     <string name="app_name">"Ledgeur"</string>
     <string name="main_activity_title">"Ledgeur"</string>
+
+    <string name="widget_title">Ledgeur</string>
+    <string name="widget_speak">Say it</string>
+    <string name="widget_type">Type it</string>
+    <string name="widget_record">Record</string>
+    <string name="widget_description">Catch a thought before it goes. Say it or type it, and Ledgeur sorts it.</string>
+    <string name="widget_speak_description">Keep a thought by speaking it</string>
+    <string name="widget_type_description">Keep a thought by typing it</string>
+    <string name="widget_record_description">Record a meeting</string>
 </resources>

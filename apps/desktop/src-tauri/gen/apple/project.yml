@@ -54,6 +54,29 @@ targets:
           - UIInterfaceOrientationLandscapeRight
         CFBundleShortVersionString: 0.3.1
         CFBundleVersion: "0.3.1"
+        # The scheme the home-screen and lock-screen widgets open. A widget
+        # cannot run app code — a URL is the entire interface it has — so this
+        # is what makes one tap from a locked phone reach a live microphone.
+        # Declared here as well as in tauri.conf.json because this plist is
+        # regenerated from this file, and a scheme that only exists in the
+        # generated copy is one `tauri ios init` away from silently vanishing.
+        CFBundleURLTypes:
+          - CFBundleURLName: com.maxbeech.ledgeur
+            CFBundleURLSchemes: [ledgeur]
+        # These three were once hand-added to the generated Info.plist, which
+        # meant the next `xcodegen generate` silently deleted them. iOS does not
+        # warn about a missing usage description: it terminates the app the
+        # moment it asks for the microphone, which is both recording and
+        # dictation. They live here now because THIS file is what generates
+        # that plist. Do not move them back.
+        NSMicrophoneUsageDescription: >-
+          Ledgeur records meeting audio so it can transcribe it on this phone.
+          Audio and transcripts stay on the phone unless you choose to sync them.
+        NSAudioCaptureUsageDescription: >-
+          Ledgeur captures the meeting audio your Mac is playing so it can
+          transcribe the other side of a call. Audio and transcripts stay on your
+          machine unless you choose to sync them.
+        ITSAppUsesNonExemptEncryption: false
     entitlements:
       path: ledgeur_iOS/ledgeur_iOS.entitlements
     scheme:
@@ -71,6 +94,9 @@ targets:
         EXCLUDED_ARCHS[sdk=iphoneos*]: x86_64
       groups: [app]
     dependencies:
+      - target: LedgeurWidget
+        embed: true
+        codeSign: true
       - framework: libapp.a
         embed: false
       - sdk: CoreGraphics.framework
@@ -87,3 +113,43 @@ targets:
         outputFiles:
           - $(SRCROOT)/Externals/x86_64/${CONFIGURATION}/libapp.a
           - $(SRCROOT)/Externals/arm64/${CONFIGURATION}/libapp.a
+  # The home-screen and lock-screen widgets.
+  #
+  # Deploys to iOS 16 while the app deploys to 14: the accessory (lock-screen)
+  # families do not exist before then, and a lock-screen button is most of the
+  # point. On an older system the app is unchanged and the widget is simply not
+  # offered.
+  #
+  # It shares no code and no container with the app — see LedgeurWidget.swift
+  # for why a widget that showed real data would be a worse widget.
+  LedgeurWidget:
+    type: app-extension
+    platform: iOS
+    deploymentTarget: "16.0"
+    sources:
+      - path: LedgeurWidget
+    info:
+      path: LedgeurWidget/Info.plist
+      properties:
+        CFBundleDisplayName: Ledgeur
+        # These MUST match ledgeur_iOS's above, exactly. App Store Connect
+        # rejects an upload whose extension carries a different version from
+        # its host app, and it rejects it after the archive, the signing and
+        # the upload — so a one-character drift here costs a whole release
+        # cycle to find. Change both together or neither.
+        CFBundleShortVersionString: 0.3.1
+        CFBundleVersion: "0.3.1"
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
+    settings:
+      base:
+        PRODUCT_NAME: LedgeurWidget
+        PRODUCT_BUNDLE_IDENTIFIER: com.maxbeech.ledgeur.widget
+        DEVELOPMENT_TEAM: E353LGUVGH
+        INFOPLIST_KEY_CFBundleDisplayName: Ledgeur
+        SKIP_INSTALL: true
+        TARGETED_DEVICE_FAMILY: "1,2"
+        SWIFT_VERSION: "5.0"
+    dependencies:
+      - sdk: WidgetKit.framework
+      - sdk: SwiftUI.framework

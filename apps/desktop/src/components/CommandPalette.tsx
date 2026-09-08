@@ -2,17 +2,20 @@
 // by title. Real data only — meeting entries come from the live cache.
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Sparkles, CalendarClock, CornerDownLeft, Search, Settings2 } from "lucide-react";
+import { Sparkles, CalendarClock, CornerDownLeft, Mic, Search, Settings2, StickyNote } from "lucide-react";
 import { cn, relativeTime } from "@ledgeur/ui";
 import { NAV } from "./Sidebar.tsx";
 import { RecordDot } from "./RecordDot.tsx";
 import { useMeetings } from "../lib/useMeetings.ts";
+import { useFolders } from "../lib/folders.ts";
+import { openCapture } from "../lib/captureDock.ts";
 
 interface Item { id: string; label: string; hint?: string; icon: React.ReactNode; run: () => void }
 
 export function CommandPalette({ open, onClose }: { open: boolean; onClose: () => void }) {
   const nav = useNavigate();
   const { cards } = useMeetings();
+  const folders = useFolders();
   const [q, setQ] = useState("");
   const [sel, setSel] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -24,9 +27,19 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
 
   const items = useMemo<Item[]>(() => {
     const go = (to: string) => () => { nav(to); onClose(); };
+    const capture = (mode: "type" | "speak") => () => { openCapture(mode); onClose(); };
     const base: Item[] = [
       { id: "record", label: "Start recording", hint: "New meeting", icon: <RecordDot className="mx-[3px]" />, run: go("/record") },
+      { id: "capture", label: "Keep a thought", hint: "⌘⇧K", icon: <StickyNote className="h-4 w-4 text-muted" />, run: capture("type") },
+      { id: "capture-speak", label: "Keep a thought — say it", icon: <Mic className="h-4 w-4 text-muted" />, run: capture("speak") },
       ...NAV.map((n) => ({ id: n.to, label: `Go to ${n.label}`, icon: <n.icon className="h-4 w-4 text-muted" />, run: go(n.to) })),
+      ...folders.map((f) => ({
+        id: `space-${f.id}`,
+        label: `Go to ${f.name}`,
+        hint: "Space",
+        icon: <span className={cn("mx-[5px] h-2.5 w-2.5 rounded-full", `bg-${f.tone}`)} />,
+        run: go(`/spaces/${f.id}`),
+      })),
       { id: "/integrations", label: "Go to Settings", icon: <Settings2 className="h-4 w-4 text-muted" />, run: go("/integrations") },
     ];
     const meetings: Item[] = (cards ?? []).slice(0, 40).map((c) => ({
@@ -49,7 +62,7 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
       });
     }
     return filtered;
-  }, [q, cards, nav, onClose]);
+  }, [q, cards, folders, nav, onClose]);
 
   useEffect(() => { setSel((s) => Math.min(s, Math.max(0, items.length - 1))); }, [items.length]);
 

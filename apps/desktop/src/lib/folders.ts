@@ -17,6 +17,7 @@
 import { useEffect, useState } from "react";
 import { useSyncExternalStore } from "react";
 import { listMeetings, saveMeeting, subscribeMeetings } from "./meetingsStore.ts";
+import { rescueOrphanedCaptures } from "./captures.ts";
 
 export interface Folder {
   id: string;
@@ -92,6 +93,10 @@ export function applyRemoteFolders(pulled: readonly Folder[], removed: readonly 
   for (const f of pulled) byId.set(f.id, f);
   for (const id of removed) byId.delete(id);
   commit([...byId.values()]);
+  // A space deleted on the other device takes captures down with it unless
+  // they are moved back to the inbox here. A capture pointing at a space that
+  // is gone shows up in no list at all.
+  rescueOrphanedCaptures(live.map((f) => f.id));
 }
 
 /** A tombstone the cloud has acknowledged can go. */
@@ -119,13 +124,15 @@ export function renameFolder(id: string, name: string): void {
 }
 
 /**
- * Delete a space. The meetings in it are kept and moved back to unfiled —
- * deleting a folder must never be a way to lose a recording, and a meeting
- * pointing at a space that no longer exists would be invisible in every filter.
+ * Delete a space. The meetings and captures in it are kept and moved back to
+ * unfiled — deleting a folder must never be a way to lose a recording or a
+ * thought, and either one pointing at a space that no longer exists would be
+ * invisible in every filter.
  */
 export async function deleteFolder(id: string): Promise<number> {
   const now = new Date().toISOString();
   commit(records.map((f) => (f.id === id ? { ...f, deletedAt: now, updatedAt: now } : f)));
+  rescueOrphanedCaptures(live.map((f) => f.id));
   const meetings = await listMeetings();
   const affected = meetings.filter((m) => m.folderId === id);
   for (const m of affected) await saveMeeting({ ...m, folderId: undefined });

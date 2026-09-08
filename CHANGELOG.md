@@ -1,5 +1,56 @@
 # Changelog
 
+## Unreleased (2026-09-08) — The thought you have on the way out
+
+Until now the only way anything got into Ledgeur was to record a meeting. The
+thought you have walking out of one — *chase Priya about the SOC2 letter*, *idea:
+let people name a voice from the library* — went where it always goes: nowhere.
+
+There is now a box for it. `⌘⇧K` on the laptop, a tab on the phone, a button on
+the home screen and the lock screen. Type it or say it, press Enter, and it is
+kept. One action, and nothing else is asked of you.
+
+### Sorted afterwards, never at the cost of keeping it
+
+The thought is on disk before anything looks at it. Only then does the on-device
+model decide two things: whether it is a **task** or a **note**, and which
+**space** it belongs to. A model that is missing, slow or wrong can move where a
+thought ends up; it cannot lose one. A capture nothing could sort stays in the
+inbox as a note and says why.
+
+The rules are the same ones speaker naming uses, and they are in
+`packages/core/src/capture/classify.ts`:
+
+* it may only choose a space **you already have** — never an invented one;
+* it must quote the words that made it choose, and that quote has to actually
+  appear in what you wrote;
+* it must clear a belief threshold — 0.65 to call something a task, 0.7 to file
+  it — because being unfiled is a good answer and being in the wrong space is
+  worse than being in none;
+* a tidied title may only use words you actually said;
+* every guess is labelled as one, and one tap corrects it. A correction is never
+  re-guessed.
+
+Around 90 tests in `packages/core/test/capture.mts` and
+`apps/desktop/test/capture.mts`, most of them about what gets **rejected**.
+
+### Spaces became projects
+
+A space used to be a filter on the library, which made a "project" a list of
+recordings and nothing else. A space is now a place with its own page, holding
+its meetings, its tasks and its notes together — and a finished meeting is filed
+into one automatically, under the same rules and the same refusal to guess.
+
+### On the phone
+
+The home-screen widget has three buttons — say it, type it, record — and the
+lock-screen widget has one: a microphone that goes straight to listening. A
+widget cannot run app code; it opens a URL (`ledgeur://capture?mode=speak`), and
+that link is pinned by a test on both sides.
+
+Needs migration `0008_captures.sql`. Without it everything still works on the
+device and captures simply do not sync, which the app says rather than failing.
+
 ## Unreleased (2026-09-08) — Speakers that name themselves
 
 Speaker separation has always ended at "Speaker 1" and "Speaker 2". That is

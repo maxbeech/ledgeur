@@ -2,10 +2,10 @@
 // the app, your spaces, the last few meetings, and who you are. Light, quiet,
 // and the same colour as the ground so the page is the thing that is white.
 import { useSyncExternalStore } from "react";
-import { NavLink, useNavigate, useSearchParams } from "react-router-dom";
+import { NavLink, useNavigate } from "react-router-dom";
 import {
   House, Library, Sparkles, SquareCheck, Settings2, Command, Users, Plus, Download,
-  type LucideIcon,
+  StickyNote, type LucideIcon,
 } from "lucide-react";
 import { cn, formatElapsed, relativeTime } from "@ledgeur/ui";
 import { Avatar, Badge, Logo, ProgressBar } from "@ledgeur/ui/components";
@@ -14,12 +14,14 @@ import { useSession } from "../lib/session.ts";
 import { useRecorderCtx } from "../lib/useRecorderCtx.ts";
 import { useMeetings } from "../lib/useMeetings.ts";
 import { useFolders } from "../lib/folders.ts";
+import { openCapture } from "../lib/captureDock.ts";
 import { subscribeWarmup, getWarmupStatus } from "../lib/modelWarmup.ts";
 import { RecordDot } from "./RecordDot.tsx";
 
 export const NAV: readonly { to: string; label: string; icon: LucideIcon; end?: boolean }[] = [
   { to: "/", label: "Home", icon: House, end: true },
   { to: "/meetings", label: "Library", icon: Library },
+  { to: "/inbox", label: "Thoughts", icon: StickyNote },
   { to: "/ask", label: "Ask", icon: Sparkles },
   { to: "/tasks", label: "Tasks", icon: SquareCheck },
   { to: "/people", label: "People", icon: Users },
@@ -32,7 +34,6 @@ const itemClass = (active: boolean) => cn(
 
 export function Sidebar({ onOpenPalette }: { onOpenPalette: () => void }) {
   const nav = useNavigate();
-  const [params] = useSearchParams();
   const { session } = useSession();
   const { state } = useRecorderCtx();
   const { cards } = useMeetings();
@@ -42,7 +43,6 @@ export function Sidebar({ onOpenPalette }: { onOpenPalette: () => void }) {
   const connected = hasBackend && !!session;
   const recording = state.status === "recording";
   const recent = (cards ?? []).slice(0, 6);
-  const activeSpace = params.get("space");
 
   return (
     <aside className="flex h-full w-[264px] shrink-0 flex-col border-r border-hairline bg-paper" aria-label="Primary">
@@ -50,7 +50,7 @@ export function Sidebar({ onOpenPalette }: { onOpenPalette: () => void }) {
         <Logo size="sm" />
       </div>
 
-      <div className="px-3 pb-2">
+      <div className="space-y-1.5 px-3 pb-2">
         <button
           onClick={() => nav("/record")}
           className={cn(
@@ -63,11 +63,21 @@ export function Sidebar({ onOpenPalette }: { onOpenPalette: () => void }) {
             ? <>Recording <span className="ldg-num ml-auto text-sm font-medium opacity-80">{formatElapsed(state.elapsed)}</span></>
             : "New recording"}
         </button>
+        {/* The short way in, right under the long one. Its shortcut is on the
+            button because this is a thing people want to stop reaching for. */}
+        <button
+          onClick={() => openCapture("type")}
+          className="flex h-9 w-full items-center gap-2.5 rounded-lg border border-hairline-strong bg-surface px-3 text-base font-medium text-ink-text transition-colors hover:bg-surface-muted"
+        >
+          <StickyNote className="h-[18px] w-[18px]" strokeWidth={2} />
+          Keep a thought
+          <kbd className="ml-auto rounded-md border border-hairline-strong px-1.5 text-2xs font-medium text-faint">⌘⇧K</kbd>
+        </button>
       </div>
 
       <nav className="space-y-0.5 px-3 py-2">
         {NAV.map(({ to, label, icon: Icon, end }) => (
-          <NavLink key={to} to={to} end={end} className={({ isActive }) => itemClass(isActive && !activeSpace)}>
+          <NavLink key={to} to={to} end={end} className={({ isActive }) => itemClass(isActive)}>
             <Icon className="h-[18px] w-[18px]" strokeWidth={2} />
             {label}
           </NavLink>
@@ -83,8 +93,10 @@ export function Sidebar({ onOpenPalette }: { onOpenPalette: () => void }) {
                 <Plus className="h-3.5 w-3.5" />
               </button>
             </div>
+            {/* A space is a place now, not a filter on the library: its own
+                route, holding its meetings, its tasks and its notes. */}
             {folders.map((f) => (
-              <NavLink key={f.id} to={`/meetings?space=${f.id}`} className={() => itemClass(activeSpace === f.id)}>
+              <NavLink key={f.id} to={`/spaces/${f.id}`} className={({ isActive }) => itemClass(isActive)}>
                 <span className={cn("h-2.5 w-2.5 shrink-0 rounded-full", `bg-${f.tone}`)} />
                 <span className="truncate">{f.name}</span>
               </NavLink>

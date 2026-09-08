@@ -22,7 +22,42 @@
                 <!-- AndroidTV support -->
                 <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
             </intent-filter>
+
+            <!--
+              `ledgeur://…` — how the home-screen widget reaches the app. A
+              widget cannot run app code; it can only ask the system to open a
+              URL, so this filter is the whole interface between the two.
+
+              The activity is already singleTask, so a tap while the app is
+              open delivers the URL to the running instance rather than
+              starting a second one. See apps/desktop/src/lib/captureLinks.ts,
+              which handles both that case and a cold start.
+            -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="ledgeur" />
+            </intent-filter>
         </activity>
+
+        <!--
+          The home-screen widget. `exported="true"` is required: the launcher is
+          a different process and has to be able to reach the provider at all.
+          It carries no data and accepts no input, so there is nothing here for
+          another app to read or drive.
+        -->
+        <receiver
+            android:name=".CaptureWidget"
+            android:label="@string/widget_title"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/capture_widget_info" />
+        </receiver>
 
         <provider
           android:name="androidx.core.content.FileProvider"

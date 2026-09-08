@@ -14,7 +14,11 @@
 //   speaker separation        packages/asr/diarize.worker.js
 //   voices that persist       packages/core/src/browser/voices.ts
 //   local library + search    packages/core/src/library/meeting.ts
+//   keep a thought            apps/desktop/src/components/capture/QuickCapture.tsx
+//   task-or-note + filing     packages/core/src/capture/classify.ts
+//   spaces hold everything    apps/desktop/src/screens/Space.tsx
 //   sync                      supabase/migrations/0002_rls.sql
+//   captures sync             supabase/migrations/0008_captures.sql
 //   shared team library       meetings.visibility = 'org' + RLS policies
 //   agent access (MCP)        packages/mcp, apps/mcp-server, /api/mcp
 //   plan gating               supabase/functions/mcp-token (org_is_paid)
@@ -58,6 +62,8 @@ export const PLANS: readonly Plan[] = [
       "Name a voice once; it is recognised in every later meeting",
       "Drag in an existing recording and treat it like a live one",
       "Summary, decisions and action items",
+      "Keep a thought in seconds: type it or say it, and it is sorted into a task or a note",
+      "Spaces that hold a project's meetings, tasks and notes together",
       "Full-text search across your whole library",
       "Markdown export, and a copy of everything you can take with you",
     ],
@@ -75,7 +81,7 @@ export const PLANS: readonly Plan[] = [
     featured: true,
     includes: [
       "Everything in Personal",
-      "Sync your meetings across your own devices",
+      "Sync your meetings and kept thoughts across your own devices",
       "A shared team library — meetings you choose to share, searchable by everyone",
       "Agent access: connect Claude, ChatGPT or Cursor to your meetings over MCP",
       "Ask questions across everything the team has ever discussed",

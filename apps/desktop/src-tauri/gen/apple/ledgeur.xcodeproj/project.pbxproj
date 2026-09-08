@@ -13,42 +13,87 @@
 		2804AE29055090D2327940B7 /* CoreGraphics.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 7B1D538C2EEE31053B9D75BC /* CoreGraphics.framework */; };
 		3C6A69976981AEBE42C07398 /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 7F13B007542E630916AAD888 /* LaunchScreen.storyboard */; };
 		4211037F8FC41EBC5BE7D50F /* Metal.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 048F27445F84F8E41541864E /* Metal.framework */; };
+		4A3AEA1DFCB888AA611FACE9 /* LedgeurWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D8D6BB2126E1A7AB11AE93E /* LedgeurWidget.swift */; };
 		67ED226423CF55F46F6737D7 /* assets in Resources */ = {isa = PBXBuildFile; fileRef = BC3F6398BF54644FB97138E7 /* assets */; };
 		858A27360BF603702CEA292A /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = FB4B7B56CB08F64ECFFD2404 /* Assets.xcassets */; };
+		89FFE349E4198EF9C855ACD5 /* libapp.a in Resources */ = {isa = PBXBuildFile; fileRef = C99B120D5785DE951DB1134B /* libapp.a */; };
+		AEE658167D264BF1A68D8E64 /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 8E839E5FD7E1BC9DEEEA93FB /* SwiftUI.framework */; };
 		B405A7F1489CCCCF998D9244 /* Security.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 5DA8928CD4284AAA6D46F88B /* Security.framework */; };
 		C6744A268239FA8C157E6A7C /* libapp.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 148A3D7B10902F0601E39F77 /* libapp.a */; };
 		D6DA74E7A72054990B8CF0D8 /* WebKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 5B0AFB15006E6A0E81AC8069 /* WebKit.framework */; };
+		E0D0D6982D25E5F25D2EEA15 /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 2BE1060194E20BF402B87D51 /* WidgetKit.framework */; };
 		E45C12F05CA6D05DC1E3BF47 /* QuartzCore.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = A4E26886A4F55BE215BFA36A /* QuartzCore.framework */; };
+		EAF58B84F36AE554571FD1BA /* LedgeurWidget.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = E388E0C2F8C339B675E0E8CD /* LedgeurWidget.appex */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 /* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		0E80E087844FEC58F774D92E /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 5B951FEC2BF1924D634B5334 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 5596A1A251565293D7237F01;
+			remoteInfo = LedgeurWidget;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		A29D2A31F083AB6914D26B94 /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				EAF58B84F36AE554571FD1BA /* LedgeurWidget.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
 		028B3CF1F3E496E2ECBED922 /* lib.rs */ = {isa = PBXFileReference; path = lib.rs; sourceTree = "<group>"; };
 		048F27445F84F8E41541864E /* Metal.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Metal.framework; path = System/Library/Frameworks/Metal.framework; sourceTree = SDKROOT; };
 		0B0EC64CB718A35EF0B3A99E /* ledgeur_iOS.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = ledgeur_iOS.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		0C6F5E59C2C1896115C2A937 /* live_speakers.rs */ = {isa = PBXFileReference; path = live_speakers.rs; sourceTree = "<group>"; };
 		13F3C9BF680470DD2F7192D5 /* ledgeur_iOS.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = ledgeur_iOS.entitlements; sourceTree = "<group>"; };
 		148A3D7B10902F0601E39F77 /* libapp.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; path = libapp.a; sourceTree = "<group>"; };
+		2BE1060194E20BF402B87D51 /* WidgetKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WidgetKit.framework; path = System/Library/Frameworks/WidgetKit.framework; sourceTree = SDKROOT; };
 		327AF3722B3C2B4DB48B04DD /* net.rs */ = {isa = PBXFileReference; path = net.rs; sourceTree = "<group>"; };
 		353244CBD08C80BCD1D932FE /* main.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = main.mm; sourceTree = "<group>"; };
 		4D401DB1402EAE608AE84EDF /* MetalKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = MetalKit.framework; path = System/Library/Frameworks/MetalKit.framework; sourceTree = SDKROOT; };
+		4D8D6BB2126E1A7AB11AE93E /* LedgeurWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LedgeurWidget.swift; sourceTree = "<group>"; };
 		537AAA12F6C06EC6F17ADA62 /* mod.rs */ = {isa = PBXFileReference; path = mod.rs; sourceTree = "<group>"; };
 		5B0AFB15006E6A0E81AC8069 /* WebKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WebKit.framework; path = System/Library/Frameworks/WebKit.framework; sourceTree = SDKROOT; };
 		5DA8928CD4284AAA6D46F88B /* Security.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Security.framework; path = System/Library/Frameworks/Security.framework; sourceTree = SDKROOT; };
+		7710E5330F27604A8974BCFE /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		7B1D538C2EEE31053B9D75BC /* CoreGraphics.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreGraphics.framework; path = System/Library/Frameworks/CoreGraphics.framework; sourceTree = SDKROOT; };
 		7F13B007542E630916AAD888 /* LaunchScreen.storyboard */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; path = LaunchScreen.storyboard; sourceTree = "<group>"; };
+		8E839E5FD7E1BC9DEEEA93FB /* SwiftUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SwiftUI.framework; path = System/Library/Frameworks/SwiftUI.framework; sourceTree = SDKROOT; };
 		95B78370F2A8AA263E9DEEF2 /* bindings.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = bindings.h; sourceTree = "<group>"; };
 		A4E26886A4F55BE215BFA36A /* QuartzCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = QuartzCore.framework; path = System/Library/Frameworks/QuartzCore.framework; sourceTree = SDKROOT; };
 		B01A1DDE4879B6E0818CEF35 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		B12749941D08D4C732A87897 /* mod.rs */ = {isa = PBXFileReference; path = mod.rs; sourceTree = "<group>"; };
 		BC3F6398BF54644FB97138E7 /* assets */ = {isa = PBXFileReference; lastKnownFileType = folder; path = assets; sourceTree = SOURCE_ROOT; };
 		C43D28D3B9A324CF25035EE8 /* main.rs */ = {isa = PBXFileReference; path = main.rs; sourceTree = "<group>"; };
+		C99B120D5785DE951DB1134B /* libapp.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; path = libapp.a; sourceTree = "<group>"; };
 		D03FF4A3E0DB9B86789B8C58 /* engine.rs */ = {isa = PBXFileReference; path = engine.rs; sourceTree = "<group>"; };
 		DB25A88592D974A3998F1975 /* UIKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = UIKit.framework; path = System/Library/Frameworks/UIKit.framework; sourceTree = SDKROOT; };
+		E388E0C2F8C339B675E0E8CD /* LedgeurWidget.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = LedgeurWidget.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		EFAA713437F937F82F51A185 /* voices.rs */ = {isa = PBXFileReference; path = voices.rs; sourceTree = "<group>"; };
 		FA2A2EAC56AB53259531D7AE /* llm.rs */ = {isa = PBXFileReference; path = llm.rs; sourceTree = "<group>"; };
 		FB4B7B56CB08F64ECFFD2404 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
+		B619E10DAE4E9F422AA63758 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				E0D0D6982D25E5F25D2EEA15 /* WidgetKit.framework in Frameworks */,
+				AEE658167D264BF1A68D8E64 /* SwiftUI.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		EBF93719BCE6946ABCEE65A8 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
@@ -78,6 +123,22 @@
 			);
 			name = src;
 			path = ../../src;
+			sourceTree = "<group>";
+		};
+		1BDE48505133E4AAB16014A4 /* arm64 */ = {
+			isa = PBXGroup;
+			children = (
+				30BC0879EE3BC8A23E7ECFEB /* release */,
+			);
+			path = arm64;
+			sourceTree = "<group>";
+		};
+		30BC0879EE3BC8A23E7ECFEB /* release */ = {
+			isa = PBXGroup;
+			children = (
+				C99B120D5785DE951DB1134B /* libapp.a */,
+			);
+			path = release;
 			sourceTree = "<group>";
 		};
 		4AA621017FAFB8D16792CA6D /* bindings */ = {
@@ -114,8 +175,10 @@
 				4D401DB1402EAE608AE84EDF /* MetalKit.framework */,
 				A4E26886A4F55BE215BFA36A /* QuartzCore.framework */,
 				5DA8928CD4284AAA6D46F88B /* Security.framework */,
+				8E839E5FD7E1BC9DEEEA93FB /* SwiftUI.framework */,
 				DB25A88592D974A3998F1975 /* UIKit.framework */,
 				5B0AFB15006E6A0E81AC8069 /* WebKit.framework */,
+				2BE1060194E20BF402B87D51 /* WidgetKit.framework */,
 			);
 			name = Frameworks;
 			sourceTree = "<group>";
@@ -124,6 +187,7 @@
 			isa = PBXGroup;
 			children = (
 				D03FF4A3E0DB9B86789B8C58 /* engine.rs */,
+				0C6F5E59C2C1896115C2A937 /* live_speakers.rs */,
 				FA2A2EAC56AB53259531D7AE /* llm.rs */,
 				B12749941D08D4C732A87897 /* mod.rs */,
 				EFAA713437F937F82F51A185 /* voices.rs */,
@@ -134,6 +198,7 @@
 		963B75190A28F4CD43031515 /* Externals */ = {
 			isa = PBXGroup;
 			children = (
+				1BDE48505133E4AAB16014A4 /* arm64 */,
 			);
 			path = Externals;
 			sourceTree = "<group>";
@@ -146,6 +211,15 @@
 			path = audio;
 			sourceTree = "<group>";
 		};
+		AE70A6A86126E58AAE7F2386 /* LedgeurWidget */ = {
+			isa = PBXGroup;
+			children = (
+				7710E5330F27604A8974BCFE /* Info.plist */,
+				4D8D6BB2126E1A7AB11AE93E /* LedgeurWidget.swift */,
+			);
+			path = LedgeurWidget;
+			sourceTree = "<group>";
+		};
 		B4D26A3E19F5D36884EAB127 = {
 			isa = PBXGroup;
 			children = (
@@ -154,6 +228,7 @@
 				7F13B007542E630916AAD888 /* LaunchScreen.storyboard */,
 				963B75190A28F4CD43031515 /* Externals */,
 				4CF7B176259A7C4C2F35FC19 /* ledgeur_iOS */,
+				AE70A6A86126E58AAE7F2386 /* LedgeurWidget */,
 				6EB5F5F47A0A608B222DC007 /* Sources */,
 				01B7EE6BD1B4BF2CF42A0725 /* src */,
 				739EB17E6A2D469C051EEE12 /* Frameworks */,
@@ -165,6 +240,7 @@
 			isa = PBXGroup;
 			children = (
 				0B0EC64CB718A35EF0B3A99E /* ledgeur_iOS.app */,
+				E388E0C2F8C339B675E0E8CD /* LedgeurWidget.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -178,9 +254,34 @@
 			path = ledgeur;
 			sourceTree = "<group>";
 		};
+		"TEMP_6322C265-45BF-418D-9B20-167323130276" /* x86_64 */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			path = x86_64;
+			sourceTree = "<group>";
+		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
+		5596A1A251565293D7237F01 /* LedgeurWidget */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 61417E4A837A877B40042787 /* Build configuration list for PBXNativeTarget "LedgeurWidget" */;
+			buildPhases = (
+				5E74ED3BEED375A05989DB8D /* Sources */,
+				B619E10DAE4E9F422AA63758 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = LedgeurWidget;
+			packageProductDependencies = (
+			);
+			productName = LedgeurWidget;
+			productReference = E388E0C2F8C339B675E0E8CD /* LedgeurWidget.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
 		EAB4D704697EADB84E32D2B9 /* ledgeur_iOS */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = E429606F65405E904CAA9E1B /* Build configuration list for PBXNativeTarget "ledgeur_iOS" */;
@@ -189,10 +290,12 @@
 				C64B45CFD233803F4D935CCF /* Sources */,
 				862FB7833944263233F8896A /* Resources */,
 				EBF93719BCE6946ABCEE65A8 /* Frameworks */,
+				A29D2A31F083AB6914D26B94 /* Embed Foundation Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				EDC4D9EA7302A61D8834B465 /* PBXTargetDependency */,
 			);
 			name = ledgeur_iOS;
 			packageProductDependencies = (
@@ -210,6 +313,9 @@
 				BuildIndependentTargetsInParallel = YES;
 				LastUpgradeCheck = 1430;
 				TargetAttributes = {
+					5596A1A251565293D7237F01 = {
+						DevelopmentTeam = E353LGUVGH;
+					};
 					EAB4D704697EADB84E32D2B9 = {
 						DevelopmentTeam = E353LGUVGH;
 					};
@@ -230,6 +336,7 @@
 			projectRoot = "";
 			targets = (
 				EAB4D704697EADB84E32D2B9 /* ledgeur_iOS */,
+				5596A1A251565293D7237F01 /* LedgeurWidget */,
 			);
 		};
 /* End PBXProject section */
@@ -242,6 +349,7 @@
 				858A27360BF603702CEA292A /* Assets.xcassets in Resources */,
 				3C6A69976981AEBE42C07398 /* LaunchScreen.storyboard in Resources */,
 				67ED226423CF55F46F6737D7 /* assets in Resources */,
+				89FFE349E4198EF9C855ACD5 /* libapp.a in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -272,6 +380,14 @@
 /* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		5E74ED3BEED375A05989DB8D /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				4A3AEA1DFCB888AA611FACE9 /* LedgeurWidget.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		C64B45CFD233803F4D935CCF /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -281,6 +397,14 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		EDC4D9EA7302A61D8834B465 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 5596A1A251565293D7237F01 /* LedgeurWidget */;
+			targetProxy = 0E80E087844FEC58F774D92E /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		173CD86AFFA4244EB20E8F1A /* debug */ = {
@@ -412,7 +536,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = ledgeur_iOS/ledgeur_iOS.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
-				DEVELOPMENT_TEAM = "E353LGUVGH";
+				DEVELOPMENT_TEAM = E353LGUVGH;
 				ENABLE_BITCODE = NO;
 				"EXCLUDED_ARCHS[sdk=iphoneos*]" = x86_64;
 				FRAMEWORK_SEARCH_PATHS = (
@@ -427,7 +551,7 @@
 				"LIBRARY_SEARCH_PATHS[arch=arm64]" = "$(inherited) $(PROJECT_DIR)/Externals/arm64/$(CONFIGURATION) $(SDKROOT)/usr/lib/swift $(DEVELOPER_DIR)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/$(PLATFORM_NAME) $(DEVELOPER_DIR)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift-5.0/$(PLATFORM_NAME)";
 				"LIBRARY_SEARCH_PATHS[arch=x86_64]" = "$(inherited) $(PROJECT_DIR)/Externals/x86_64/$(CONFIGURATION) $(SDKROOT)/usr/lib/swift $(DEVELOPER_DIR)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/$(PLATFORM_NAME) $(DEVELOPER_DIR)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift-5.0/$(PLATFORM_NAME)";
 				PRODUCT_BUNDLE_IDENTIFIER = com.maxbeech.ledgeur;
-				PRODUCT_NAME = "Ledgeur";
+				PRODUCT_NAME = Ledgeur;
 				SDKROOT = iphoneos;
 				TARGETED_DEVICE_FAMILY = "1,2";
 				VALID_ARCHS = arm64;
@@ -444,7 +568,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = ledgeur_iOS/ledgeur_iOS.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
-				DEVELOPMENT_TEAM = "E353LGUVGH";
+				DEVELOPMENT_TEAM = E353LGUVGH;
 				ENABLE_BITCODE = NO;
 				"EXCLUDED_ARCHS[sdk=iphoneos*]" = x86_64;
 				FRAMEWORK_SEARCH_PATHS = (
@@ -459,12 +583,54 @@
 				"LIBRARY_SEARCH_PATHS[arch=arm64]" = "$(inherited) $(PROJECT_DIR)/Externals/arm64/$(CONFIGURATION) $(SDKROOT)/usr/lib/swift $(DEVELOPER_DIR)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/$(PLATFORM_NAME) $(DEVELOPER_DIR)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift-5.0/$(PLATFORM_NAME)";
 				"LIBRARY_SEARCH_PATHS[arch=x86_64]" = "$(inherited) $(PROJECT_DIR)/Externals/x86_64/$(CONFIGURATION) $(SDKROOT)/usr/lib/swift $(DEVELOPER_DIR)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/$(PLATFORM_NAME) $(DEVELOPER_DIR)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift-5.0/$(PLATFORM_NAME)";
 				PRODUCT_BUNDLE_IDENTIFIER = com.maxbeech.ledgeur;
-				PRODUCT_NAME = "Ledgeur";
+				PRODUCT_NAME = Ledgeur;
 				SDKROOT = iphoneos;
 				TARGETED_DEVICE_FAMILY = "1,2";
 				VALID_ARCHS = arm64;
 			};
 			name = debug;
+		};
+		DCF79A382844668F8D096A02 /* debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				DEVELOPMENT_TEAM = E353LGUVGH;
+				INFOPLIST_FILE = LedgeurWidget/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = Ledgeur;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.maxbeech.ledgeur.widget;
+				PRODUCT_NAME = LedgeurWidget;
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = debug;
+		};
+		F7EA07243853BE111D5F74F8 /* release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				DEVELOPMENT_TEAM = E353LGUVGH;
+				INFOPLIST_FILE = LedgeurWidget/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = Ledgeur;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.maxbeech.ledgeur.widget;
+				PRODUCT_NAME = LedgeurWidget;
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = release;
 		};
 /* End XCBuildConfiguration section */
 
@@ -474,6 +640,15 @@
 			buildConfigurations = (
 				173CD86AFFA4244EB20E8F1A /* debug */,
 				2C95F4E6C718E840B5E249F6 /* release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = debug;
+		};
+		61417E4A837A877B40042787 /* Build configuration list for PBXNativeTarget "LedgeurWidget" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				DCF79A382844668F8D096A02 /* debug */,
+				F7EA07243853BE111D5F74F8 /* release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = debug;

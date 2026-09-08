@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The home-screen widget's one and only layout.
+
+  RemoteViews can only inflate a small set of classes, so this is deliberately
+  plain: nested LinearLayouts, TextViews, no custom views and no data binding.
+  Anything cleverer simply does not render on a launcher.
+
+  Three targets, each its own tappable block with its own pending intent — the
+  microphone first and widest, because saying it is the fast path and the fast
+  path is what the widget is for.
+-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="@drawable/widget_background"
+    android:padding="10dp">
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="@string/widget_title"
+        android:textSize="11sp"
+        android:textStyle="bold"
+        android:textColor="@color/widget_muted"
+        android:paddingStart="4dp"
+        android:paddingEnd="4dp"
+        android:paddingBottom="6dp" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:orientation="horizontal"
+        android:baselineAligned="false">
+
+        <TextView
+            android:id="@+id/widget_speak"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1.2"
+            android:layout_marginEnd="6dp"
+            android:background="@drawable/widget_tile_accent"
+            android:gravity="center"
+            android:text="@string/widget_speak"
+            android:textSize="13sp"
+            android:textStyle="bold"
+            android:textColor="@color/widget_on_accent"
+            android:contentDescription="@string/widget_speak_description" />
+
+        <TextView
+            android:id="@+id/widget_type"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:layout_marginEnd="6dp"
+            android:background="@drawable/widget_tile"
+            android:gravity="center"
+            android:text="@string/widget_type"
+            android:textSize="13sp"
+            android:textStyle="bold"
+            android:textColor="@color/widget_ink"
+            android:contentDescription="@string/widget_type_description" />
+
+        <TextView
+            android:id="@+id/widget_record"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:background="@drawable/widget_tile"
+            android:gravity="center"
+            android:text="@string/widget_record"
+            android:textSize="13sp"
+            android:textStyle="bold"
+            android:textColor="@color/widget_ink"
+            android:contentDescription="@string/widget_record_description" />
+    </LinearLayout>
+</LinearLayout>

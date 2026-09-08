@@ -26,7 +26,10 @@
 
 import { useSyncExternalStore } from "react";
 import type { SupabaseClient, Session } from "@supabase/supabase-js";
-import { planMerge, isSchemaError, isLegacyTwin, SYNC_MIGRATION, type NoteTemplate } from "@ledgeur/core";
+import {
+  planMerge, isSchemaError, isLegacyTwin, SYNC_MIGRATION,
+  type CaptureRecord, type NoteTemplate,
+} from "@ledgeur/core";
 import { getSupabase } from "./supabase.ts";
 import {
   getMeeting, listMeetingRecords, purgeMeeting, saveMeeting, subscribeMeetings,
@@ -34,6 +37,10 @@ import {
 } from "./meetingsStore.ts";
 import { getFolderRecords, applyRemoteFolders, forgetFolders, normaliseTone, type Folder } from "./folders.ts";
 import { getRecipeRecords, applyRemoteRecipes, forgetRecipes, type RecipeRecord } from "./recipes.ts";
+import {
+  getCaptureRecords, applyRemoteCaptures, capturesNeedPush, forgetCaptures, markCapturesSynced,
+  subscribeCaptures,
+} from "./captures.ts";
 import { createLogger } from "./logger.ts";
 
 const log = createLogger("sync");
@@ -359,6 +366,94 @@ async function syncRecipes(ctx: PushCtx): Promise<number> {
   return plan.push.length + plan.pull.length + plan.removeLocally.length;
 }
 
+/* ----------------------------------------------------- push+pull: captures */
+
+interface CaptureRow {
+  id: string; owner_id: string; org_id: string | null; body: string; title: string;
+  kind: string; folder_id: string | null; kind_source: string; space_source: string;
+  kind_confidence: number; space_confidence: number; space_evidence: string;
+  entry: string; done: boolean; unsorted_reason: string;
+  created_at: string; updated_at: string; deleted_at: string | null;
+}
+
+/** A cloud capture in the shape this device stores. Exported, with its
+ *  counterpart below, so the round trip can be asserted rather than trusted: a
+ *  field added to `CaptureRecord` and forgotten in one of these two functions
+ *  is data that silently stops crossing between devices. */
+export const toCapture = (r: CaptureRow): CaptureRecord => ({
+  id: r.id,
+  text: r.body,
+  title: r.title || r.body,
+  kind: r.kind === "task" ? "task" : "note",
+  ...(r.folder_id ? { spaceId: r.folder_id } : {}),
+  kindSource: r.kind_source === "user" ? "user" : "inferred",
+  spaceSource: r.space_source === "user" ? "user" : "inferred",
+  kindConfidence: r.kind_confidence ?? 0,
+  spaceConfidence: r.space_confidence ?? 0,
+  ...(r.space_evidence ? { spaceEvidence: r.space_evidence } : {}),
+  entry: r.entry === "spoken" ? "spoken" : "typed",
+  ...(r.kind === "task" ? { done: Boolean(r.done) } : {}),
+  ...(r.unsorted_reason ? { unsortedReason: r.unsorted_reason } : {}),
+  createdAt: r.created_at,
+  updatedAt: r.updated_at,
+  syncedAt: new Date().toISOString(),
+  ...(r.deleted_at ? { deletedAt: r.deleted_at } : {}),
+});
+
+export const toCaptureRow = (c: CaptureRecord, ctx: { userId: string; orgId: string }): Record<string, unknown> => ({
+  id: c.id, owner_id: ctx.userId, org_id: ctx.orgId,
+  body: c.text, title: c.title || c.text, kind: c.kind,
+  // A space id this device made offline is a real uuid; anything else would be
+  // a foreign key into nothing, and the insert would take the whole run down.
+  folder_id: isUuid(c.spaceId) ? c.spaceId : null,
+  kind_source: c.kindSource, space_source: c.spaceSource,
+  kind_confidence: c.kindConfidence, space_confidence: c.spaceConfidence,
+  space_evidence: c.spaceEvidence ?? "", entry: c.entry, done: c.done ?? false,
+  unsorted_reason: c.unsortedReason ?? "",
+  created_at: c.createdAt, updated_at: c.updatedAt, deleted_at: c.deletedAt ?? null,
+});
+
+/**
+ * Captures, both ways.
+ *
+ * A backend without migration 0008 has no `captures` table. That is not a
+ * failure worth stopping a sync over — meetings, spaces and recipes still have
+ * everywhere to go, and the captures are all still on the device — so the
+ * schema error is recognised, said once, and skipped. The alternative is that
+ * one un-applied migration makes the whole app look broken.
+ */
+async function syncCaptures(ctx: PushCtx): Promise<number> {
+  const local = getCaptureRecords().filter((c) => isUuid(c.id));
+  const { data, error } = await ctx.sb.from("captures").select("*").eq("owner_id", ctx.userId);
+  if (error) {
+    if (isSchemaError(error.message)) {
+      if (!capturesUnavailable) log.warn(`backend has no captures table; apply migration ${CAPTURE_MIGRATION}`);
+      capturesUnavailable = true;
+      return 0;
+    }
+    throw new Error(error.message);
+  }
+  capturesUnavailable = false;
+
+  const remote = ((data ?? []) as CaptureRow[]).map(toCapture);
+  const plan = planMerge(local, remote);
+  if (plan.push.length) {
+    fail((await ctx.sb.from("captures").upsert(plan.push.map((c) => toCaptureRow(c, ctx)))).error);
+    // Now the cloud has them, a later delete has to leave a tombstone rather
+    // than vanishing locally and being pulled straight back.
+    markCapturesSynced(plan.push.filter((c) => !c.deletedAt).map((c) => c.id), new Date().toISOString());
+  }
+  applyRemoteCaptures(plan.pull, plan.removeLocally);
+  forgetCaptures(plan.push.filter((c) => c.deletedAt).map((c) => c.id));
+  return plan.push.length + plan.pull.length + plan.removeLocally.length;
+}
+
+/** Whether the backend is missing the captures table. Surfaced in Settings so
+ *  "my phone's thoughts aren't on my laptop" has a visible cause. */
+let capturesUnavailable = false;
+export const CAPTURE_MIGRATION = "0008_captures";
+export const capturesSyncAvailable = (): boolean => !capturesUnavailable;
+
 /* ---------------------------------------------------------- pull: meetings */
 
 export interface RemoteFull {
@@ -509,6 +604,7 @@ async function runOnce(reason: string): Promise<void> {
     if (ctx.v7) {
       pushed += await syncFolders(ctx);
       pushed += await syncRecipes(ctx);
+      pushed += await syncCaptures(ctx);
     }
     pushed += await pushMeetings(ctx);
     const { pulled, newest } = await pullMeetings(ctx, ctx.v7 ? loadSince(session.user.id) : null);
@@ -535,7 +631,7 @@ async function runOnce(reason: string): Promise<void> {
 
 /* ---------------------------------------------------------------- session */
 
-const TABLES = ["meetings", "meeting_notes", "action_items", "folders", "note_templates"] as const;
+const TABLES = ["meetings", "meeting_notes", "action_items", "folders", "note_templates", "captures"] as const;
 /** Module-wide, not per start: React's strict mode starts the engine twice in
  *  development, and the first instance's channel is still registered under
  *  its topic while its removal is in flight. */
@@ -616,6 +712,15 @@ export function startSync(): () => void {
   const offStore = subscribeMeetings(() => {
     void getMeetingDirty().then((dirty) => { if (dirty) schedule("local-edit"); });
   });
+  // A thought captured on the phone should be on the laptop by the time its
+  // owner is. Debounced with everything else, so typing into the box and
+  // correcting the sort a second later is one push, not three.
+  //
+  // Asked, not assumed: this engine's own writes (marking rows as synced,
+  // storing what it just pulled) come through here too, and treating those as
+  // edits makes the engine sync itself in a circle — which it did, every two
+  // seconds, until `capturesNeedPush` was the gate.
+  const offCaptures = subscribeCaptures(() => { if (capturesNeedPush()) schedule("capture"); });
 
   return () => {
     auth.subscription.unsubscribe();
@@ -623,6 +728,7 @@ export function startSync(): () => void {
     window.removeEventListener("online", onOnline);
     clearInterval(interval);
     offStore();
+    offCaptures();
     if (timer) clearTimeout(timer);
     detach();
   };

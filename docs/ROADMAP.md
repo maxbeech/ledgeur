@@ -93,3 +93,28 @@ step (can't be verified headless):
 - ⬜ Update the Vercel project **Root Directory** to `apps/marketing` (monorepo move)
 - ⬜ Validate migrations against a live Supabase project (Docker/`supabase db reset`)
 - ⬜ Manual test: live mic/system-audio recording end-to-end in the native shell
+
+## Capture pass (2026-09-08) — "the thought you have on the way out"
+
+- ✅ **Capture box** — `⌘⇧K` on the laptop, a tab on the phone, a home-screen and
+  lock-screen widget. Type it or say it; one action and it is kept.
+- ✅ **Saved before sorted** — the thought is on disk before any model sees it
+  (`apps/desktop/src/lib/captures.ts`). Classification can only change where it
+  ends up, never whether it survived.
+- ✅ **Task-or-note + which space**, decided by the on-device model under the
+  same grounding rules speaker naming uses — never an invented space, evidence
+  that must appear in the text, belief thresholds, and a tidied title that may
+  only use the person's own words (`packages/core/src/capture/classify.ts`).
+- ✅ **Corrections stick** — a kind or space a person chose is never re-guessed,
+  and a guess is always labelled as one.
+- ✅ **Spaces became projects** — `/spaces/:id` holds a space's meetings, tasks
+  and notes on one page (was: a filter over the library).
+- ✅ **Meetings file themselves** into a space after recording, same rules.
+- ✅ **Short-utterance dictation** reusing the recorder's own engine choice
+  (native first, webview second) — `apps/desktop/src/lib/dictation.ts`.
+- ✅ **Migration `0008_captures.sql`** applied to the live project; capture sync
+  degrades to local-only, and says so, on a backend without it.
+- ⬜ **Widgets on a real device** — both build; the tap-to-app path is verified
+  by test on the URL contract only (see docs/MOBILE.md, "Widgets").
+- ⬜ **Suggest spaces** from a cluster of unsorted captures, for the cold start
+  where a person has no spaces yet and nothing can be filed.

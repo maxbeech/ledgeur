@@ -8,11 +8,15 @@ import { Outlet, useLocation } from "react-router-dom";
 import { Sidebar } from "../Sidebar.tsx";
 import { MobileTabBar } from "../MobileTabBar.tsx";
 import { CommandPalette } from "../CommandPalette.tsx";
+import { QuickCapture } from "../capture/QuickCapture.tsx";
+import { CaptureToast } from "../capture/CaptureToast.tsx";
 import { GlobalInput } from "./GlobalInput.tsx";
 import { UpdateBanner } from "./UpdateBanner.tsx";
 import { CalendarWatcher } from "./CalendarWatcher.tsx";
 import { useDevice } from "../../lib/platform.ts";
 import { startSync } from "../../lib/sync.ts";
+import { openCapture } from "../../lib/captureDock.ts";
+import { startCaptureLinks } from "../../lib/captureLinks.ts";
 
 export function Shell() {
   const [palette, setPalette] = useState(false);
@@ -24,13 +28,22 @@ export function Shell() {
   // The sync engine runs for as long as the app is open.
   useEffect(() => startSync(), []);
 
-  // Global ⌘K / Ctrl+K.
+  // A widget tap or a deep link opens the capture box, whatever screen the app
+  // happens to be on. Runs for the life of the app for the same reason sync
+  // does: the link can arrive before any screen has mounted.
+  useEffect(() => startCaptureLinks(), []);
+
+  // Global ⌘K / Ctrl+K, and ⌘⇧K / Ctrl+Shift+K for the capture box.
+  //
+  // The capture shortcut is checked first and deliberately shares a letter: it
+  // is the same gesture with one more finger, which is the only kind of
+  // shortcut people remember for something they use in a hurry.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
-        e.preventDefault();
-        setPalette((p) => !p);
-      }
+      if (!(e.metaKey || e.ctrlKey) || e.key.toLowerCase() !== "k") return;
+      e.preventDefault();
+      if (e.shiftKey) openCapture("type");
+      else setPalette((p) => !p);
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -63,6 +76,8 @@ export function Shell() {
         {device.phone && <MobileTabBar />}
       </main>
       <CommandPalette open={palette} onClose={closePalette} />
+      <QuickCapture />
+      <CaptureToast />
     </div>
   );
 }

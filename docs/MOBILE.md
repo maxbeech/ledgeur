@@ -304,3 +304,76 @@ The debug APK lands at
 and installs with `adb install -r <apk>` on any arm64 device with developer
 mode on. It is large (about 470 MB) because a debug build carries unstripped
 Rust symbols; a release build is a fraction of that.
+
+## Widgets
+
+Both phones get a widget whose only job is to get somebody from a locked phone
+to a live microphone in one tap. A widget cannot run app code, reach the
+database or record anything — it renders, and it can ask the system to open a
+URL. That URL is the entire interface:
+
+| Link | What the app does |
+|---|---|
+| `ledgeur://capture` | Opens the capture box, ready to type |
+| `ledgeur://capture?mode=speak` | Opens it and starts listening immediately |
+| `ledgeur://record` | Starts a recording |
+
+They are parsed by `parseCaptureLink` in `apps/desktop/src/lib/captureLinks.ts`
+and pinned by tests on both sides. **Changing a string in a widget without
+changing that parser is a tap that silently does nothing on somebody's lock
+screen** — the kind of bug nobody reports; they just stop using the widget.
+
+### iOS
+
+`gen/apple/LedgeurWidget/LedgeurWidget.swift`, added to `gen/apple/project.yml`
+as an `app-extension` target that the app embeds. Home screen (small and
+medium) plus the iOS 16 lock-screen families (circular and rectangular).
+
+Two things to know:
+
+* The extension deploys to **iOS 16** while the app deploys to 14, because the
+  lock-screen families do not exist before then. On an older system the app is
+  unchanged and the widget is simply not offered.
+* Its `CFBundleShortVersionString` / `CFBundleVersion` in `project.yml` **must
+  match the app target's**. App Store Connect rejects a mismatch *after* the
+  archive, the signing and the upload, so a one-character drift costs a release
+  cycle to find.
+
+`project.yml` is hand-extended: `tauri ios init` regenerates it and would drop
+the widget target. Re-run `xcodegen generate` (or `tauri ios build`) after
+editing it, and check `git diff` if you ever re-run `ios init`.
+
+> **Never hand-edit `ledgeur_iOS/Info.plist`.** XcodeGen rewrites that file from
+> `project.yml` every time it runs, keeping only what the spec lists. Adding this
+> widget did exactly that and silently deleted `NSMicrophoneUsageDescription`,
+> `NSAudioCaptureUsageDescription` and `ITSAppUsesNonExemptEncryption`, which had
+> only ever been added to the plist. iOS does not warn about a missing usage
+> description: it **terminates the app** the moment it asks for the microphone,
+> which is both recording and dictation. They live in `project.yml` now. Anything
+> else that belongs in that plist goes there too, and `git diff` on the generated
+> plist is worth reading after any `xcodegen` run.
+
+Automatic signing has to mint a second provisioning profile, for
+`com.maxbeech.ledgeur.widget`. Xcode does that on the first build with the team
+selected; a CI machine that has never built it will need the same.
+
+### Android
+
+`gen/android/app/src/main/java/com/maxbeech/ledgeur/CaptureWidget.kt`, with its
+layout in `res/layout/widget_capture.xml`, its declaration in
+`res/xml/capture_widget_info.xml` and a palette in `res/values*/colors.xml` that
+follows the app's own tokens in light and dark.
+
+The `ledgeur://` intent filter on `MainActivity` in `AndroidManifest.xml` is
+what makes the tap land: the deep-link plugin's own Android manifest is empty
+and contributes none, which was checked rather than assumed. `MainActivity` is
+already `singleTask`, so a tap while the app is open delivers the URL to the
+running instance instead of starting a second one.
+
+### Still to verify on hardware
+
+Both widgets compile (`swiftc -typecheck` against the iOS 16 SDK;
+`:app:compileUniversalDebugKotlin`), and the link contract is unit-tested from
+the app's side. What no test here covers is the tap itself on a real device —
+adding the widget from the gallery, tapping it on a locked phone, and landing
+in a listening capture box. That is in `docs/MANUAL_TESTING.md`.

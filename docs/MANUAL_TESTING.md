@@ -481,6 +481,41 @@ What still needs a real phone, a real room, or a Windows machine:
 21. Windows: `tauri build` on a Windows host (unchanged, still untested —
     there is no Windows machine here).
 
+## Captures and widgets (2026-09-08)
+
+Everything below was verified in the browser preview against the live backend,
+except where it says otherwise. What a browser cannot exercise is the
+microphone and the two phones.
+
+22. **Dictation.** The capture box's "Speak" button is untested end to end: the
+    Browser pane refuses microphone access, so the path from a real voice to
+    text has only been exercised as far as the honest permission error. On a
+    laptop with a microphone: open the box, press Speak, say a sentence, and
+    confirm the words land in the box as editable text *before* it is kept —
+    a speech model that mis-hears a name is normal, and keeping the mistake
+    silently is not. Also confirm the two-minute cap stops it and keeps what
+    was said rather than discarding it.
+23. **Sorting with a model present.** The browser build has no on-device model,
+    so every capture there lands unsorted, which is the designed failure state
+    and was confirmed. On a `--features native-ai` build, with at least one
+    space: keep "chase the Acme renewal before Friday" and confirm it becomes a
+    **task** filed in the right space, with the quote it filed on shown under
+    it; then keep "Priya prefers async reviews" and confirm it stays a **note**.
+24. **A meeting filing itself.** Record (or import) a meeting on a native build
+    with spaces defined and confirm it lands in a sensible one, and that a
+    meeting you had already filed by hand is never moved.
+25. **iOS widget.** Add both the home-screen and the lock-screen widget from the
+    gallery. Tap the lock-screen one on a *locked* phone and confirm it opens
+    Ledgeur straight into a listening capture box. Tap each of the three
+    home-screen buttons and confirm they land where they say.
+26. **Android widget.** Add the widget, confirm it reads correctly in light and
+    dark, and that each of the three buttons opens the right thing — both with
+    the app closed and with it already open in the background.
+27. **Capture sync across two devices.** Keep a thought on the phone; confirm it
+    appears on the laptop within a couple of seconds, that correcting its kind
+    on one device reaches the other, and that deleting it on one removes it on
+    the other rather than having it reappear on the next pull.
+
 ## Error tracking (Sentry)
 15. With `VITE_SENTRY_DSN`/`SENTRY_DSN` set in `apps/desktop/.env`, throw a test
     error from the console (`throw new Error("test")`) and confirm it appears

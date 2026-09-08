@@ -32,6 +32,11 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_notification::init())
+        // `ledgeur://capture?mode=speak` and friends — how the home-screen and
+        // lock-screen widgets get somebody from a locked phone to a live
+        // microphone in one tap. A widget cannot run app code; it can only ask
+        // the system to open a URL, so the URL is the whole interface.
+        .plugin(tauri_plugin_deep_link::init())
         .plugin(tauri_plugin_log::Builder::new().level(log::LevelFilter::Info).build())
         // Auto-update: not available on mobile (Cargo.toml scopes the crates
         // themselves to desktop targets), and the updater plugin additionally

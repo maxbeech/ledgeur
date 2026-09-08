@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The same widget after dark. A widget that stays white on a dark home screen
+     is the one element on the page that looks broken. -->
+<resources>
+    <color name="widget_surface">#FF16181D</color>
+    <color name="widget_tile">#FF23262D</color>
+    <color name="widget_ink">#FFEDEFF2</color>
+    <color name="widget_muted">#FF9AA1AC</color>
+    <color name="widget_accent">#FF5B8CFF</color>
+    <color name="widget_on_accent">#FF0B0D11</color>
+</resources>
