@@ -46,7 +46,7 @@ function LogoItem({ customer, tabIndex }: { customer: Customer; tabIndex?: numbe
       rel="noopener noreferrer"
       tabIndex={tabIndex}
       aria-label={`${customer.name} (opens in a new tab)`}
-      className="ldg-customer-logo group mx-5 flex shrink-0 items-center gap-2.5 opacity-55 grayscale transition-[opacity,filter] duration-200 hover:opacity-100 hover:grayscale-0 focus-visible:opacity-100 focus-visible:grayscale-0 sm:mx-7"
+      className="ldg-customer-logo mx-5 flex shrink-0 items-center gap-2.5 opacity-55 grayscale transition-[opacity,filter] duration-200 hover:opacity-100 hover:grayscale-0 focus-visible:opacity-100 focus-visible:grayscale-0 sm:mx-7"
     >
       {customer.kind === "text" ? (
         <span className="font-display text-lg font-semibold tracking-tight text-ink-text whitespace-nowrap">
