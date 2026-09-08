@@ -17,7 +17,7 @@ function readSvg(file: string): string {
 export function CustomerLogos() {
   return (
     <section className="mx-auto max-w-6xl px-5 pb-4 pt-2 sm:pb-8">
-      <Label className="text-center">Trusted by teams already on the record with Ledgeur</Label>
+      <Label className="text-center">Just a few of the brands that trust Ledgeur</Label>
       <div className="ldg-marquee-mask relative mt-6">
         <div className="ldg-marquee flex w-max items-center">
           <LogoTrack />

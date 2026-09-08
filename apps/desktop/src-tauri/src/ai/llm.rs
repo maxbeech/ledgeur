@@ -96,6 +96,36 @@ pub fn system_prefix_len(messages: &[ChatMsg]) -> usize {
     messages.iter().take_while(|m| m.role == "system").count()
 }
 
+/// The model's context window, and the largest prompt `llama_decode` accepts in
+/// one call. Both live here so the value the context is built with and the value
+/// the prompt is split to cannot drift apart.
+pub const N_CTX: usize = 8192;
+pub const N_BATCH: usize = 2048;
+
+/// Split a prompt of `n_tokens` into the pieces `llama_decode` will accept.
+///
+/// `llama_context::decode` opens with `GGML_ASSERT(n_tokens_all <= cparams.n_batch)`,
+/// and a failed GGML_ASSERT is `abort()` — not an error this code can return and
+/// show, a SIGABRT that takes the whole process down. The prompt used to go in
+/// as a single batch of up to a full context window against llama.cpp's default
+/// `n_batch` of 2048, so every prompt longer than 2048 tokens killed Ledgeur
+/// outright.
+///
+/// That is what "it crashed midway through recording a meeting" was. The live
+/// coach sends the tail of the transcript, which grows as the meeting runs; it
+/// crossed 2048 tokens partway in and the app vanished, recording and all. Notes
+/// on Stop, which send the whole transcript, would have done the same. Nothing
+/// caught it earlier because the LLM had never actually run in a packaged build
+/// until 0.3.5 fixed the wire names, and the one test that runs real weights
+/// uses a nine-line transcript — about 300 tokens, comfortably under the limit.
+///
+/// The KV cache carries across `decode` calls, so feeding the prompt in pieces
+/// puts exactly the same prompt in front of the model.
+pub fn prefill_chunks(n_tokens: usize, n_batch: usize) -> Vec<std::ops::Range<usize>> {
+    let step = n_batch.max(1);
+    (0..n_tokens).step_by(step).map(|start| start..(start + step).min(n_tokens)).collect()
+}
+
 #[cfg(not(feature = "native-ai"))]
 mod inner {
     use super::*;
@@ -107,6 +137,7 @@ mod inner {
     pub fn chat(_app: &tauri::AppHandle, _m: &[ChatMsg], _t: f32, _n: u32) -> Result<String, String> {
         Err(MSG.into())
     }
+    pub fn shutdown() {}
 }
 
 #[cfg(feature = "native-ai")]
@@ -128,23 +159,50 @@ mod inner {
     // context is created per request (contexts borrow the model, so they can't
     // be shared across threads).
     struct Engine {
-        backend: LlamaBackend,
+        // Declared before `backend` so the weights (and the Metal buffers they
+        // hold) are released first when this is dropped — see `shutdown`.
         model: LlamaModel,
+        backend: LlamaBackend,
     }
-    static ENGINE: OnceLock<Mutex<Engine>> = OnceLock::new();
+    /// `Some` once the weights are loaded; `None` again after `shutdown`.
+    static ENGINE: OnceLock<Mutex<Option<Engine>>> = OnceLock::new();
 
-    fn engine(path: &std::path::Path) -> Result<&'static Mutex<Engine>, String> {
-        if let Some(e) = ENGINE.get() {
-            return Ok(e);
+    fn engine(path: &std::path::Path) -> Result<&'static Mutex<Option<Engine>>, String> {
+        let cell = ENGINE.get_or_init(|| Mutex::new(None));
+        let mut guard = cell.lock().map_err(|_| "engine lock poisoned".to_string())?;
+        if guard.is_none() {
+            let backend = LlamaBackend::init().map_err(|e| format!("llama backend init failed: {e}"))?;
+            // Offload as many layers as the platform GPU allows (Metal on macOS,
+            // CUDA/Vulkan where built); clamped to CPU automatically otherwise.
+            let params = LlamaModelParams::default().with_n_gpu_layers(999);
+            let model = LlamaModel::load_from_file(&backend, path, &params)
+                .map_err(|e| format!("failed to load model: {e}"))?;
+            *guard = Some(Engine { model, backend });
         }
-        let backend = LlamaBackend::init().map_err(|e| format!("llama backend init failed: {e}"))?;
-        // Offload as many layers as the platform GPU allows (Metal on macOS,
-        // CUDA/Vulkan where built); clamped to CPU automatically otherwise.
-        let params = LlamaModelParams::default().with_n_gpu_layers(999);
-        let model = LlamaModel::load_from_file(&backend, path, &params)
-            .map_err(|e| format!("failed to load model: {e}"))?;
-        let _ = ENGINE.set(Mutex::new(Engine { backend, model }));
-        ENGINE.get().ok_or_else(|| "engine init race".to_string())
+        drop(guard);
+        Ok(cell)
+    }
+
+    /// Release the weights before the process exits.
+    ///
+    /// ggml frees its Metal device from a C++ static destructor, and asserts
+    /// there that every resource set has been handed back:
+    ///
+    ///   ggml-metal-device.m:622: GGML_ASSERT([rsets->data count] == 0) failed
+    ///
+    /// The model is deliberately cached in a `static` for the life of the app —
+    /// reloading 1.1 GB per request is what made the copilot unusable — and Rust
+    /// never drops statics, so its Metal buffers were still outstanding when
+    /// that destructor ran during `exit()`. Every quit after the assistant had
+    /// been used at all was therefore a SIGABRT and a crash report. Dropping the
+    /// engine on Tauri's `Exit` event gets in before libc's exit handlers.
+    pub fn shutdown() {
+        let Some(cell) = ENGINE.get() else { return };
+        // A poisoned lock means a panic already left the model in an unknown
+        // state; leaking it is better than unwinding out of the exit path.
+        if let Ok(mut guard) = cell.lock() {
+            guard.take();
+        }
     }
 
     pub fn download_model(app: &tauri::AppHandle) -> Result<(), String> {
@@ -212,12 +270,12 @@ mod inner {
     pub(in crate::ai) fn chat_at(
         path: &std::path::Path, messages: &[ChatMsg], temperature: f32, max_tokens: u32,
     ) -> Result<String, String> {
-        let engine = engine(path)?;
-        let guard = engine.lock().map_err(|_| "engine lock poisoned".to_string())?;
-        let model = &guard.model;
-        let backend = &guard.backend;
+        let cell = engine(path)?;
+        let guard = cell.lock().map_err(|_| "engine lock poisoned".to_string())?;
+        let engine = guard.as_ref().ok_or_else(|| "The assistant is shutting down.".to_string())?;
+        let model = &engine.model;
+        let backend = &engine.backend;
 
-        const N_CTX: usize = 8192;
         let max_new = max_tokens.max(16) as usize;
 
         // Tokenise the ChatML prompt. `str_to_token` parses the ChatML control
@@ -258,15 +316,29 @@ mod inner {
         }
 
         let mut ctx = model
-            .new_context(backend, LlamaContextParams::default().with_n_ctx(std::num::NonZeroU32::new(N_CTX as u32)))
+            .new_context(
+                backend,
+                LlamaContextParams::default()
+                    .with_n_ctx(std::num::NonZeroU32::new(N_CTX as u32))
+                    // Stated rather than inherited: this is the number
+                    // `prefill_chunks` splits to, and the assert inside
+                    // `llama_decode` compares against.
+                    .with_n_batch(N_BATCH as u32),
+            )
             .map_err(|e| format!("context init failed: {e}"))?;
 
-        let mut batch = LlamaBatch::new(N_CTX.max(512), 1);
+        // Feed the prompt in batch-sized pieces rather than all at once — see
+        // `prefill_chunks`. Only the final token asks for logits; that is the
+        // one generation samples from.
+        let mut batch = LlamaBatch::new(N_BATCH, 1);
         let last = tokens.len() - 1;
-        for (i, tok) in tokens.iter().enumerate() {
-            batch.add(*tok, i as i32, &[0], i == last).map_err(|e| e.to_string())?;
+        for chunk in prefill_chunks(tokens.len(), N_BATCH) {
+            batch.clear();
+            for i in chunk {
+                batch.add(tokens[i], i as i32, &[0], i == last).map_err(|e| e.to_string())?;
+            }
+            ctx.decode(&mut batch).map_err(|e| format!("decode failed: {e}"))?;
         }
-        ctx.decode(&mut batch).map_err(|e| format!("decode failed: {e}"))?;
 
         let mut sampler = LlamaSampler::chain_simple([
             LlamaSampler::top_k(40),
@@ -298,7 +370,7 @@ mod inner {
     }
 }
 
-pub use inner::{chat, download_model};
+pub use inner::{chat, download_model, shutdown};
 
 #[cfg(test)]
 mod tests {
@@ -359,6 +431,46 @@ mod tests {
         assert_eq!(json["modelReady"], serde_json::json!(true));
     }
 
+    /// The prompt reaches llama.cpp in pieces no larger than the batch the
+    /// context was built with.
+    ///
+    /// Getting this wrong is not a bad answer, it is the app disappearing:
+    /// `llama_context::decode` asserts `n_tokens_all <= cparams.n_batch` and a
+    /// failed GGML_ASSERT calls `abort()`. A 72-minute recording was lost to it.
+    #[test]
+    fn the_prompt_is_split_to_the_batch_size() {
+        // The size that crashed: a live-coach prompt past one batch.
+        let chunks = prefill_chunks(5_000, N_BATCH);
+        assert!(chunks.iter().all(|c| c.len() <= N_BATCH), "a chunk exceeds n_batch: {chunks:?}");
+        // Every token, exactly once, in order — the model must see the same
+        // prompt it saw when this was a single batch.
+        assert_eq!(chunks.first().map(|c| c.start), Some(0));
+        assert_eq!(chunks.last().map(|c| c.end), Some(5_000));
+        assert_eq!(chunks.iter().map(|c| c.len()).sum::<usize>(), 5_000);
+        for pair in chunks.windows(2) {
+            assert_eq!(pair[0].end, pair[1].start, "a gap or overlap between chunks: {chunks:?}");
+        }
+    }
+
+    /// A full context window is what `chat_at` trims to, so it has to be sendable.
+    #[test]
+    fn a_full_window_splits_into_whole_batches() {
+        let chunks = prefill_chunks(N_CTX, N_BATCH);
+        assert!(chunks.iter().all(|c| c.len() <= N_BATCH));
+        assert_eq!(chunks.iter().map(|c| c.len()).sum::<usize>(), N_CTX);
+    }
+
+    #[test]
+    fn a_short_prompt_is_still_a_single_decode() {
+        assert_eq!(prefill_chunks(10, N_BATCH), vec![0..10]);
+        assert_eq!(prefill_chunks(N_BATCH, N_BATCH), vec![0..N_BATCH]);
+        // One token over is the boundary the assert fired on.
+        assert_eq!(prefill_chunks(N_BATCH + 1, N_BATCH), vec![0..N_BATCH, N_BATCH..N_BATCH + 1]);
+        assert!(prefill_chunks(0, N_BATCH).is_empty());
+        // Never loops forever, whatever it is handed.
+        assert_eq!(prefill_chunks(3, 0), vec![0..1, 1..2, 2..3]);
+    }
+
     #[test]
     fn system_prefix_stops_at_the_first_non_system_turn() {
         let msgs = vec![
@@ -386,6 +498,29 @@ mod tests {
 #[cfg(all(test, feature = "native-ai"))]
 mod notes_integration {
     use super::*;
+
+    /// The downloaded weights, or None with a note — these tests are run by a
+    /// person on a machine that may not have them.
+    fn weights() -> Option<std::path::PathBuf> {
+        let home = std::env::var("HOME").expect("HOME");
+        let path = std::path::PathBuf::from(home)
+            .join("Library/Application Support/com.maxbeech.ledgeur/models")
+            .join(LLM_MODEL);
+        if !path.exists() {
+            eprintln!("skipping: no weights at {}", path.display());
+            return None;
+        }
+        Some(path)
+    }
+
+    /// What the app does on quit, and what these tests must do for the same
+    /// reason: without it the *test runner* aborts on the way out, in ggml's
+    /// Metal static destructor, exactly as the app did. That this is needed
+    /// here is the regression test for `shutdown` — remove the call and the
+    /// process dies with `GGML_ASSERT([rsets->data count] == 0) failed`.
+    fn release_weights() {
+        inner::shutdown();
+    }
 
     /// Kept in step with BASE_SYSTEM in apps/desktop/src/lib/notes.ts.
     const NOTES_SYSTEM: &str = concat!(
@@ -417,17 +552,39 @@ mod notes_integration {
 [01:19] Sam: And I'll write to the twelve accounts on the old plan and explain the grandfathering.
 [01:30] Priya: One thing we haven't settled is whether annual gets the same treatment. Park it for now.";
 
+    /// The crash, as a test: a prompt bigger than one batch.
+    ///
+    /// Before the prompt was fed in `prefill_chunks` pieces this did not fail,
+    /// it *aborted the test process* — the same SIGABRT
+    /// (`GGML_ASSERT(n_tokens_all <= cparams.n_batch)`) that took the app down
+    /// 72 minutes into a recording. `writes_parseable_notes` above never saw it
+    /// because its transcript is nine lines; this one is long enough to matter,
+    /// which is what every real meeting is.
+    ///
+    ///   cargo test --release --features native-ai answers_a_prompt_larger_than_one_batch -- --ignored --nocapture
+    #[test]
+    #[ignore = "needs the on-device model downloaded"]
+    fn answers_a_prompt_larger_than_one_batch() {
+        let Some(path) = weights() else { return };
+
+        // Roughly a 45-minute meeting's worth of transcript.
+        let long = TRANSCRIPT.repeat(30);
+        let messages = vec![
+            ChatMsg { role: "system".into(), content: NOTES_SYSTEM.into() },
+            ChatMsg { role: "user".into(), content: format!("Transcript:\n\n{long}") },
+        ];
+
+        let started = std::time::Instant::now();
+        let reply = inner::chat_at(&path, &messages, 0.2, 512).expect("the model answers");
+        println!("--- {:?} for {} chars of transcript ---\n{reply}\n---", started.elapsed(), long.len());
+        assert!(!reply.trim().is_empty(), "the model returned nothing");
+        release_weights();
+    }
+
     #[test]
     #[ignore = "needs the on-device model downloaded"]
     fn writes_parseable_notes() {
-        let home = std::env::var("HOME").expect("HOME");
-        let path = std::path::PathBuf::from(home)
-            .join("Library/Application Support/com.maxbeech.ledgeur/models")
-            .join(LLM_MODEL);
-        if !path.exists() {
-            eprintln!("skipping: no weights at {}", path.display());
-            return;
-        }
+        let Some(path) = weights() else { return };
         let messages = vec![
             ChatMsg { role: "system".into(), content: NOTES_SYSTEM.into() },
             ChatMsg { role: "user".into(), content: format!("Transcript:\n\n{TRANSCRIPT}") },
@@ -458,5 +615,6 @@ mod notes_integration {
         );
         // The whole meeting has to fit: the last line is where the open question is.
         println!("summary points: {}, actions: {}", summary.len(), parsed["actionItems"].as_array().unwrap().len());
+        release_weights();
     }
 }

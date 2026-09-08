@@ -1,5 +1,89 @@
 # Changelog
 
+## Unreleased (2026-09-08) — The assistant stops taking the app down with it
+
+0.3.5 was the first build in which the on-device assistant actually ran: until
+the wire-name fix landed, `modelReady` was permanently `undefined` and every
+call bailed out before reaching llama.cpp. Running it for the first time found
+two ways it could abort the process — not return an error, abort — and one of
+them ate a recording that was 72 minutes in.
+
+### A meeting no longer disappears partway through
+
+The crash report named the line:
+
+```
+Thread 31 (tokio-rt-worker)  CRASHED
+  abort
+  ggml_abort
+  llama_context::decode(llama_batch const&)
+  ledgeur_lib::ai::llm::inner::chat
+```
+
+`llama_context::decode` opens with `GGML_ASSERT(n_tokens_all <= cparams.n_batch)`,
+and `cparams.n_batch` had been left at llama.cpp's default of 2048. The whole
+prompt went in as a single batch of up to a full 8192-token window. Every prompt
+longer than 2048 tokens therefore called `abort()` — a SIGABRT no error boundary
+can catch, taking the window, the recording and the audio with it.
+
+Which is exactly the shape of the report: it crashed *midway through* a meeting.
+The live coach sends the tail of the transcript, and the transcript grows. Early
+on the prompt fits; once the meeting has produced enough speech it does not, and
+the app is simply gone. Writing up the notes on Stop, which sends the whole
+transcript, would have done the same thing.
+
+The prompt is now fed to the model in pieces no larger than the batch the
+context was built with (`prefill_chunks`), and that batch size is stated in one
+place rather than inherited from a default. The KV cache carries across
+`decode` calls, so the model sees the same prompt it always did.
+
+Nothing caught this earlier because the only test that runs the real weights
+uses a nine-line transcript — about 300 tokens, comfortably under the limit.
+There is now one that does not: `answers_a_prompt_larger_than_one_batch` sends
+roughly a 45-minute meeting. Before the fix it did not fail, it *aborted the
+test runner*, which is the right noise for this bug to make.
+
+### Quitting no longer crashes either
+
+Fixing that surfaced a second abort, at the other end of the process:
+
+```
+ggml-metal-device.m:622: GGML_ASSERT([rsets->data count] == 0) failed
+  ggml_metal_device_free  <-  __cxa_finalize_ranges  <-  exit
+```
+
+ggml frees its Metal device from a C++ static destructor and checks there that
+every resource set has been handed back. The model is deliberately cached in a
+`static` for the life of the app — reloading 1.1 GB per request is what made the
+assistant unusable in the first place — and Rust never drops statics, so its
+Metal buffers were still checked out when that destructor ran. Every quit after
+the assistant had been used at all was a SIGABRT and a crash report.
+
+The engine is now released on Tauri's `Exit` event, before libc's exit handlers
+run.
+
+### Telling you the assistant is installed
+
+"Unclear if the model installed, as I can't see the download banner now" — a
+finished download and a broken banner look identical when the only signal is a
+prompt that vanishes. The composer now says so once, when the weights arrive,
+having previously been missing. It announces the transition, not the state:
+on every later meeting the model is simply there, and saying so would be noise.
+The durable answer stays where it was, in Settings, On-device AI.
+
+### Noted, not fixed
+
+whisper.cpp and llama.cpp each vendor their own copy of ggml, and only one
+survives linking — llama's, as it happens, so whisper.cpp calls into a ggml it
+was not compiled against. It is currently benign: `struct ggml_tensor`,
+`enum ggml_unary_op` and `enum ggml_glu_op` are identical between the two, the
+`enum ggml_op` values whisper.cpp names by hand (`GGML_OP_MUL_MAT`,
+`GGML_OP_GET_ROWS`) sit below the point where the two enums diverge, and every
+other op value is assigned inside the single linked ggml, so it stays
+self-consistent. It is worth re-checking on any bump of either crate, because
+nothing enforces it.
+
+
 ## Unreleased (2026-09-08) — The model stops reloading itself
 
 Five more things came back from a production build. Four of them turned out to

@@ -3,7 +3,7 @@
 // needs its one-time download — a one-tap "get ready" prompt instead of
 // failing silently.
 import { useState } from "react";
-import { ArrowUp, X, Download, Sparkles } from "lucide-react";
+import { ArrowUp, X, Download, Sparkles, Check } from "lucide-react";
 import { cn } from "@ledgeur/ui";
 import { Button, Notice, Spinner } from "../ui.tsx";
 import { useCopilot } from "../../lib/useCopilot.ts";
@@ -56,6 +56,16 @@ export function ChatComposer({
               // looking untouched, which reads as the button doing nothing.
               ? <>Couldn&rsquo;t download the copilot: {copilot.error}</>
               : <>The copilot runs privately on your device. Download it once (about 1&nbsp;GB) to start.</>}
+        </Notice>
+      )}
+
+      {copilot.justReady && (
+        <Notice
+          tone="brand"
+          className="mb-2"
+          icon={<Check className="h-4 w-4 text-brand-strong" />}
+        >
+          {copilot.modelName} is installed. The copilot answers on your device from now on.
         </Notice>
       )}
 

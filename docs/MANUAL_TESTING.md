@@ -153,7 +153,16 @@ These cannot be driven headlessly, so they are the manual list:
      actually said, including after a long silence mid-meeting;
    - the notes are written by the assistant — no "pulled out of the transcript"
      banner — and the copilot's "Download" prompt is absent with the weights on
-     disk.
+     disk;
+   - **the app is still running at the end of it.** A long meeting is the case
+     that crashed: the live coach's prompt grows with the transcript, and once
+     it passed 2048 tokens llama.cpp called `abort()` and took the recording
+     with it. Covered now by `answers_a_prompt_larger_than_one_batch`, but that
+     runs one prompt, not an hour of a real meeting;
+   - **quit the app afterwards and check no crash report appears** in
+     Console → Crash Reports. Releasing the model at exit is wired to Tauri's
+     `Exit` event, which no test can reach; the integration tests only prove
+     the release itself works.
 4. **Drag a real Zoom/Teams export in.** Decoding depends on the browser's own
    codec support, which varies. Try an `.mp4`, an `.m4a` and a `.webm`.
 5. **A real purchase, end to end.** Buy on a test card, then confirm `/account`

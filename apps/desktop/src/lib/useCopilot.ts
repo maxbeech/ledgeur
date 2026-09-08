@@ -11,6 +11,16 @@ export interface CopilotReadiness {
   ready: boolean;
   /** A native build is present but the weights need a one-time download. */
   needsDownload: boolean;
+  /**
+   * The model has *just* finished arriving, having previously been missing.
+   *
+   * Without this, a finished download is indistinguishable from a broken
+   * prompt: the banner simply vanishes. "Unclear if the model installed as I
+   * can't see the download banner now - maybe it's been done in the background,
+   * I don't know" is exactly that gap, reported. Clears itself after a moment;
+   * the durable answer lives in Settings, On-device AI.
+   */
+  justReady: boolean;
   downloading: boolean;
   /** 0–100 while downloading. */
   progress: number;
@@ -24,12 +34,19 @@ export interface CopilotReadiness {
 const IDLE_POLL_MS = 4_000;
 /** Faster cadence while a download is streaming, so the bar actually moves. */
 const DOWNLOAD_POLL_MS = 800;
+/** How long the "copilot is ready now" confirmation stays up. */
+const JUST_READY_MS = 8_000;
 
 export function useCopilot(): CopilotReadiness {
   const [st, setSt] = useState<LlmStatus | null>(null);
   const [downloading, setDownloading] = useState(false);
   const [error, setError] = useState("");
+  const [justReady, setJustReady] = useState(false);
   const poll = useRef<ReturnType<typeof setInterval> | null>(null);
+  // Whether this hook has ever seen the weights missing. Only then is their
+  // arrival news — on every later meeting the model is simply there, and
+  // announcing it would be noise.
+  const sawMissing = useRef(false);
 
   const refresh = useCallback(() => llmStatus().then(setSt, () => {}), []);
 
@@ -46,6 +63,16 @@ export function useCopilot(): CopilotReadiness {
     const id = setInterval(refresh, downloading ? DOWNLOAD_POLL_MS : IDLE_POLL_MS);
     return () => clearInterval(id);
   }, [refresh, ready, downloading]);
+
+  // Announce the transition, not the state.
+  useEffect(() => {
+    if (st && !ready) { sawMissing.current = true; return; }
+    if (!ready || !sawMissing.current) return;
+    sawMissing.current = false;
+    setJustReady(true);
+    const id = setTimeout(() => setJustReady(false), JUST_READY_MS);
+    return () => clearTimeout(id);
+  }, [st, ready]);
 
   useEffect(() => () => { if (poll.current) clearInterval(poll.current); }, []);
 
@@ -73,6 +100,7 @@ export function useCopilot(): CopilotReadiness {
     ready,
     // Only offer a download inside the native shell that can actually run it.
     needsDownload: isTauri() && compiled && !ready,
+    justReady,
     downloading: downloading || Boolean(st?.downloading),
     progress: st?.progress ?? 0,
     modelName: st?.modelName ?? "on-device model",

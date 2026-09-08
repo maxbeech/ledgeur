@@ -64,6 +64,16 @@ pub fn run() {
             audio::stop_system_audio_tap,
             net::http_post,
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running the Ledgeur application");
+        .build(tauri::generate_context!())
+        .expect("error while building the Ledgeur application")
+        .run(|_app, event| {
+            // Hand the on-device weights back before the process tears down.
+            // ggml's Metal device is freed by a C++ static destructor that
+            // asserts nothing is still checked out, so a cached model outliving
+            // this point turns an ordinary quit into a SIGABRT. See
+            // `ai::llm::shutdown`.
+            if matches!(event, tauri::RunEvent::Exit) {
+                ai::llm::shutdown();
+            }
+        });
 }

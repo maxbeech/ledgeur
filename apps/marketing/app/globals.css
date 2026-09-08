@@ -107,7 +107,7 @@ body {
   to { transform: translateX(-50%); }
 }
 .ldg-marquee {
-  animation: ldg-marquee 90s linear infinite;
+  animation: ldg-marquee 130s linear infinite;
 }
 .ldg-marquee:hover,
 .ldg-marquee:focus-within {
