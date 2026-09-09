@@ -6,10 +6,31 @@
 // being mistaken for a new edit.
 import { createFolder, renameFolder, getFolders, getFolderRecords, applyRemoteFolders, forgetFolders, nextFolderTone, normaliseTone } from "../src/lib/folders.ts";
 import { saveRecipe, deleteRecipe, getRecipes, getRecipeRecords, applyRemoteRecipes, forgetRecipes, templateFor } from "../src/lib/recipes.ts";
+import { planIsPaid, FREE_PLAN_MESSAGE } from "../src/lib/sync.ts";
 
 type Ok = (name: string, cond: boolean, detail?: string) => void;
 
 export function runSyncStoreTests(ok: Ok): void {
+  // ── who is allowed to push ────────────────────────────────────────────────
+  // Sync is what the Team plan is, and until migration 0009 it was free to
+  // anybody with an account. The database is where that is enforced (there is
+  // a live check in supabase/verify-sync-gate.mjs); this is the app knowing
+  // the rule so it can say the price instead of showing a policy error, and so
+  // a free account is not sending doomed writes every two minutes forever.
+  ok("a paid plan pushes", planIsPaid("team") && planIsPaid("company"));
+  ok("a free plan does not", !planIsPaid("free"));
+  // A workspace whose plan has not been read yet must not be assumed paid: an
+  // optimistic guess here is a push that fails at the database.
+  ok("an unknown plan does not push", !planIsPaid(null));
+  ok("the free-plan message names the plan rather than the policy",
+    /Team plan/.test(FREE_PLAN_MESSAGE) && !/row-level|policy/i.test(FREE_PLAN_MESSAGE),
+    FREE_PLAN_MESSAGE);
+  // The promise on /pricing is that cancelling stops the sync and does not take
+  // the library away. The message has to say the second half, or somebody
+  // downgrading believes their cloud meetings are gone.
+  ok("the free-plan message says nothing is stranded",
+    /still come down|nothing is stranded/i.test(FREE_PLAN_MESSAGE), FREE_PLAN_MESSAGE);
+
   // ── spaces ────────────────────────────────────────────────────────────────
   const a = createFolder("Customers");
   ok("a new space is stamped", Boolean(a.updatedAt) && a.updatedAt === a.createdAt);

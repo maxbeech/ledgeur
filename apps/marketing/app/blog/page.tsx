@@ -2,7 +2,8 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { POSTS } from "@/lib/posts";
 import { SITE } from "@/lib/site";
-import { Card, Display } from "@ledgeur/ui/components";
+import { GUIDES } from "@/lib/guides";
+import { Card, Display, Label } from "@ledgeur/ui/components";
 import { PageHeader, Section } from "@/components/site/Chrome";
 import { CtaBlock } from "@/components/site/CtaBlock";
 
@@ -28,6 +29,22 @@ export default function BlogIndex() {
         title="Meetings, transcription, and keeping both private."
         lede="Practical writing about getting a usable record out of a conversation — and about why so much of the software for it sends your audio somewhere else."
       />
+      {/* The pillars come first. Twenty-eight posts at one level is a pile;
+          the three guides are the pages that say which pile to look in. */}
+      <Section width="narrow" pad="tight">
+        <Label className="mb-4">Start with a guide</Label>
+        <div className="grid gap-3 sm:grid-cols-3">
+          {GUIDES.map((g) => (
+            <Link key={g.slug} href={`/guides/${g.slug}`} className="group">
+              <Card className="h-full p-4 transition-colors group-hover:border-brand">
+                <div className="text-base font-semibold leading-snug text-ink-text">{g.title}</div>
+                <p className="mt-1.5 text-xs text-faint">{g.cluster.length} articles below it</p>
+              </Card>
+            </Link>
+          ))}
+        </div>
+      </Section>
+
       <Section width="narrow" pad="tight">
         {lead && (
           <Link href={`/blog/${lead.slug}`} className="group block">

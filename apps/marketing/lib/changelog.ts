@@ -15,6 +15,18 @@ export interface Release {
 
 export const RELEASES: readonly Release[] = [
   {
+    date: "2026-09-09",
+    title: "Action items that leave the meeting, and a straighter story",
+    changes: [
+      { kind: "new", text: "Send an action item straight to Linear, Todoist or Asana, from the Tasks list or automatically after every meeting." },
+      { kind: "new", text: "A page at /what-we-dont-have listing everything Ledgeur cannot do, so you can send it to whoever runs your security review." },
+      { kind: "new", text: "Six meeting-notes templates published as pages you can copy by hand, and a page explaining how speaker identification actually works." },
+      { kind: "fixed", text: "The security and pricing pages contradicted each other about single sign-on. SAML works in the app; it is not switched on for our hosted backend, and both pages now say exactly that." },
+      { kind: "fixed", text: "Sync was sold as part of the Team plan and was working on free accounts. It is now enforced in the database. Reading and deleting stay open on every plan, so cancelling never strands your library." },
+      { kind: "changed", text: "The Team plan is $12 a person a month, up from $6. It still undercuts every comparable product, and the free plan is unchanged: the whole thing, on one machine, forever." },
+    ],
+  },
+  {
     date: "2026-09-08",
     title: "Keep a thought, and spaces that hold a whole project",
     changes: [

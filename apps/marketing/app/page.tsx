@@ -6,6 +6,8 @@ import { SITE, VALUE_PROPS, TEAM_PRICE_USD } from "@/lib/site";
 import { COMPETITORS } from "@/lib/competitors";
 import { USE_CASES } from "@/lib/usecases";
 import { PLATFORMS } from "@/lib/platforms";
+import { TEMPLATES } from "@/lib/templates";
+import { GUIDES } from "@/lib/guides";
 import { Section, SectionHead } from "@/components/site/Chrome";
 import { TranscriptPreview } from "@/components/site/TranscriptPreview";
 import { ComparisonTable } from "@/components/site/ComparisonTable";
@@ -112,6 +114,9 @@ export default function Home() {
               <Badge>WeSpeaker ResNet34</Badge>
               <Badge tone="accent">Runs on your device</Badge>
             </div>
+            <Link href="/speaker-identification" className="mt-6 inline-block text-base font-medium text-brand-strong hover:underline">
+              How speaker separation works, in detail
+            </Link>
           </div>
 
           <Card raised className="overflow-hidden">
@@ -168,22 +173,27 @@ export default function Home() {
         <div className="grid gap-10 lg:grid-cols-[1fr_1.05fr] lg:items-center">
           <div>
             <SectionHead
-              kicker="For the agents you already use"
-              title="Point Claude at everything the company has said."
+              kicker="Where this is going"
+              title="Your agent is guessing about your work. The answer was in a meeting."
             />
             <p className="mt-5 text-md leading-relaxed text-muted">
-              The paid tier exposes your meetings over the Model Context Protocol — so an agent can
-              list them, search them, read a full transcript with speakers, and pull the open action
-              items. Same tools whether it connects over stdio on your machine or to the hosted
-              endpoint.
+              Why the architecture is like that, what the customer actually objected to, which
+              decision was quietly reversed: it was all said out loud, and none of it is in the
+              documentation. That makes the meeting record the highest-context thing a company
+              produces and the least reusable.
+            </p>
+            <p className="mt-3 text-md leading-relaxed text-muted">
+              So Ledgeur opens it over the Model Context Protocol. An agent can list your meetings,
+              search them, read a full transcript with speakers, and pull the open action items,
+              over an open standard rather than one vendor&rsquo;s private API.
             </p>
             <p className="mt-3 text-md leading-relaxed text-muted">
               Access runs as <em>you</em>: the token resolves to your session, so row-level security
               decides what the agent can see. It cannot read a meeting you could not.
             </p>
             <div className="mt-6 flex flex-wrap gap-3">
-              <Link href="/agents" className={buttonClass("secondary", "md", "rounded-full px-5")}>How agent access works</Link>
-              <Link href="/pricing" className={buttonClass("ghost", "md", "rounded-full")}>See pricing</Link>
+              <Link href="/company-memory" className={buttonClass("secondary", "md", "rounded-full px-5")}>Meetings as company memory</Link>
+              <Link href="/agents" className={buttonClass("ghost", "md", "rounded-full")}>How to connect one</Link>
             </div>
           </div>
 
@@ -246,6 +256,35 @@ export default function Home() {
             {USE_CASES.map((u) => (
               <Link key={u.slug} href={`/use-cases/${u.slug}`} className={buttonClass("secondary", "sm", "rounded-full")}>
                 {u.name}
+              </Link>
+            ))}
+          </div>
+        </div>
+
+        <div className="mt-16">
+          <SectionHead
+            title="Or take the template and do it by hand."
+            lede="The six templates the app runs on, published as headings you can paste into a blank document."
+          />
+          <div className="mt-6 flex flex-wrap gap-2">
+            {TEMPLATES.map((t) => (
+              <Link key={t.slug} href={`/templates/${t.slug}`} className={buttonClass("secondary", "sm", "rounded-full")}>
+                {t.template.name}
+              </Link>
+            ))}
+          </div>
+        </div>
+
+        <div className="mt-16">
+          <SectionHead title="The long answers." />
+          <div className="mt-6 grid gap-3 sm:grid-cols-3">
+            {GUIDES.map((g) => (
+              <Link
+                key={g.slug}
+                href={`/guides/${g.slug}`}
+                className="rounded-xl border border-hairline bg-surface p-4 transition-colors hover:border-brand"
+              >
+                <div className="text-base font-semibold leading-snug text-ink-text">{g.title}</div>
               </Link>
             ))}
           </div>

@@ -60,8 +60,11 @@ export function runSiteTests(ok: (name: string, cond: boolean, detail?: string) 
   // enterprise features we do not have and say we do not have them. SSO moved
   // from "not built" to "built, but not switched on for our hosted backend",
   // which is a different and more precise claim — and still a "no" to a buyer.
+  // Was: the note itself had to name SCIM. The complete list outgrew a plan
+  // note (it is eleven items now), so the note's job is to send the reader to
+  // it. lib/gaps.ts is where SCIM is named, and test/content.mts asserts that.
   ok("the enterprise plan says plainly what is missing",
-    /\bdo not\b/i.test(enterprise?.note ?? "") && /scim/i.test(enterprise?.note ?? ""),
+    /\bdo not\b/i.test(enterprise?.note ?? "") && /what-we-dont-have/.test(enterprise?.note ?? ""),
     enterprise?.note ?? "(no note)");
   ok("the enterprise plan does not claim SSO works with us today",
     !/\bwe (?:ship|offer|support) (?:sso|saml)\b/i.test(enterprise?.note ?? ""),
@@ -153,8 +156,12 @@ export function runSiteTests(ok: (name: string, cond: boolean, detail?: string) 
   ok("what we collect is enumerated", DATA_COLLECTED.length >= 3);
   ok("the terms explain how to cancel",
     /billing portal/i.test(readFileSync(new URL("../app/terms/page.tsx", import.meta.url), "utf8")));
+  // The list itself moved to lib/gaps.ts, so /security and /pricing could stop
+  // contradicting each other about SAML. What this asserts is that the page
+  // still renders it: a page that quietly stopped publishing the awkward part
+  // would look exactly like a page that never had one.
   ok("the security page publishes what is missing",
-    /No SOC 2/i.test(readFileSync(new URL("../app/security/page.tsx", import.meta.url), "utf8")));
+    /gapsIn\(/.test(readFileSync(new URL("../app/security/page.tsx", import.meta.url), "utf8")));
 
   // ---------- changelog ----------
   ok("the changelog has entries", RELEASES.length >= 2);

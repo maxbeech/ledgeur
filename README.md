@@ -190,6 +190,21 @@ change where it lands but never whether it survived. Spaces became projects in
 the same pass: a space now has its own page holding its meetings, its tasks and
 its notes, and a finished meeting files itself into one.
 
+The 2026-09-09 **strategy pass** made the product and the site agree with each
+other. Two of its findings were bugs rather than opinions: `/security` and
+`/pricing` published contradictory claims about SAML, and sync, the headline
+paid feature, was working on free accounts. The first is fixed by giving the
+list of what is missing one home
+([`apps/marketing/lib/gaps.ts`](apps/marketing/lib/gaps.ts)) and its own page at
+`/what-we-dont-have`; the second by migration
+[`0009_sync_is_paid.sql`](supabase/migrations/0009_sync_is_paid.sql), which gates
+writes on a paid plan in the database while deliberately leaving reads and
+deletes open, so cancelling never strands a library. The same pass added
+one-click **task push to Linear, Todoist and Asana**, moved the Team tier to $12,
+and built the pages the site was missing: `/templates`, `/guides`,
+`/speaker-identification` and `/company-memory`. See
+[`docs/seo_geo_content_plan.md`](docs/seo_geo_content_plan.md).
+
 Earlier: editorial design system, ⌘K palette, mobile tab bar, recordings that
 survive navigation. See [`docs/ROADMAP.md`](docs/ROADMAP.md) for what's next,
 [`docs/NATIVE_AI.md`](docs/NATIVE_AI.md) for the on-device engine, and

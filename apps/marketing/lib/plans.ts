@@ -17,6 +17,7 @@
 //   keep a thought            apps/desktop/src/components/capture/QuickCapture.tsx
 //   task-or-note + filing     packages/core/src/capture/classify.ts
 //   spaces hold everything    apps/desktop/src/screens/Space.tsx
+//   tasks out to a tracker    packages/core/src/tasks/push.ts
 //   sync                      supabase/migrations/0002_rls.sql
 //   captures sync             supabase/migrations/0008_captures.sql
 //   shared team library       meetings.visibility = 'org' + RLS policies
@@ -45,8 +46,29 @@ export interface Plan {
 }
 
 /** Monthly price of the paid tier, in whole dollars. One number, used by the
- *  pricing page, the app's upgrade prompt and the comparison tables. */
-export const TEAM_PRICE_USD = 6;
+ *  pricing page, the app's upgrade prompt and the comparison tables.
+ *
+ *  Moved from 6 to 12 on 2026-09-09. At $6 this was the cheapest of the
+ *  fourteen competitors surveyed, against a category median of $15 to $19, and
+ *  the price was doing the opposite of its job: it said "budget option" for the
+ *  only product in that set that transcribes and separates speakers on the
+ *  device, and the only one with an MCP endpoint an agent can read. $12 still
+ *  undercuts Fireflies, Grain, Fathom, Avoma, Sembly, Circleback and Read AI
+ *  outright, so it is a repositioning and not a squeeze.
+ *
+ *  NOTE: this constant is display only. What a customer is actually charged is
+ *  the Stripe Price object named by STRIPE_PRICE_ID (see app/api/checkout),
+ *  which lives in the Stripe dashboard. Changing the number here without
+ *  creating the matching Price there makes the site lie about the bill, so the
+ *  test in test/run.mts refuses to let this drift silently. */
+export const TEAM_PRICE_USD = 12;
+
+/** The Enterprise tier's anchor, in whole dollars per person per month.
+ *  "Let's talk" with no number attached asks a buyer to spend a meeting finding
+ *  out whether they can afford the conversation, and most will not. This is the
+ *  floor a self-hosted deployment starts from, stated so the question can be
+ *  answered before the call. */
+export const ENTERPRISE_FLOOR_USD = 30;
 
 export const PLANS: readonly Plan[] = [
   {
@@ -64,6 +86,7 @@ export const PLANS: readonly Plan[] = [
       "Summary, decisions and action items",
       "Keep a thought in seconds: type it or say it, and it is sorted into a task or a note",
       "Spaces that hold a project's meetings, tasks and notes together",
+      "Send an action item straight to Linear, Todoist or Asana",
       "Full-text search across your whole library",
       "Markdown export, and a copy of everything you can take with you",
     ],
@@ -93,17 +116,18 @@ export const PLANS: readonly Plan[] = [
   {
     id: "enterprise",
     name: "Enterprise",
-    price: null,
-    cadence: "let's talk",
+    price: `From $${ENTERPRISE_FLOOR_USD}`,
+    cadence: "per person / month",
     who: "For organisations that need to run it themselves.",
     dbPlan: "company",
     includes: [
+      "Everything in Team",
       "Self-hosting, with help — Ledgeur is MIT-licensed, so this is always possible without us",
       "A deployment of Supabase and the sync layer inside your own network",
       "A support agreement and a named contact",
       "Input on the roadmap",
     ],
-    note: "We will tell you plainly what we do and do not have. The app supports SAML single sign-on, but it is not enabled on our hosted backend yet, so today it is only usable if you run your own. We do not ship SCIM or an admin audit console at all — if you need those, say so and we will tell you where they sit.",
+    note: "A floor, not a quote: what it actually costs depends on how much of the deployment you want us to do. We will tell you plainly what we do and do not have before you spend a meeting finding out, and the whole list is published at /what-we-dont-have.",
     cta: { label: "Talk to us", kind: "contact" },
   },
 ];
@@ -120,6 +144,7 @@ export const planById = (id: PlanId): Plan => PLANS.find((p) => p.id === id) ?? 
 export const COMPARISON: readonly { point: string; ledgeur: string; them: string }[] = [
   { point: "Where the audio goes", ledgeur: "Nowhere. Transcribed in your browser.", them: "Uploaded to the vendor's servers." },
   { point: "Who joins the call", ledgeur: "Nobody. It captures the tab's audio.", them: "A bot appears in the participant list." },
+  { point: "If the video platform tightens bot access", ledgeur: "Nothing changes. There is no bot to admit.", them: "The product stops working on that platform." },
   { point: "Minutes per month", ledgeur: "Unlimited — it is your CPU.", them: "Capped, then metered." },
   { point: "Cost for one person", ledgeur: "Free, permanently.", them: "Per seat, after a trial." },
   { point: "If the company disappears", ledgeur: "MIT source, local files. It keeps working.", them: "Export before the lights go out." },

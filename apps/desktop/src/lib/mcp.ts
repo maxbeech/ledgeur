@@ -22,8 +22,13 @@ export interface McpConfigResult {
 }
 
 /** Where the hosted endpoint lives. Overridable so a self-hoster can point the
- *  app at their own deployment rather than ours. */
-const siteUrl = () => (import.meta.env.VITE_SITE_URL as string | undefined) ?? "https://ledgeur.com";
+ *  app at their own deployment rather than ours.
+ *
+ *  `www`, not the apex: the apex 308-redirects, and this URL is handed to an
+ *  MCP client that POSTs to it. A 308 does preserve the method and body, but
+ *  not every client follows a redirect on a POST, and a config that works in
+ *  some agents and not others is the worst kind of bug to be told about. */
+const siteUrl = () => (import.meta.env.VITE_SITE_URL as string | undefined) ?? "https://www.ledgeur.com";
 
 export async function generateMcpConfig(): Promise<McpConfigResult> {
   const sb = getSupabase();

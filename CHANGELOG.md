@@ -1,5 +1,129 @@
 # Changelog
 
+## Unreleased (2026-09-09) — Saying what is true, and charging for it
+
+A strategy review compared what the product does against what the site claims,
+against fourteen competitors, and against live keyword data. Four of the things
+it found were not opinions.
+
+### The site contradicted itself about single sign-on
+
+`/security` said "No SSO, SAML or SCIM. Sign-in is email and password."
+`/pricing` said the app supports SAML but our hosted backend has not switched it
+on. Both pages were written independently and one of them was wrong: SAML
+sign-in is real code, and the button appears when a workspace has it configured.
+A security-literate buyer reads both pages in one sitting.
+
+The list of what is missing now lives once, in `apps/marketing/lib/gaps.ts`, and
+both pages render it. It also has its own page at **`/what-we-dont-have`**, so
+it can be sent to whoever runs a security review without sending them a pricing
+page. It gained the items an honest list should have had from the start: no BAA,
+no penetration test, no two-way task sync. `lib/plans.ts` may not overstate;
+this file may not omit. Together they are the whole policy.
+
+### Sync was sold as paid and was free to everybody
+
+The headline paid feature was not gated. Every signed-in account pushed and
+pulled regardless of plan, which `docs/REDESIGN.md` recorded as an assumption
+rather than a bug. Migration **`0009_sync_is_paid.sql`** closes it in the
+database, where it has to be true, rather than in an MIT-licensed client anybody
+can edit a line out of.
+
+What is gated is deliberately narrow: **insert and update**. Reading is
+untouched, so somebody who cancels can still pull down everything they uploaded
+while paying, which is what `/pricing` has always promised. Deleting is
+untouched, because refusing to let a former customer remove their own rows would
+be indefensible. The app reads the plan and says so plainly in Settings instead
+of letting every write come back with a row-level-security error.
+
+Verified against the live project both ways by `supabase/verify-sync-gate.mjs`:
+a free account is refused, a paid one is accepted, and a downgraded one can
+still read and still delete.
+
+### Action items can leave the meeting
+
+They went nowhere except a signed webhook, which is the right answer for a team
+with an integration platform and the wrong one for a person who keeps their work
+in Linear. Now a task goes to **Linear, Todoist or Asana** in one click from the
+Tasks list, or automatically after every meeting if you ask for that.
+
+The contract lives in `packages/core/src/tasks/push.ts` and is unit-tested
+without a network, because the three ways to get this wrong are all quiet: a
+Bearer prefix Linear does not want, an Asana body that is not wrapped in `data`,
+and a Linear reply that arrives as HTTP 200 while saying the mutation failed.
+Each has a test. Nothing is sent twice, and re-pointing the app at a different
+Linear team correctly stops meaning "already sent".
+
+It is one-way on purpose. Closing the task in Linear does not close it here, and
+`/what-we-dont-have` says so.
+
+### The price said "budget option" about the least ordinary product in the set
+
+$6 a person a month was the cheapest of fourteen competitors surveyed, against a
+category median of $15 to $19, for the only one that transcribes and separates
+speakers on the device and the only one with an MCP endpoint an agent can read.
+The Team tier is now **$12**, which still undercuts Fireflies, Grain, Fathom,
+Avoma, Sembly, Circleback and Read AI outright. Enterprise has a floor of $30
+instead of "let's talk", because a tier with no number asks a buyer to spend a
+meeting finding out whether they can afford the conversation.
+
+The number in `plans.ts` is a display value. The money comes from the Stripe
+Price object named by `STRIPE_PRICE_ID`, which has to be updated in the Stripe
+dashboard by hand.
+
+### New pages, and twenty-eight posts that now have a shape
+
+The blog was flat: twenty-eight posts at one level, mixing comparison, how-to
+and definitional intent, with nothing linking the broad question to the narrow
+one. Three pillars at **`/guides`** now do that, each aimed at a term somebody
+measured, and a test asserts every cluster link resolves to a real post.
+
+* **`/templates`** and six children, built from `NOTE_TEMPLATES` in
+  `@ledgeur/core`, so the site cannot advertise a template the app does not run.
+  "Meeting notes template" is 22,200 searches a month, the largest number
+  anywhere in this research, and it was completely unserved.
+* **`/speaker-identification`** for the diarization work, which was a homepage
+  section against 880 searches a month at an unusually high bid range.
+* **`/company-memory`**, which is where the Contextely integration finally
+  lives. It was real, bidirectional and shipped, and existed nowhere a visitor
+  or a crawler could find it.
+* **Circleback and Grain** joined `/alternatives`. Circleback carries more brand
+  search than any other named competitor and had no page at all.
+
+The HIPAA post now says out loud that we do not sign BAAs, are not certified,
+and that turning on sync uploads transcripts to a database we run.
+`docs/seo_geo_content_plan.md`, which the review went looking for and could not
+find, now exists.
+
+### Every canonical URL on the site pointed at a redirect
+
+Found while checking the review's claim about Search Console, and worse than
+anything the review found. The deployment serves at `www.ledgeur.com` and
+308-redirects the apex. `SITE.url` was the apex, and every canonical tag, every
+sitemap entry, every OpenGraph url and every JSON-LD `mainEntityOfPage` is built
+from that one constant. So the whole site declared a canonical that redirected,
+and the sitemap submitted 71 URLs that all redirected.
+
+Search Console's own URL inspection said so plainly: `coverageState: "Page with
+redirect"`, `userCanonical: https://ledgeur.com/`,
+`googleCanonical: https://www.ledgeur.com/`. Our declared canonical was being
+overruled on every page. Zero URLs indexed, zero impressions.
+
+None of this is visible from inside the app. The pages render, the tags are
+there, the markup is valid. One constant fixes all of it, and a test now pins it
+to whichever host answers 200 without a hop. The desktop app's links, the hosted
+MCP endpoint and the Notion OAuth redirect moved to the same host at the same
+time: a 308 on a POST is followed by most MCP clients and not all, and an OAuth
+redirect URI has to match its registration character for character.
+
+### Corrected
+
+The review said the native on-device engine ships opt-in. It does not:
+`scripts/release-macos.mjs` builds with `native-ai` on unless
+`LEDGEUR_MAC_NATIVE_AI=0` says otherwise, so a released macOS app has the native
+engine. It also said `ledgeur.com` was not in Search Console. It is, and has
+been returning zero impressions, which is a different and more useful problem.
+
 ## Unreleased (2026-09-08) — The thought you have on the way out
 
 Until now the only way anything got into Ledgeur was to record a meeting. The

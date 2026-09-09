@@ -15,6 +15,7 @@ import { runSyncStoreTests, runPullMappingTests } from "./sync.mts";
 import { runEmptyTranscriptTests } from "./emptyTranscript.mts";
 import { runSpeakerNameTests } from "./speakerNames.mts";
 import { runCaptureStoreTests, runCaptureSyncTests } from "./capture.mts";
+import { runTaskPushTests } from "./taskPush.mts";
 
 let pass = 0, fail = 0;
 const ok = (name: string, cond: boolean, detail = "") => {
@@ -321,6 +322,7 @@ runEmptyTranscriptTests(ok);
 runSpeakerNameTests(ok);
 await runCaptureStoreTests(ok);
 runCaptureSyncTests(ok);
+await runTaskPushTests(ok);
 
 await runModelWarmupTests(ok);
 

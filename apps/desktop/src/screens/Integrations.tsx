@@ -19,6 +19,7 @@ import { VoicesCard } from "../components/integrations/VoicesCard.tsx";
 import { SharingPolicyCard } from "../components/integrations/SharingPolicyCard.tsx";
 import { RecipesCard } from "../components/integrations/RecipesCard.tsx";
 import { WebhookCard } from "../components/integrations/WebhookCard.tsx";
+import { TaskPushCard } from "../components/integrations/TaskPushCard.tsx";
 import { AutomationCard } from "../components/integrations/AutomationCard.tsx";
 
 export function Integrations() {
@@ -52,7 +53,10 @@ export function Integrations() {
       </Section>
 
       <Section title="Automation">
-        <AutomationCard />
+        <div className="space-y-3">
+          <AutomationCard />
+          {!phone && <TaskPushCard />}
+        </div>
       </Section>
 
       <Section title="How your notes are written">

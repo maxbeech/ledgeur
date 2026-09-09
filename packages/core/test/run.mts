@@ -15,6 +15,7 @@ import { runAssembleTests } from "./assemble.mts";
 import { runAttributeTests } from "./attribute.mts";
 import { runNameTests, runSnippetTests } from "./names.mts";
 import { runCaptureTests } from "./capture.mts";
+import { runTaskPushTests } from "./tasks.mts";
 import { runSyncTests } from "./sync.mts";
 import { runFailureTests } from "./failures.mts";
 import { runSegmenterTests } from "./segmenter.mts";
@@ -216,6 +217,7 @@ runMergeTests(ok);
 runSegmenterTests(ok);
 runContextTests(ok);
 runCaptureTests(ok);
+runTaskPushTests(ok);
 await runGranolaTests(ok);
 
 // --- browser controllers (fake Worker) ---

@@ -1,5 +1,7 @@
 // Single source of truth for external links used by the app.
-const SITE = import.meta.env.VITE_SITE_URL ?? "https://ledgeur.com";
+// `www`, not the apex: the apex redirects, and these are pasted into browsers
+// and shown to people. See the note on SITE.url in apps/marketing/lib/site.ts.
+const SITE = import.meta.env.VITE_SITE_URL ?? "https://www.ledgeur.com";
 export const SITE_URL = SITE;
 export const SITE_PRICING_URL = `${SITE}/pricing`;
 export const SITE_ACCOUNT_URL = `${SITE}/account`;

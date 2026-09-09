@@ -118,3 +118,46 @@ step (can't be verified headless):
   by test on the URL contract only (see docs/MOBILE.md, "Widgets").
 - ⬜ **Suggest spaces** from a cluster of unsorted captures, for the cold start
   where a person has no spaces yet and nothing can be filed.
+
+## Strategy pass (2026-09-09) — what the review found, and what was done
+
+A review compared the product against its own marketing, fourteen competitors
+and live keyword data. The findings and their outcomes, so the next review can
+tell what was acted on from what was decided against.
+
+- ✅ **The SAML contradiction.** `/security` said no SSO at all; `/pricing` said
+  SAML works but is off on our backend. The second was right. The list of gaps
+  now lives once in `apps/marketing/lib/gaps.ts`, is rendered by both pages, and
+  has its own page at `/what-we-dont-have`.
+- ✅ **Sync was not gated on a paid plan.** Closed in the database by migration
+  `0009_sync_is_paid.sql`: inserts and updates need a paid plan; reads and
+  deletes deliberately do not, so cancelling never strands a library. Verified
+  live, both directions, by `supabase/verify-sync-gate.mjs`.
+- ✅ **No task-manager push.** Linear, Todoist and Asana, from the Tasks list or
+  automatically after a meeting. `packages/core/src/tasks/push.ts` (pure,
+  tested) plus `apps/desktop/src/lib/taskPush.ts` (delivery). One-way by design.
+- ✅ **Team tier priced at a third of the category median.** $6 to $12, and
+  Enterprise given a $30 floor instead of "let's talk". **Still to do by hand:
+  create the matching Stripe Price and update `STRIPE_PRICE_ID`.**
+- ✅ **Circleback and Grain missing from `/alternatives`.** Added, with real
+  pricing checked against their own pages on 2026-09-09.
+- ✅ **No pillar structure.** Three pillars at `/guides`, each with a cluster,
+  each cluster link asserted by test.
+- ✅ **"Meeting notes template" (22,200/mo) unserved.** `/templates` and six
+  children, generated from `NOTE_TEMPLATES` in core.
+- ✅ **The Contextely integration had nowhere to live.** `/company-memory`.
+- ✅ **No diarization page.** `/speaker-identification`.
+- ✅ **No SEO plan document.** `docs/seo_geo_content_plan.md`.
+- ✅ **The HIPAA post implied more than we offer.** It now says we sign no BAAs,
+  hold no certifications, and that sync uploads transcripts to a database we run.
+- ❎ **"Register ledgeur.com in Search Console."** Already registered and owned.
+  The real finding is that it has returned **zero impressions** in ninety days.
+- ❎ **"The native engine is opt-in, so most installs fall back to the browser
+  path."** Not true of shipped builds: `scripts/release-macos.mjs` builds with
+  `native-ai` unless `LEDGEUR_MAC_NATIVE_AI=0`. It stays opt-in for `cargo
+  build` and `tauri:dev`, deliberately, because it is a slow native build and
+  the mobile targets cannot cross-compile sherpa.
+- ⬜ **Mobile apps into the App Store and Google Play.** Both produce signed,
+  store-ready binaries. What is left needs a human in App Store Connect and Play
+  Console. See `docs/MOBILE.md`.
+- ⬜ **Submit the sitemap in Search Console** and re-measure in 90 days.

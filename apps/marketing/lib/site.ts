@@ -5,7 +5,24 @@
 export const SITE = {
   name: "Ledgeur",
   domain: "ledgeur.com",
-  url: "https://ledgeur.com",
+  /**
+   * The canonical origin, and it must be the one that answers 200.
+   *
+   * This was `https://ledgeur.com` while the deployment 308-redirects the apex
+   * to `www`. Every canonical tag, every sitemap entry, every OpenGraph url and
+   * every JSON-LD `mainEntityOfPage` on the site is built from this constant,
+   * so all of them pointed at a URL that redirects. Search Console's own URL
+   * inspection on 2026-09-09 reported the home page as "Page with redirect",
+   * with `userCanonical: https://ledgeur.com/` against
+   * `googleCanonical: https://www.ledgeur.com/`: our declared canonical was
+   * being overruled, on every page, and the submitted sitemap was 71 URLs that
+   * all redirected. The property had zero impressions.
+   *
+   * If the deployment is ever changed to serve the apex directly, change this
+   * back in the same commit. The rule is not "www" or "no www"; the rule is
+   * that this string is whichever one returns 200 without a hop.
+   */
+  url: "https://www.ledgeur.com",
   tagline: "The meeting record that never leaves your machine",
   /** The meta description. Kept under ~160 characters, because a search result
    *  is truncated there and a sentence cut mid-clause reads as carelessness. */
@@ -55,8 +72,8 @@ export const VALUE_PROPS = [
     body: "Ledgeur separates the voices in a recording, and once you have named one, it recognises that person in every meeting afterwards. The voice prints stay on your device.",
   },
   {
-    title: "Nobody joins your call",
-    body: "No bot in the participant list, no awkward pause while people ask what it is. Ledgeur listens to the tab, the way you would.",
+    title: "Nobody joins your call, and nobody can lock it out",
+    body: "No bot in the participant list, no awkward pause while people ask what it is. Ledgeur listens to the tab, the way you would. Which also means no video platform can revoke its access, the way they can with a bot that has to be admitted as a guest.",
   },
   {
     title: "Free is the whole product",
@@ -71,25 +88,31 @@ export const NAV = {
   header: [
     ["Download", "/download"],
     ["Pricing", "/pricing"],
-    ["For agents", "/agents"],
-    ["Guides", "/blog"],
+    ["For agents", "/company-memory"],
+    ["Guides", "/guides"],
+    ["Templates", "/templates"],
     ["Alternatives", "/alternatives"],
   ],
   product: [
     ["Open the app", "/app"],
     ["Download for Mac", "/download"],
     ["Pricing", "/pricing"],
+    ["Who said what", "/speaker-identification"],
+    ["Company memory", "/company-memory"],
     ["For agents (MCP)", "/agents"],
     ["Open source", "/open-source"],
   ],
   learn: [
+    ["Guides", "/guides"],
     ["Blog", "/blog"],
+    ["Templates", "/templates"],
     ["Use cases", "/use-cases"],
     ["Transcribe", "/transcribe"],
     ["Alternatives", "/alternatives"],
   ],
   company: [
     ["Security", "/security"],
+    ["What we don't have", "/what-we-dont-have"],
     ["Privacy", "/privacy"],
     ["Terms", "/terms"],
     ["Changelog", "/changelog"],

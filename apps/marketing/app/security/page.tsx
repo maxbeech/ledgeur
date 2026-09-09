@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { SITE } from "@/lib/site";
 import { DATA_FACTS, POLICY_UPDATED_LABEL } from "@/lib/legal";
+import { gapsIn } from "@/lib/gaps";
 import { Card } from "@ledgeur/ui/components";
 import { PageHeader, Section, SectionHead } from "@/components/site/Chrome";
 import EmailLink from "@/components/EmailLink";
@@ -60,14 +61,17 @@ export default function Security() {
 
         <h2>What we do not have</h2>
         <p>
-          Publishing this list is more useful than publishing a badge:
+          Publishing this list is more useful than publishing a badge. These are the security and
+          administration gaps; the{" "}
+          <Link href="/what-we-dont-have">full list, including the product ones</Link>, is its own
+          page.
         </p>
         <ul>
-          <li><strong>No SOC 2 or ISO 27001.</strong> We have not been audited. If your procurement process requires it, we cannot pass it today.</li>
-          <li><strong>No SSO, SAML or SCIM.</strong> Sign-in is email and password.</li>
-          <li><strong>No admin audit log.</strong> Access tokens record when they were last used, and that is the extent of it.</li>
-          <li><strong>No bug bounty programme.</strong> We will thank you properly and credit you, but we cannot pay.</li>
-          <li><strong>No penetration test report.</strong> None has been commissioned.</li>
+          {[...gapsIn("security"), ...gapsIn("admin")].map((gap) => (
+            <li key={gap.title}>
+              <strong>{gap.title}.</strong> {gap.body}
+            </li>
+          ))}
         </ul>
         <p>
           None of that makes the on-device design less true. It does mean that if your risk process

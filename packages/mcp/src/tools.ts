@@ -47,7 +47,9 @@ const clamp = (v: unknown, fallback: number, max: number) => {
  * Where a meeting can be opened by a person. Emitted as `url` on every record so
  * anything that ingests these can cite back to the source.
  */
-const APP_BASE_URL = "https://ledgeur.com/app";
+// `www`: the apex redirects, and this link is handed to an agent to show a
+// person. See the note on SITE.url in apps/marketing/lib/site.ts.
+const APP_BASE_URL = "https://www.ledgeur.com/app";
 const meetingUrl = (id: string) => `${APP_BASE_URL}/meetings/${id}`;
 
 /**

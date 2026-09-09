@@ -51,6 +51,30 @@ export interface Settings {
   webhookSecret: string;
   /** Include the full transcript in the webhook payload, not just the notes. */
   webhookIncludeTranscript: boolean;
+  /**
+   * Where action items go when somebody sends one. A TASK_TARGETS id, or empty
+   * for off. See @ledgeur/core (tasks/push.ts) for the shape of each request.
+   *
+   * The credential lives here, in localStorage, alongside the webhook secret
+   * that has always lived here. That is a deliberate limit, and it is the
+   * reason the card says so out loud: this is a personal token on a personal
+   * machine, not a team credential, and anything that can read this device's
+   * localStorage can read it.
+   */
+  taskTarget: string;
+  taskToken: string;
+  /** Linear team id, Todoist project id, or Asana project gid. */
+  taskContainer: string;
+  /** Asana only. */
+  taskWorkspace: string;
+  /**
+   * Send every action item to that destination as soon as a meeting finishes.
+   *
+   * Off by default. A meeting produces action items whether or not they were
+   * meant as tasks, and forty issues nobody asked for is a worse outcome than
+   * pressing a button four times.
+   */
+  taskAutoPush: boolean;
   /** How to sign off a follow-up email. Empty = no signature is invented. */
   senderName: string;
   /** Follow-up email register. */
@@ -70,6 +94,11 @@ const DEFAULTS: Settings = {
   webhookUrl: "",
   webhookSecret: "",
   webhookIncludeTranscript: false,
+  taskTarget: "",
+  taskToken: "",
+  taskContainer: "",
+  taskWorkspace: "",
+  taskAutoPush: false,
   senderName: "",
   followUpTone: "neutral",
   theme: "system",

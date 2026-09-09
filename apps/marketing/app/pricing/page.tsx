@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Check } from "lucide-react";
 import { SITE, PLANS } from "@/lib/site";
+import { GAPS } from "@/lib/gaps";
 import { Badge, Card, Display, buttonClass } from "@ledgeur/ui/components";
 import { cn } from "@ledgeur/ui";
 import CheckoutButton from "@/components/CheckoutButton";
@@ -110,19 +111,17 @@ export default function Pricing() {
           lede="Buying software on the strength of a feature grid that turns out to be a roadmap is a miserable experience. So here is what we do not have, in advance."
         />
         <Card className="mt-8 divide-y divide-hairline">
-          {[
-            ["SCIM provisioning, and SSO on our hosted backend", "The app signs in with SAML single sign-on, and the button appears when your workspace has it configured — but SAML is not switched on for Ledgeur's own hosted backend today, so in practice you cannot use it with us yet. SCIM provisioning is not built at all. If your security review requires either, we are not the right fit yet, and we would rather tell you now than during onboarding."],
-            ["An admin console and audit log", "Not built. Workspace administration today is one owner and a member list."],
-            ["A packaged self-host bundle", "There is no Docker or Helm chart. Self-hosting is genuinely possible — the source is MIT and the schema is in the repository — but it is a manual job, and Enterprise means we help you do it."],
-            ["A mobile app in the stores", "The iOS and Android apps are built from the same code as the desktop app and sync with it, but they are not in the App Store or Google Play yet — today they are built from source."],
-            ["Real-time collaborative editing", "Two people editing the same meeting notes at once will overwrite each other."],
-          ].map(([title, body]) => (
-            <div key={title} className="px-5 py-4">
-              <div className="text-base font-semibold text-ink-text">{title}</div>
-              <p className="mt-1 text-sm leading-relaxed text-muted">{body}</p>
+          {GAPS.map((gap) => (
+            <div key={gap.title} className="px-5 py-4">
+              <div className="text-base font-semibold text-ink-text">{gap.title}</div>
+              <p className="mt-1 text-sm leading-relaxed text-muted">{gap.body}</p>
             </div>
           ))}
         </Card>
+        <p className="mt-5 text-sm leading-relaxed text-faint">
+          This same list is on <Link href="/what-we-dont-have">its own page</Link>, so you can send
+          it to whoever runs your security review without sending them a pricing page.
+        </p>
       </Section>
 
       {/* Comparison. */}

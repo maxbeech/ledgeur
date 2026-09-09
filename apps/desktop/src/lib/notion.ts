@@ -8,7 +8,9 @@ import type { ContextBlock } from "./chat.ts";
 
 const NOTION_CLIENT_ID = import.meta.env.VITE_NOTION_CLIENT_ID ?? "";
 /** Hosted OAuth callback (a marketing-site page) that returns the code to paste. */
-export const NOTION_REDIRECT_URI = import.meta.env.VITE_NOTION_REDIRECT_URI ?? "https://ledgeur.com/oauth/notion";
+// An OAuth redirect URI has to match what is registered with Notion character
+// for character, and what is registered (see .env.example) is the www host.
+export const NOTION_REDIRECT_URI = import.meta.env.VITE_NOTION_REDIRECT_URI ?? "https://www.ledgeur.com/oauth/notion";
 
 export function notionConfigured(): boolean {
   return Boolean(NOTION_CLIENT_ID);

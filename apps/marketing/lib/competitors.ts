@@ -173,6 +173,36 @@ export const COMPETITORS: Competitor[] = [
       "No account required to start.",
     ],
   },
+  // Added 2026-09-09. Circleback carries more brand search than any other
+  // named competitor measured (720/mo on "circleback ai", 6,600 on the bare
+  // brand term, still climbing) and had no page here at all, which meant every
+  // person comparing the two found nothing from us.
+  {
+    slug: "circleback",
+    name: "Circleback",
+    demand: "circleback ai 720/mo · circleback (brand) 6,600/mo, rising",
+    what: "A meeting notetaker with a bot, a bot-free desktop app, and mobile and Apple Watch apps for in-person conversations, built around automations that route the output into other tools.",
+    model: "Free tier, then Pro $15, Business $25 and Enterprise $35 per user per month; transcription and summarisation happen in its cloud.",
+    diff: [
+      "Transcription and speaker separation run on your own machine; Circleback processes in its cloud on every plan.",
+      "Free forever for one person, with no minute cap, rather than a free tier that exists to sell the Pro one.",
+      "Open source under MIT, so the record keeps working whatever happens to the company.",
+      "Circleback's automation catalogue is wider today. Ledgeur pushes action items to Linear, Todoist and Asana, and anything else through a signed webhook.",
+    ],
+  },
+  {
+    slug: "grain",
+    name: "Grain",
+    demand: "grain alternative 140/mo · grain meetings 10/mo",
+    what: "A meeting recorder and conversation-intelligence tool aimed largely at revenue teams, with AI notes and recaps and no bot required.",
+    model: "Free tier, then per-seat plans from roughly $19 a seat a month billed annually; recording, transcription and analysis all happen in Grain's cloud.",
+    diff: [
+      "Ledgeur is a record you own rather than a coaching and revenue-intelligence layer; if you want deal scorecards, Grain is the better fit and we would say so.",
+      "On-device transcription and diarization, against Grain's cloud pipeline.",
+      "Voice prints that recognise a person across meetings, kept on your device and never synced.",
+      "Free for one person permanently, and MIT-licensed.",
+    ],
+  },
 ];
 
 export const competitorBySlug = (slug: string) =>

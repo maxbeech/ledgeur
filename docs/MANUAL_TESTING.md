@@ -516,6 +516,32 @@ microphone and the two phones.
     on one device reaches the other, and that deleting it on one removes it on
     the other rather than having it reappear on the next pull.
 
+## The strategy pass (2026-09-09)
+
+Everything here except 28 was checked in a browser or against the live database.
+What is left needs a third-party account nobody should create on somebody's
+behalf, or a paid subscription.
+
+28. **A real task push.** The three request contracts are unit-tested against
+    the live API docs, and the delivery path (retries, the double-send guard,
+    Linear's failure-inside-a-200) is tested against a stubbed `fetch`. What has
+    never happened is a real HTTP request to Linear, Todoist or Asana, because
+    that needs somebody's own API token. For each of the three: paste a token in
+    Settings → Automation → Action items, press "Create a test task", and
+    confirm a task appears with the meeting name in its description and a
+    working link back. Then send one from the Tasks list and confirm the row
+    changes to "In Linear" and that pressing it again does not create a second.
+29. **A paid account syncing.** The gate is verified live in both directions by
+    `node supabase/verify-sync-gate.mjs`, which flips the test workspace's plan
+    and puts it back. What is not covered is the real purchase path: buy the
+    Team plan with a Stripe test card and confirm the Settings sync card moves
+    from "On the free plan" to "In step" without signing out and back in.
+30. **The Stripe price.** `TEAM_PRICE_USD` is a display value; the money comes
+    from the Stripe Price object. After changing it to 12, create the matching
+    Price in Stripe and update `STRIPE_PRICE_ID`, then run one checkout and
+    confirm the amount charged matches the amount on the pricing page. Until
+    that is done the site advertises a price the checkout will not charge.
+
 ## Error tracking (Sentry)
 15. With `VITE_SENTRY_DSN`/`SENTRY_DSN` set in `apps/desktop/.env`, throw a test
     error from the console (`throw new Error("test")`) and confirm it appears

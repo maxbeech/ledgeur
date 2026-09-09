@@ -4,6 +4,7 @@
 
 import { getMeeting, saveMeeting } from "./meetingsStore.ts";
 import { deliverMeeting } from "./webhooks.ts";
+import { pushMeetingTasks } from "./taskPush.ts";
 import { syncNow, currentOrgId, isSynced } from "./sync.ts";
 import { indexMeeting } from "./embeddings.ts";
 import { saveMeetingToNotion } from "./notion.ts";
@@ -59,6 +60,10 @@ export async function finalizeMeeting(localId: string): Promise<void> {
   // signed in, and it is the one step whose whole point is that another system
   // hears about the meeting promptly.
   await deliverMeeting(m).catch((e) => log.error("webhook delivery threw", e));
+
+  // Same rules as the webhook: local, off by default, and never fatal. A task
+  // manager being down must not affect a meeting that is already on disk.
+  await pushMeetingTasks(m).catch((e) => log.error("pushing action items threw", e));
 
   // Filed before the push, so the space travels with the meeting instead of
   // arriving as a second edit. Never fatal: an unfiled meeting is a normal

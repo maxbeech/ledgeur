@@ -7,6 +7,7 @@ import { cn } from "@ledgeur/ui";
 import { Page, PageHeader } from "../components/PageHeader.tsx";
 import { Badge, Button, Card, EmptyState, ErrorNote, Spinner } from "../components/ui.tsx";
 import { RecordDot } from "../components/RecordDot.tsx";
+import { SendTaskButton } from "../components/SendTaskButton.tsx";
 import { useTasks, type TaskItem } from "../lib/useTasks.ts";
 
 export function Tasks() {
@@ -58,20 +59,27 @@ export function Tasks() {
                 {group.title}
               </button>
               <Card className="divide-y divide-hairline">
+                {/* The row is a div, not a label: the send button has to sit
+                    beside the checkbox, and a button inside a label toggles
+                    the checkbox when you click it. So only the tickbox and the
+                    text are inside the label. */}
                 {group.items.map((t) => (
-                  <label key={t.key} className="flex cursor-pointer items-start gap-3 px-4 py-3 transition-colors hover:bg-surface-muted">
-                    <input type="checkbox" checked={t.done} onChange={() => void toggle(t)} className="peer sr-only" />
-                    <span className={cn(
-                      "mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 transition-colors",
-                      t.done ? "border-accent-strong bg-accent-strong text-white" : "border-hairline-strong bg-surface peer-focus-visible:border-brand",
-                    )}>
-                      {t.done && <Check className="h-3 w-3" strokeWidth={3} />}
-                    </span>
-                    <span className={cn("ldg-prose flex-1 text-base leading-relaxed text-ink-text transition-colors", t.done && "text-faint line-through")}>
-                      {t.text}
-                    </span>
+                  <div key={t.key} className="flex items-start gap-3 px-4 py-3 transition-colors hover:bg-surface-muted">
+                    <label className="flex flex-1 cursor-pointer items-start gap-3">
+                      <input type="checkbox" checked={t.done} onChange={() => void toggle(t)} className="peer sr-only" />
+                      <span className={cn(
+                        "mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 transition-colors",
+                        t.done ? "border-accent-strong bg-accent-strong text-white" : "border-hairline-strong bg-surface peer-focus-visible:border-brand",
+                      )}>
+                        {t.done && <Check className="h-3 w-3" strokeWidth={3} />}
+                      </span>
+                      <span className={cn("ldg-prose flex-1 text-base leading-relaxed text-ink-text transition-colors", t.done && "text-faint line-through")}>
+                        {t.text}
+                      </span>
+                    </label>
                     {t.source === "local" && <Badge tone="warn">On this device</Badge>}
-                  </label>
+                    {!t.done && <SendTaskButton task={t} />}
+                  </div>
                 ))}
               </Card>
             </section>

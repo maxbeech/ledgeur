@@ -24,6 +24,7 @@ import {
   DOWNLOAD_REVALIDATE_SECONDS,
 } from "../lib/downloads.ts";
 import { SUPABASE, MIN_PASSWORD_LENGTH } from "../lib/site.ts";
+import { runContentTests } from "./content.mts";
 import { runSiteTests } from "./site.mts";
 
 let pass = 0, fail = 0;
@@ -293,6 +294,8 @@ ok("/download is linked from the header",
   /\["Download", "\/download"\]/.test(readFileSync(new URL("../lib/site.ts", import.meta.url), "utf8")));
 ok("/download is linked from the footer",
   readFileSync(new URL("../lib/site.ts", import.meta.url), "utf8").includes('"/download"'));
+
+runContentTests(ok);
 
 console.log(`\n${pass} passed, ${fail} failed`);
 if (fail > 0) process.exit(1);

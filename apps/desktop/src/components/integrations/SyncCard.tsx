@@ -5,13 +5,21 @@ import { RefreshCw, Radio } from "lucide-react";
 import { Badge, Button, Card, ErrorNote, Notice, Spinner } from "../ui.tsx";
 import { useSyncStatus, syncNow } from "../../lib/sync.ts";
 import { hasBackend } from "../../lib/config.ts";
+import { SITE_PRICING_URL } from "../../lib/links.ts";
 
 export function SyncCard() {
   const s = useSyncStatus();
   if (!hasBackend) return null;
 
-  const tone = s.phase === "error" ? "danger" : s.phase === "legacy" ? "warn" : s.phase === "signed-out" ? "neutral" : "accent";
-  const label = s.phase === "syncing" ? "Syncing" : s.phase === "error" ? "Failed" : s.phase === "legacy" ? "Limited" : s.phase === "signed-out" ? "Signed out" : "In step";
+  const tone = s.phase === "error" ? "danger"
+    : s.phase === "legacy" ? "warn"
+    : s.phase === "free" ? "brand"
+    : s.phase === "signed-out" ? "neutral" : "accent";
+  const label = s.phase === "syncing" ? "Syncing"
+    : s.phase === "error" ? "Failed"
+    : s.phase === "legacy" ? "Limited"
+    : s.phase === "free" ? "On the free plan"
+    : s.phase === "signed-out" ? "Signed out" : "In step";
 
   return (
     <Card className="p-5">
@@ -37,6 +45,16 @@ export function SyncCard() {
         )}
       </div>
       {s.phase === "error" && <ErrorNote className="mt-3">{s.error}</ErrorNote>}
+      {/* Not an error note: nothing has gone wrong. This is the price, said
+          where somebody is looking for the reason. */}
+      {s.phase === "free" && (
+        <Notice tone="brand" className="mt-3">
+          {s.error}{" "}
+          <a href={SITE_PRICING_URL} target="_blank" rel="noreferrer" className="font-medium underline">
+            What the Team plan adds
+          </a>
+        </Notice>
+      )}
       {s.phase === "legacy" && (
         <Notice tone="warn" className="mt-3">
           {s.error} The migration is <code className="font-mono">supabase/migrations/0007_sync.sql</code> in the repository.

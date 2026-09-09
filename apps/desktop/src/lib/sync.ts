@@ -47,7 +47,13 @@ const log = createLogger("sync");
 
 /* ------------------------------------------------------------------ status */
 
-export type SyncPhase = "idle" | "syncing" | "signed-out" | "error" | "legacy";
+/**
+ * `free` is not an error and not idle. The account is signed in and working;
+ * the cloud simply will not take writes from it, because sync is what the Team
+ * plan is. Pulling still happens, so a cancelled subscription leaves the
+ * library reachable rather than stranded. See supabase/migrations/0009.
+ */
+export type SyncPhase = "idle" | "syncing" | "signed-out" | "error" | "legacy" | "free";
 
 export interface SyncStatus {
   phase: SyncPhase;
@@ -63,9 +69,11 @@ export interface SyncStatus {
   live: boolean;
   /** The workspace this account syncs into, once known. */
   orgId: string | null;
+  /** The workspace's plan, once known. Sync pushes only on a paid one. */
+  plan: "free" | "team" | "company" | null;
 }
 
-let status: SyncStatus = { phase: "signed-out", lastSyncAt: null, error: "", pushed: 0, pulled: 0, live: false, orgId: null };
+let status: SyncStatus = { phase: "signed-out", lastSyncAt: null, error: "", pushed: 0, pulled: 0, live: false, orgId: null, plan: null };
 const listeners = new Set<() => void>();
 
 function setStatus(patch: Partial<SyncStatus>): void {
@@ -140,25 +148,58 @@ async function probeSchema(sb: SupabaseClient, recheck = false): Promise<"v7" | 
 // caller's answer to the latter is "sign out and in again" — the worst possible
 // advice for someone who is merely offline, since signing back in needs the
 // network they have not got.
-async function resolveOrg(sb: SupabaseClient, userId: string): Promise<{ id: string; defaultVisibility: "private" | "org" } | null> {
+export type OrgPlan = "free" | "team" | "company";
+
+/** Anything but "free" is a plan the database will accept writes from. Read
+ *  tolerantly: an unknown value from a future plan enum must not be silently
+ *  treated as paid, so this asks for the two names it knows. */
+const readPlan = (value: unknown): OrgPlan =>
+  value === "team" || value === "company" ? value : "free";
+
+export const planIsPaid = (plan: OrgPlan | null): boolean => plan === "team" || plan === "company";
+
+interface ResolvedOrg { id: string; defaultVisibility: "private" | "org"; plan: OrgPlan }
+
+const ORG_COLUMNS = "id, default_meeting_visibility, plan";
+
+const toOrg = (row: { id: string; default_meeting_visibility: string; plan?: unknown } | null): ResolvedOrg | null =>
+  row
+    ? {
+        id: row.id,
+        defaultVisibility: row.default_meeting_visibility === "org" ? "org" : "private",
+        plan: readPlan(row.plan),
+      }
+    : null;
+
+async function resolveOrg(sb: SupabaseClient, userId: string): Promise<ResolvedOrg | null> {
   const { data: profile, error: profileError } = await sb.from("profiles").select("default_org_id").eq("id", userId).maybeSingle();
   fail(profileError);
   const preferred = (profile as { default_org_id: string | null } | null)?.default_org_id;
-  let q = sb.from("orgs").select("id, default_meeting_visibility").limit(1);
+  let q = sb.from("orgs").select(ORG_COLUMNS).limit(1);
   if (preferred) q = q.eq("id", preferred);
   const { data: org, error: orgError } = await q.maybeSingle();
   fail(orgError);
-  const row = org as { id: string; default_meeting_visibility: string } | null;
+  const row = org as { id: string; default_meeting_visibility: string; plan?: unknown } | null;
   if (!row && preferred) return resolveOrgAny(sb);
-  return row ? { id: row.id, defaultVisibility: row.default_meeting_visibility === "org" ? "org" : "private" } : null;
+  return toOrg(row);
 }
 
-async function resolveOrgAny(sb: SupabaseClient) {
-  const { data, error } = await sb.from("orgs").select("id, default_meeting_visibility").limit(1).maybeSingle();
+async function resolveOrgAny(sb: SupabaseClient): Promise<ResolvedOrg | null> {
+  const { data, error } = await sb.from("orgs").select(ORG_COLUMNS).limit(1).maybeSingle();
   fail(error);
-  const row = data as { id: string; default_meeting_visibility: string } | null;
-  return row ? { id: row.id, defaultVisibility: row.default_meeting_visibility === "org" ? ("org" as const) : ("private" as const) } : null;
+  return toOrg(data as { id: string; default_meeting_visibility: string; plan?: unknown } | null);
 }
+
+/**
+ * What the app says when the cloud will not take a write.
+ *
+ * Said here, before anything is attempted, rather than letting every row come
+ * back with "new row violates row-level security policy" — which is true,
+ * unreadable, and looks like a bug rather than a price.
+ */
+export const FREE_PLAN_MESSAGE =
+  "Sync is part of the Team plan. Everything you record is saved on this device and stays there; "
+  + "meetings already in the cloud still come down to this device, so nothing is stranded.";
 
 const fail = (error: { message: string } | null): void => {
   if (error) throw new Error(error.message);
@@ -584,7 +625,7 @@ async function runOnce(reason: string): Promise<void> {
   const sb = getSupabase();
   if (!sb) { setStatus({ phase: "signed-out" }); return; }
   const { data: { session } } = await sb.auth.getSession();
-  if (!session) { setStatus({ phase: "signed-out", orgId: null }); return; }
+  if (!session) { setStatus({ phase: "signed-out", orgId: null, plan: null }); return; }
 
   setStatus({ phase: "syncing", error: "" });
   log.info("sync start", { reason });
@@ -599,21 +640,35 @@ async function runOnce(reason: string): Promise<void> {
     const org = await resolveOrg(sb, session.user.id);
     if (!org) throw new Error("This account has no workspace yet. Sign out and in again to create one.");
     const ctx: PushCtx = { sb, userId: session.user.id, orgId: org.id, defaultVisibility: org.defaultVisibility, v7: mode === "v7" };
+    const paid = planIsPaid(org.plan);
 
+    // Pushing is skipped rather than attempted-and-refused. The database is
+    // where the rule is actually enforced (migration 0009); this is the app
+    // knowing the rule so it can say the price instead of showing a policy
+    // error, and so a free account is not sending doomed writes every two
+    // minutes forever.
     let pushed = 0;
-    if (ctx.v7) {
-      pushed += await syncFolders(ctx);
-      pushed += await syncRecipes(ctx);
-      pushed += await syncCaptures(ctx);
+    if (paid) {
+      if (ctx.v7) {
+        pushed += await syncFolders(ctx);
+        pushed += await syncRecipes(ctx);
+        pushed += await syncCaptures(ctx);
+      }
+      pushed += await pushMeetings(ctx);
     }
-    pushed += await pushMeetings(ctx);
+    // Pulling happens on every plan, deliberately. Somebody who cancels can
+    // still bring down everything they uploaded while paying, which is what
+    // /pricing promises and what makes cancelling a decision rather than a
+    // hostage situation.
     const { pulled, newest } = await pullMeetings(ctx, ctx.v7 ? loadSince(session.user.id) : null);
     if (ctx.v7 && newest) saveSince(session.user.id, newest);
 
     setStatus({
-      phase: ctx.v7 ? "idle" : "legacy",
-      error: ctx.v7 ? "" : `The backend has not had migration ${SYNC_MIGRATION}, so only new meetings sync, one way. Apply it to sync edits, spaces and recipes.`,
-      lastSyncAt: new Date().toISOString(), pushed, pulled, orgId: org.id,
+      phase: !paid ? "free" : ctx.v7 ? "idle" : "legacy",
+      error: !paid
+        ? FREE_PLAN_MESSAGE
+        : ctx.v7 ? "" : `The backend has not had migration ${SYNC_MIGRATION}, so only new meetings sync, one way. Apply it to sync edits, spaces and recipes.`,
+      lastSyncAt: new Date().toISOString(), pushed, pulled, orgId: org.id, plan: org.plan,
     });
     log.info("sync done", { pushed, pulled, mode });
   } catch (e) {
@@ -678,7 +733,7 @@ export function startSync(): () => void {
     if (userId && userId === attachedFor) { void syncNow("session"); return; }
     detach();
     schema = null;
-    if (!userId) { setStatus({ phase: "signed-out", orgId: null }); return; }
+    if (!userId) { setStatus({ phase: "signed-out", orgId: null, plan: null }); return; }
     // A fresh topic every time: `channel(name)` hands back an existing channel
     // of the same name, and callbacks cannot be added to one that is already
     // subscribed — which is exactly what a second attach for the same person
