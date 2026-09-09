@@ -21,7 +21,7 @@
  * OpenHelm relay until then. The product does not get to assert a from-address
  * the provider has not verified, which is exactly why deliverability holds.
  * `from` below selects among the product's OWN named senders (noreply@,
- * support@, …): it cannot invent one.
+ * support@, etc.): it cannot invent one.
  *
  * NO SILENT SUCCESS. An unconfigured product returns
  * `{ sent: false, reason: "not_configured" }` and a failed send returns
@@ -265,7 +265,7 @@ export async function sendEmail(input: SendEmailInput): Promise<SendResult> {
 
 /**
  * The address this product actually sends from, for showing in a UI ("replies
- * go to …") or a support page.
+ * go to ...") or a support page.
  *
  * Returns null when unconfigured or unreachable rather than guessing from the
  * product's domain: the guess would be wrong for exactly as long as DNS
