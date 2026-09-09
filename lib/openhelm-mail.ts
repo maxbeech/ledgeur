@@ -1,5 +1,5 @@
 /**
- * OpenHelm Mail — this product's transactional email.
+ * OpenHelm Mail: this product's transactional email.
  *
  * ⚠️ GENERATED. The canonical copy is
  * `ProductFactory/_services/openhelm-mail/openhelm-mail.ts`; edit it there and
@@ -21,12 +21,12 @@
  * OpenHelm relay until then. The product does not get to assert a from-address
  * the provider has not verified, which is exactly why deliverability holds.
  * `from` below selects among the product's OWN named senders (noreply@,
- * support@, …) — it cannot invent one.
+ * support@, …): it cannot invent one.
  *
  * NO SILENT SUCCESS. An unconfigured product returns
  * `{ sent: false, reason: "not_configured" }` and a failed send returns
  * `{ sent: false, reason: "error", error }`. Nothing here ever returns a made-up
- * message id, and nothing here retries into a duplicate send — pass `clientId`
+ * message id, and nothing here retries into a duplicate send: pass `clientId`
  * for idempotency if the caller may retry.
  *
  * SERVER ONLY. `OPENHELM_API_KEY` is an org-scoped credential; shipping it to a
@@ -77,13 +77,13 @@ export function emailEnabled(): boolean {
 
 export interface SendEmailInput {
   /**
-   * Recipient(s). Several recipients are delivered as ONE message — they see
+   * Recipient(s). Several recipients are delivered as ONE message: they see
    * each other in the To header, which is what a shared alert should do. Use
    * `bcc` when they must not.
    */
   to: string | string[];
   subject: string;
-  /** Body as HTML. Supply this, `text`, or `markdown` — at least one. */
+  /** Body as HTML. Supply this, `text`, or `markdown`; at least one is required. */
   html?: string;
   text?: string;
   /** Markdown body; the platform renders both an HTML and a text part from it. */
@@ -93,7 +93,7 @@ export interface SendEmailInput {
   bcc?: string[];
   replyTo?: string;
   /**
-   * Send from one of this product's NAMED senders, by local-part — "noreply",
+   * Send from one of this product's NAMED senders, by local-part: "noreply",
    * "support", "billing". Requires OPENHELM_PRODUCT_ID. Omit to send from the
    * product's primary identity. An unknown name is an error, never a silent
    * fallback to the primary: mail arriving from the wrong address is worse than
@@ -102,7 +102,7 @@ export interface SendEmailInput {
   from?: string;
   /**
    * Idempotency key. Re-sending with the same value returns the original
-   * message instead of delivering twice — use it anywhere a retry is possible
+   * message instead of delivering twice: use it anywhere a retry is possible
    * (webhook handlers, queue consumers, form posts).
    */
   clientId?: string;
@@ -112,7 +112,7 @@ export interface SendEmailInput {
    * Files to attach. 10MB across all of them; the platform enforces that and
    * rejects the send rather than delivering a truncated message.
    *
-   * `content` is base64 of the raw bytes — for a string body,
+   * `content` is base64 of the raw bytes: for a string body,
    * `Buffer.from(ics, "utf8").toString("base64")`. Give `contentType` whenever
    * you know it: a calendar invite that arrives as application/octet-stream is
    * a file the recipient's mail client will not offer to add to their calendar.
@@ -135,7 +135,7 @@ export type SendResult =
       id: string;
       /**
        * "sent" | "scheduled" | "pending_approval". `pending_approval` means the
-       * inbox is holding it for human release — it has NOT been delivered, so a
+       * inbox is holding it for human release: it has NOT been delivered, so a
        * caller that wants to say "check your inbox" should require "sent".
        */
       status: string;
@@ -268,7 +268,7 @@ export async function sendEmail(input: SendEmailInput): Promise<SendResult> {
  * go to …") or a support page.
  *
  * Returns null when unconfigured or unreachable rather than guessing from the
- * product's domain — the guess would be wrong for exactly as long as DNS
+ * product's domain: the guess would be wrong for exactly as long as DNS
  * verification is outstanding, which is when it matters most.
  */
 export async function sendingAddress(): Promise<string | null> {
