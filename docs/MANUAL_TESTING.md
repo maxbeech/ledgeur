@@ -541,6 +541,13 @@ behalf, or a paid subscription.
     Price in Stripe and update `STRIPE_PRICE_ID`, then run one checkout and
     confirm the amount charged matches the amount on the pricing page. Until
     that is done the site advertises a price the checkout will not charge.
+    Checked 2026-09-09: this cannot be done from an agent session as it stands.
+    `STRIPE_SECRET_KEY` and `STRIPE_PRICE_ID` are set on Vercel as
+    **Sensitive** env vars, which are write-only by design (`vercel env pull`
+    returns `[SENSITIVE]`, not the value), and the Stripe MCP server needs an
+    interactive OAuth grant that a non-interactive session can't perform. Do
+    this one by hand in the Stripe dashboard, or authorize the Stripe MCP with
+    `/mcp` in an interactive `claude` session first.
 
 ## Error tracking (Sentry)
 15. With `VITE_SENTRY_DSN`/`SENTRY_DSN` set in `apps/desktop/.env`, throw a test

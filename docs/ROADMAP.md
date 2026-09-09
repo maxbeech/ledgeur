@@ -161,3 +161,32 @@ tell what was acted on from what was decided against.
   store-ready binaries. What is left needs a human in App Store Connect and Play
   Console. See `docs/MOBILE.md`.
 - ⬜ **Submit the sitemap in Search Console** and re-measure in 90 days.
+
+### Follow-through, checked 2026-09-09 (same day, after the deploy above)
+
+- 🟡 **Re-inspected `ledgeur.com/` and `.../pricing` in Search Console.** Both
+  still show pre-fix data (`userCanonical` apex, `googleCanonical` www,
+  `coverageState: "Page with redirect"` on the apex), with `lastCrawlTime`
+  before today's deploy. Expected: Google has not recrawled yet. The sitemap
+  was last downloaded 2026-09-08T21:50, still reporting 71 submitted / 0
+  indexed, which predates the new pages going live, so it will read 87 once
+  Google refetches it. The Search Console API has no "request indexing" or
+  "resubmit sitemap" endpoint; only the UI does, and it is rate-limited to
+  manual, occasional use. There is nothing left to trigger from here. Re-check
+  in the UI or re-run this inspection in a few days.
+- ❎ **Confirmed the Stripe Price object is not creatable from this session.**
+  `STRIPE_SECRET_KEY` and `STRIPE_PRICE_ID` are already set on Vercel, but as
+  **Sensitive**-type env vars, which Vercel deliberately makes write-only:
+  `vercel env pull` returns `[SENSITIVE]` instead of the value, so the secret
+  key can't be recovered to call the Stripe API directly. The Stripe MCP server
+  is configured but requires an interactive OAuth grant (`/mcp` in an
+  interactive terminal session), which a non-interactive session cannot do.
+  Once either is unblocked, whether the Stripe MCP gets authorized or a fresh
+  `STRIPE_SECRET_KEY` is handed to a session directly, creating the $12 Price and
+  updating `STRIPE_PRICE_ID` is a five-minute job. Until then this stays a
+  by-hand step; see `docs/MANUAL_TESTING.md` item 30.
+- ❎ **Real Linear/Todoist/Asana tokens are not something to create.** These
+  are the *user's own* third-party accounts, entered per-user in
+  Settings → Automation, not project credentials. Creating an account on
+  somebody's behalf is out of scope regardless of session type. Stays a manual
+  test; see `docs/MANUAL_TESTING.md` item 28.
