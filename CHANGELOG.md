@@ -68,8 +68,11 @@ instead of "let's talk", because a tier with no number asks a buyer to spend a
 meeting finding out whether they can afford the conversation.
 
 The number in `plans.ts` is a display value. The money comes from the Stripe
-Price object named by `STRIPE_PRICE_ID`, which has to be updated in the Stripe
-dashboard by hand.
+Price object named by `STRIPE_PRICE_ID`. **Update, 2026-09-10:** created the
+matching $12/mo price on the live `Ledgeur Team` product, archived the old $6
+one so existing subscribers keep their price while new checkouts see $12, and
+pointed `STRIPE_PRICE_ID` at it. Verified against a real checkout session,
+never completed, so nobody was charged.
 
 ### New pages, and twenty-eight posts that now have a shape
 

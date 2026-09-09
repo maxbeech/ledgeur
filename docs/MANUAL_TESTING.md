@@ -518,9 +518,10 @@ microphone and the two phones.
 
 ## The strategy pass (2026-09-09)
 
-Everything here except 28 was checked in a browser or against the live database.
-What is left needs a third-party account nobody should create on somebody's
-behalf, or a paid subscription.
+Everything here except 28 and 29 was checked in a browser, against the live
+database, or (item 30) against the live Stripe account. What is left needs a
+third-party account nobody should create on somebody's behalf, or a completed
+paid purchase.
 
 28. **A real task push.** The three request contracts are unit-tested against
     the live API docs, and the delivery path (retries, the double-send guard,
@@ -536,18 +537,17 @@ behalf, or a paid subscription.
     and puts it back. What is not covered is the real purchase path: buy the
     Team plan with a Stripe test card and confirm the Settings sync card moves
     from "On the free plan" to "In step" without signing out and back in.
-30. **The Stripe price.** `TEAM_PRICE_USD` is a display value; the money comes
-    from the Stripe Price object. After changing it to 12, create the matching
-    Price in Stripe and update `STRIPE_PRICE_ID`, then run one checkout and
-    confirm the amount charged matches the amount on the pricing page. Until
-    that is done the site advertises a price the checkout will not charge.
-    Checked 2026-09-09: this cannot be done from an agent session as it stands.
-    `STRIPE_SECRET_KEY` and `STRIPE_PRICE_ID` are set on Vercel as
-    **Sensitive** env vars, which are write-only by design (`vercel env pull`
-    returns `[SENSITIVE]`, not the value), and the Stripe MCP server needs an
-    interactive OAuth grant that a non-interactive session can't perform. Do
-    this one by hand in the Stripe dashboard, or authorize the Stripe MCP with
-    `/mcp` in an interactive `claude` session first.
+30. **The Stripe price.** ✅ Done 2026-09-10, via the Stripe CLI already
+    installed on this machine (`stripe login --project-name ledgeur`, picking
+    the Ledgeur account in the dashboard switcher when prompted). Created
+    `price_1UDunjLd8nls1i60Z5CrkIgG` at $12.00/mo on the existing `Ledgeur
+    Team` product, archived the old $6 price so it can't be selected for new
+    checkouts, updated `STRIPE_PRICE_ID` on Vercel, and redeployed. Verified by
+    signing in as the test account and calling `/api/checkout` for real: the
+    returned Checkout session quotes the new price at 1200 cents USD with the
+    right `client_reference_id`. The session was left unfinished and expires
+    on its own; nobody was charged. What is still open is a completed purchase
+    with a real card (item 29) confirming the Settings sync card flips over.
 
 ## Error tracking (Sentry)
 15. With `VITE_SENTRY_DSN`/`SENTRY_DSN` set in `apps/desktop/.env`, throw a test

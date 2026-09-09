@@ -137,8 +137,9 @@ tell what was acted on from what was decided against.
   automatically after a meeting. `packages/core/src/tasks/push.ts` (pure,
   tested) plus `apps/desktop/src/lib/taskPush.ts` (delivery). One-way by design.
 - ✅ **Team tier priced at a third of the category median.** $6 to $12, and
-  Enterprise given a $30 floor instead of "let's talk". **Still to do by hand:
-  create the matching Stripe Price and update `STRIPE_PRICE_ID`.**
+  Enterprise given a $30 floor instead of "let's talk". The matching Stripe
+  Price was created and wired up on 2026-09-10; see the follow-through section
+  below.
 - ✅ **Circleback and Grain missing from `/alternatives`.** Added, with real
   pricing checked against their own pages on 2026-09-09.
 - ✅ **No pillar structure.** Three pillars at `/guides`, each with a cluster,
@@ -174,17 +175,22 @@ tell what was acted on from what was decided against.
   "resubmit sitemap" endpoint; only the UI does, and it is rate-limited to
   manual, occasional use. There is nothing left to trigger from here. Re-check
   in the UI or re-run this inspection in a few days.
-- ❎ **Confirmed the Stripe Price object is not creatable from this session.**
-  `STRIPE_SECRET_KEY` and `STRIPE_PRICE_ID` are already set on Vercel, but as
-  **Sensitive**-type env vars, which Vercel deliberately makes write-only:
-  `vercel env pull` returns `[SENSITIVE]` instead of the value, so the secret
-  key can't be recovered to call the Stripe API directly. The Stripe MCP server
-  is configured but requires an interactive OAuth grant (`/mcp` in an
-  interactive terminal session), which a non-interactive session cannot do.
-  Once either is unblocked, whether the Stripe MCP gets authorized or a fresh
-  `STRIPE_SECRET_KEY` is handed to a session directly, creating the $12 Price and
-  updating `STRIPE_PRICE_ID` is a five-minute job. Until then this stays a
-  by-hand step; see `docs/MANUAL_TESTING.md` item 30.
+- ✅ **The Stripe Price now matches the site, done 2026-09-10.** The blocker
+  above (a Sensitive env var, no interactive Stripe MCP grant) held for the
+  API, not for the Stripe CLI already on this machine. That CLI's saved
+  profiles turned out to be other Beech products' accounts, not Ledgeur's, and
+  the first `stripe login --project-name ledgeur` re-linked the same shared
+  account by mistake, so getting to the real one took a second login with the
+  right account picked in the dashboard switcher. From there: created
+  `price_1UDunjLd8nls1i60Z5CrkIgG` at $12.00/mo on the existing `Ledgeur Team`
+  product, archived the old $6 price (`price_1TrKayLd8nls1i60KSZj1jYY`, so
+  existing subscribers keep their price and only new checkouts see $12),
+  updated `STRIPE_PRICE_ID` on Vercel, and redeployed. Verified live: signed in
+  as the test account, called `/api/checkout` for real, and confirmed the
+  returned Stripe Checkout session quotes `price_1UDunjLd8nls1i60Z5CrkIgG` at
+  1200 (cents, USD) with `client_reference_id` set to the right workspace. The
+  session was never completed, so nobody was charged. MANUAL_TESTING item 30 is
+  closed; item 29 (an actual card purchase) is still open.
 - ❎ **Real Linear/Todoist/Asana tokens are not something to create.** These
   are the *user's own* third-party accounts, entered per-user in
   Settings → Automation, not project credentials. Creating an account on
