@@ -19,7 +19,7 @@ Measured 2026-09-09 against Search Console (`sc-domain:ledgeur.com`):
 |---|---|
 | Search Console property | ✅ registered, `sc-domain:ledgeur.com`, owner |
 | Sitemap | ✅ submitted 2026-09-08, 71 URLs, 0 errors |
-| URLs indexed | **0** |
+| URLs indexed **from the sitemap** | **0** |
 | Impressions, last 90 days | **0** |
 | Clicks, last 90 days | **0** |
 | Indexable pages after this pass | 87 (see `app/sitemap.ts`) |
@@ -45,8 +45,14 @@ was 71 URLs that all redirected. Google overruled our declared canonical
 everywhere and picked its own.
 
 This is invisible from inside the app: the pages render, the tags are present,
-and the markup validates. It is a plausible reason on its own for zero indexed
-pages against a clean sitemap, and it predates every content decision below.
+and the markup validates. It predates every content decision below.
+
+It also explains the "0 indexed" figure above, which is narrower than it looks.
+Inspecting `https://www.ledgeur.com/pricing` returns "Submitted and indexed"
+with the same canonical mismatch (`googleCanonical` www, `userCanonical` apex).
+So Google *has* indexed some pages, by following internal links to the www
+host; what it has indexed nothing of is the sitemap, because every URL in the
+sitemap was an apex URL that redirects. The sitemap was doing no work at all.
 
 Fixed by pointing `SITE.url` at `https://www.ledgeur.com`, with a test asserting
 it stays on whichever host answers 200 without a hop. The desktop app's own
