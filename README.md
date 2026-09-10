@@ -80,6 +80,29 @@ in IndexedDB). To enable accounts, sync and the hive mind, create
 `apps/desktop/.env` from [`apps/desktop/.env.example`](apps/desktop/.env.example)
 and apply the schema in `supabase/migrations` to your Supabase project.
 
+## How the microphone is captured
+
+Ledgeur opens the mic **passively**, with no echo cancellation, no noise
+suppression and no automatic gain, everywhere it records: meetings, dictation
+and voice enrolment. This is deliberate and it is not a missing feature.
+
+Asking for echo cancellation is not a request for a software filter. On macOS,
+WebKit maps it straight onto the audio unit subtype
+(`m_shouldUseVPIO = enableEchoCancellation()`), so `echoCancellation: true`
+opens the mic through **VoiceProcessingIO**, the same "I am a call client" path
+Zoom, Meet and FaceTime use, instead of a passive one. That reconfigures the
+*shared* input device. Measured on a built-in MacBook mic, it fires 32 Core
+Audio property changes rewriting the device's physical and virtual stream
+formats, against five benign lifecycle events for passive capture. When somebody
+is already on a call, that renegotiation lands underneath the call app while it
+holds the mic, and the far end hears them go quiet. Recording a call must never
+degrade the call.
+
+The constraints live in one table, `MIC_PROCESSING` in
+[`packages/core/src/browser/capture.ts`](packages/core/src/browser/capture.ts),
+with every flag stated explicitly. An omitted flag is not "off": browsers
+default all three to `true`, which is how this shipped as a bug once already.
+
 ## How speaker separation works
 
 Two models, both in the browser, both free:

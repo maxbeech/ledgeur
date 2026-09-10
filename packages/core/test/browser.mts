@@ -370,6 +370,87 @@ export async function runBrowserTests(ok: (name: string, cond: boolean, detail?:
   }
 
   {
+    // What Ledgeur asks the OS for when it opens the mic.
+    //
+    // This is a regression test for a real bug: recording computer audio during
+    // a call made the user's mic go quiet for everyone else on that call. The
+    // cause was `echoCancellation: true` here, which on macOS is not a filter
+    // request — it makes WebKit open the mic through VoiceProcessingIO, the
+    // call-client path, which reconfigures the shared input device underneath
+    // whatever call app is holding it. So these assert the constraints
+    // themselves, not just that capture starts.
+    const { AudioCapture, MIC_PROCESSING } = await import("../src/browser/capture.ts");
+
+    ok("raw capture turns echo cancellation off", MIC_PROCESSING.raw.echoCancellation === false);
+    ok("raw capture turns noise suppression off", MIC_PROCESSING.raw.noiseSuppression === false);
+    ok("raw capture turns automatic gain control off", MIC_PROCESSING.raw.autoGainControl === false);
+    // The bug shipped because a flag was *omitted*, not set wrong: browsers
+    // default all three to true, so silence here means voice processing.
+    ok("raw capture leaves no processing flag unstated, since unstated means on",
+      (["echoCancellation", "noiseSuppression", "autoGainControl"] as const)
+        .every((k) => k in MIC_PROCESSING.raw),
+      JSON.stringify(MIC_PROCESSING.raw));
+    ok("voice mode still asks for the call-client treatment",
+      MIC_PROCESSING.voice.echoCancellation === true
+      && MIC_PROCESSING.voice.noiseSuppression === true
+      && MIC_PROCESSING.voice.autoGainControl === true);
+
+    // Drive a real `start()` against stub Web Audio to prove the table is
+    // actually what reaches getUserMedia — a correct constant wired up wrong
+    // would leave the bug in place and every assertion above still passing.
+    class FakeAudioContext {
+      sampleRate = 48000;
+      state = "running";
+      destination = {};
+      createMediaStreamSource() { return { connect() {} }; }
+      createScriptProcessor() { return { onaudioprocess: null, connect() {}, disconnect() {} }; }
+      createGain() { return { gain: { value: 1 }, connect() {} }; }
+      async close() { this.state = "closed"; }
+    }
+    const asked: MediaTrackConstraints[] = [];
+    const track = { stop() {} };
+    const stubs = {
+      window: { AudioContext: FakeAudioContext },
+      navigator: {
+        mediaDevices: {
+          getUserMedia: async (c: MediaStreamConstraints) => {
+            asked.push(c.audio as MediaTrackConstraints);
+            return { getTracks: () => [track], getAudioTracks: () => [track] };
+          },
+        },
+      },
+    };
+    const saved = new Map<string, PropertyDescriptor | undefined>();
+    for (const [key, value] of Object.entries(stubs)) {
+      saved.set(key, Object.getOwnPropertyDescriptor(globalThis, key));
+      Object.defineProperty(globalThis, key, { value, configurable: true, writable: true });
+    }
+    try {
+      const cap = new AudioCapture();
+      await cap.start({ mic: true, system: false });
+      await cap.stop();
+      ok("opening the mic asks for exactly one stream", asked.length === 1, `${asked.length}`);
+      ok("the default mic stream is raw, so a live call is never renegotiated",
+        asked[0]?.echoCancellation === false
+        && asked[0]?.noiseSuppression === false
+        && asked[0]?.autoGainControl === false,
+        JSON.stringify(asked[0]));
+
+      asked.length = 0;
+      const voiced = new AudioCapture();
+      await voiced.start({ mic: true, system: false, micProcessing: "voice" });
+      await voiced.stop();
+      ok("a caller can still opt into voice processing explicitly",
+        asked[0]?.echoCancellation === true, JSON.stringify(asked[0]));
+    } finally {
+      for (const [key, descriptor] of saved) {
+        if (descriptor) Object.defineProperty(globalThis, key, descriptor);
+        else delete (globalThis as Record<string, unknown>)[key];
+      }
+    }
+  }
+
+  {
     // Enrolment: "say a few words" → a vector we can save under a name.
     FakeWorker.spawned = [];
     const controller = new DiarizerController({}, {

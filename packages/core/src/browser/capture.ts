@@ -72,6 +72,54 @@ export function friendlyCaptureError(err: unknown, source: "mic" | "system"): st
     : `Ledgeur could not start recording ${thing}.`;
 }
 
+/**
+ * How the OS should treat Ledgeur's microphone stream.
+ *
+ * `raw` takes the signal as the device already produces it. `voice` asks for
+ * the call-client treatment — echo cancellation, noise suppression, automatic
+ * gain — which sounds like the obvious choice for a recorder and is not. See
+ * `MIC_PROCESSING` for why.
+ */
+export type MicProcessing = "raw" | "voice";
+
+/**
+ * The audio constraints behind each mode.
+ *
+ * ── Why `raw` is the default ────────────────────────────────────────────────
+ * Asking for echo cancellation is not a request for a software filter. On
+ * macOS it selects a different capture path entirely: WebKit opens the mic
+ * through the VoiceProcessingIO audio unit — the same "I am a call client"
+ * path Zoom, Meet and FaceTime use — instead of a passive one. Doing that
+ * *reconfigures the shared input device*. Measured on a built-in MacBook mic,
+ * opening VoiceProcessingIO fires 32 CoreAudio property changes on the input
+ * device, including two full configuration-change brackets that rewrite its
+ * physical and virtual stream formats and its input stream layout. Opening the
+ * same mic passively fires five, all of them benign start/stop lifecycle.
+ *
+ * When somebody is already on a call, that renegotiation lands underneath the
+ * call app while it is holding the mic, and the far end hears them go quiet.
+ * That is the bug this default exists to prevent: recording the computer audio
+ * of a call must never degrade the call being recorded. Every other recorder
+ * that gets this right — Granola, Voice Memos — captures passively.
+ *
+ * So Ledgeur captures passively too, everywhere. It is a recorder, never a
+ * participant, and it has no business putting a shared device into voice mode.
+ *
+ * The cost is real and accepted: with no echo cancellation, a user on speakers
+ * has the far end bleed into their mic, and the native tap captures that same
+ * audio digitally, so the far end lands in the mix twice with a few
+ * milliseconds between them. That is a small hollowness in the recording.
+ * Breaking someone's live call is not a small anything.
+ *
+ * Every flag is stated explicitly, including the `false`s. An omitted flag is
+ * not "off" — browsers default `echoCancellation`, `noiseSuppression` and
+ * `autoGainControl` to `true`, which is how this shipped by accident.
+ */
+export const MIC_PROCESSING: Record<MicProcessing, MediaTrackConstraints> = {
+  raw: { echoCancellation: false, noiseSuppression: false, autoGainControl: false },
+  voice: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+};
+
 export interface CaptureSources {
   /** The user's own microphone. */
   mic: boolean;
@@ -94,6 +142,12 @@ export interface CaptureSources {
    * behaviour for them is unchanged.
    */
   clockOnly?: boolean;
+  /**
+   * How the OS should treat the mic stream. Defaults to `raw`, which is what
+   * every caller in this codebase wants — see `MIC_PROCESSING`. `voice` exists
+   * for a caller that genuinely is a call client, and there isn't one yet.
+   */
+  micProcessing?: MicProcessing;
 }
 
 export class AudioCapture {
@@ -143,7 +197,7 @@ export class AudioCapture {
       if (sources.mic) {
         opening = "mic";
         const mic = await navigator.mediaDevices.getUserMedia({
-          audio: { echoCancellation: true, noiseSuppression: true },
+          audio: { ...MIC_PROCESSING[sources.micProcessing ?? "raw"] },
         });
         this.streams.push(mic);
         nodes.push(ctx.createMediaStreamSource(mic));

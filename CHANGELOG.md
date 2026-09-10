@@ -1,5 +1,74 @@
 # Changelog
 
+## Unreleased (2026-09-10) — Recording a call stopped degrading the call
+
+Recording computer audio during a meeting made the user's microphone go quiet
+for everybody else on that call. Granola and Voice Memos do not do this, which
+was the clue that it was ours to fix rather than something macOS does to anyone
+who records.
+
+### It was never the system-audio tap
+
+The obvious suspect was the Core Audio process tap and the private aggregate
+device it builds in `apps/desktop/src-tauri/src/audio/mod.rs`. It was measured
+and it is innocent. Creating that aggregate around the default output device,
+and running its IO, fires **zero** property changes on the input device and
+**zero** default-device reassignments — the mic object is untouched, and the
+aggregate never sets a sample rate at all. Two separate probes said so.
+
+The tap is only the correlation. You turn computer audio on when you are in a
+call, and being in a call is when another app is holding the mic.
+
+### It was `echoCancellation: true` on our own microphone
+
+`packages/core/src/browser/capture.ts` opened the mic with
+`{ echoCancellation: true, noiseSuppression: true }` and left `autoGainControl`
+unstated, which means `true`. That reads like a recorder asking for a cleaner
+signal. On macOS it is not a filter request — it selects a different capture
+path. WebKit maps it straight onto the audio unit subtype:
+
+```cpp
+m_shouldUseVPIO = enableEchoCancellation();       // CoreAudioCaptureUnit.cpp
+OSType unitSubType = kAudioUnitSubType_VoiceProcessingIO;
+if (!shouldUseVPIO) unitSubType = kAudioUnitSubType_HALOutput;
+```
+
+VoiceProcessingIO is the path Zoom, Meet and FaceTime use — "I am a call
+client" — and opening it **reconfigures the shared input device**. Measured on
+a built-in MacBook mic: VoiceProcessingIO fires 32 Core Audio property changes
+on the input device, including two full configuration-change brackets
+(`cfgb`…`cfge`) that rewrite its physical and virtual stream formats and its
+input stream layout. Opening the same mic passively fires five, all benign
+start/stop lifecycle. WebKit's own comment on the passive branch says it:
+"With HALOutput, we cannot rely on sample rate conversions, we stick to
+hardware sample rate" — it reads the hardware rate, it never writes one.
+
+So Ledgeur was reformatting the microphone underneath a live call, while the
+call app held it. Hence the quiet.
+
+### Ledgeur now captures passively, everywhere
+
+Mic constraints moved into one exported table, `MIC_PROCESSING`, with `raw` as
+the default for every caller — the recorder, dictation and voice enrolment
+alike. Ledgeur is a recorder, never a participant, and has no business putting
+a shared device into voice mode. Every flag is stated explicitly, including the
+`false`s, because this shipped by accident through an *omitted* flag rather
+than a wrong one: browsers default all three to `true`.
+
+`voice` remains available for a caller that genuinely is a call client. There
+isn't one.
+
+**The cost, stated plainly.** With no echo cancellation, somebody on speakers
+has the far end bleed into their mic, and the tap captures that same audio
+digitally, so the far end lands in the mix twice a few milliseconds apart. That
+is a small hollowness in the recording. Breaking somebody's live call is not a
+small anything. Voice enrolment and dictation get *better*, since neither wants
+automatic gain reshaping the voice it is trying to learn.
+
+Eight tests in `packages/core/test/browser.mts` assert the constraints
+themselves — both the table and what actually reaches `getUserMedia` — because
+a correct constant wired up wrong would leave the bug in place.
+
 ## Unreleased (2026-09-09) — Saying what is true, and charging for it
 
 A strategy review compared what the product does against what the site claims,
