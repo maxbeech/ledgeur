@@ -3,7 +3,7 @@
 // the person returns to this screen.
 import { useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
-import { Mic, MonitorSpeaker, CheckCircle2, Upload, Info } from "lucide-react";
+import { Mic, MonitorSpeaker, CheckCircle2, Upload, Info, AlertCircle } from "lucide-react";
 import { LANG_OPTIONS, SPOKEN_LANGUAGES } from "@ledgeur/asr";
 import { cn } from "@ledgeur/ui";
 import { Page, PageHeader } from "../components/PageHeader.tsx";
@@ -14,6 +14,7 @@ import { useRecorderCtx } from "../lib/useRecorderCtx.ts";
 import { finalizeMeeting } from "../lib/afterMeeting.ts";
 import { useFileImport, IMPORT_ACCEPT } from "../lib/useFileImport.ts";
 import { isSystemAudioTapAvailable } from "../lib/systemAudioTap.ts";
+import { useRunningCallApp, isCallAppTipDismissed, dismissCallAppTip } from "../lib/callApps.ts";
 import { useSetting, setSetting, hasChosenSystemAudio } from "../lib/settings.ts";
 import { usePickableTemplates, templateFor } from "../lib/recipes.ts";
 import { useDevice } from "../lib/platform.ts";
@@ -53,6 +54,15 @@ export function Record() {
   const fileInput = useRef<HTMLInputElement>(null);
   const importRef = useRef<HTMLDivElement>(null);
   const [dragging, setDragging] = useState(false);
+
+  // Only the mic+system-audio combination reproduces the ducking this warns
+  // about — see src-tauri/src/callapps.rs — so there's no point polling
+  // otherwise, and no point once a recording (or something else) is already
+  // showing a different screen.
+  const usesSystem = !phone && system;
+  const watchForCallApp = state.status === "idle" && !phone && mic && usesSystem;
+  const runningCallApp = useRunningCallApp(watchForCallApp);
+  const [tipDismissed, setTipDismissed] = useState(isCallAppTipDismissed());
 
   // A calendar prompt can pre-fill the title (?title=…), but never mid-take.
   const paramTitle = params.get("title");
@@ -94,8 +104,6 @@ export function Record() {
     );
   }
 
-  const usesSystem = !phone && system;
-
   return (
     <Page>
       <PageHeader
@@ -133,6 +141,24 @@ export function Record() {
                 : "This build falls back to Screen Recording permission and a share picker — the only way a webview " +
                   "can hear the other side of a call. Only the audio is used; nothing is saved or shown from your screen."}
             </p>
+          )}
+
+          {runningCallApp && !tipDismissed && (
+            <div className="-mt-1 mb-5 flex items-start gap-2.5 rounded-lg bg-brand-soft px-3.5 py-2.5 text-xs leading-relaxed text-ink-text">
+              <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-brand-strong" />
+              <span className="flex-1">
+                {runningCallApp} has its own "Automatically adjust microphone volume" setting, and it's known to make you
+                sound quiet to the other side while Ledgeur is recording — nothing to do with this recording itself.
+                Turn it off in {runningCallApp} → Settings → Audio.
+              </span>
+              <button
+                type="button"
+                onClick={() => { dismissCallAppTip(); setTipDismissed(true); }}
+                className="shrink-0 rounded-lg px-2 py-1 text-xs font-semibold text-brand-strong transition-colors hover:bg-surface-muted"
+              >
+                Got it
+              </button>
+            </div>
           )}
 
           <div className="mb-6 grid gap-4 sm:grid-cols-2">

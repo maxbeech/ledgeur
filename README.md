@@ -103,6 +103,15 @@ The constraints live in one table, `MIC_PROCESSING` in
 with every flag stated explicitly. An omitted flag is not "off": browsers
 default all three to `true`, which is how this shipped as a bug once already.
 
+**This fixed Meet. It didn't fix Zoom**, because Zoom's quiet-mic symptom has a
+different cause: Zoom ships its own microphone auto-gain-control ("Automatically
+adjust microphone volume," on by default, separate from its noise-suppression
+toggles) that is independently documented to reset input volume when triggered.
+Ledgeur has no API into another app's settings, so
+[`apps/desktop/src-tauri/src/callapps.rs`](apps/desktop/src-tauri/src/callapps.rs)
+detects when Zoom is running and the Record screen tells people which setting to
+turn off, instead of requiring them to already know.
+
 ## How speaker separation works
 
 Two models, both in the browser, both free:

@@ -5,6 +5,7 @@
 
 mod ai;
 mod audio;
+mod callapps;
 mod net;
 
 /// Crash/error reporting for the native layer. Reads SENTRY_DSN, baked in at
@@ -67,6 +68,7 @@ pub fn run() {
             audio::system_audio_tap_available,
             audio::start_system_audio_tap,
             audio::stop_system_audio_tap,
+            callapps::detect_running_call_app,
             net::http_post,
         ])
         .build(tauri::generate_context!())

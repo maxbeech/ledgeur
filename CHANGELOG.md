@@ -69,6 +69,45 @@ Eight tests in `packages/core/test/browser.mts` assert the constraints
 themselves — both the table and what actually reaches `getUserMedia` — because
 a correct constant wired up wrong would leave the bug in place.
 
+## Unreleased (2026-09-15) — The mic fix held on Meet, not on Zoom
+
+0.3.7 fixed the quiet-mic bug on Google Meet. It didn't fix it on Zoom, and the
+difference is real and measured, not a partial rollout of the same cause.
+
+### Ledgeur's own code is now provably clean, even under the case that mattered
+
+The suspicion, again, was the Core Audio process tap. This time it was tested
+under the condition the earlier probes never covered: real audio actively
+playing through the shared output device while the tap's aggregate device is
+created around it — the situation an in-progress call is actually in, not an
+idle one. Same result: **zero** property changes on either the microphone or
+the speaker device. The tap wrapping an already-live output device does not
+glitch it. Two independent probes, in isolation and under load, both come back
+clean, which is as close to "not us" as this can be shown from inside Ledgeur.
+
+### It's Zoom's own microphone auto-gain-control
+
+Zoom ships a setting, **"Automatically adjust microphone volume,"** on by
+default, separate from the noise-suppression/"enhancement" toggles most people
+think of as the audio settings to check. It's independently documented — on
+Zoom's own community forum and Apple's discussion forums — to reset input
+volume to a low level and fluctuate it, with no other app involved. Ledgeur
+opening a second, passive client on a mic Zoom already holds is the trigger;
+Zoom's own AGC does the rest. There is nothing in Ledgeur's own audio pipeline
+left to change — the lever is a setting inside an app Ledgeur has no API into.
+
+### So the fix is telling people, at the moment it matters
+
+`apps/desktop/src-tauri/src/callapps.rs` detects whether Zoom is currently
+running (`ps -axc -o comm=`, matched against a short, deliberately narrow known
+list — no guessing at other apps' settings menus without evidence they have the
+same quirk). The Record screen (`apps/desktop/src/screens/Record.tsx`) polls
+this only while it's showing and only when the mic+system-audio combination
+that reproduces the bug is selected, and surfaces a dismissible note naming the
+exact setting and where it lives, instead of requiring anyone to already know
+to go looking for it. Dismissal is permanent, in `localStorage` — read once,
+gone.
+
 ## Unreleased (2026-09-09) — Saying what is true, and charging for it
 
 A strategy review compared what the product does against what the site claims,
