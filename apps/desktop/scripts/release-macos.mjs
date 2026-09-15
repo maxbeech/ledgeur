@@ -134,15 +134,34 @@ function updaterSigningEnv() {
   };
 }
 
-/** Curated, human-written release notes — `gh release create --generate-notes`
- *  dumps every commit message, most of which are internal and meaningless to
- *  someone deciding whether to update. */
+/**
+ * Curated, human-written release notes — `gh release create --generate-notes`
+ * dumps every commit message, most of which are internal and meaningless to
+ * someone deciding whether to update.
+ *
+ * 1.1.0 covers everything accumulated since 0.3.7: the last two version
+ * numbers (0.3.7, 0.3.8) both shipped an auto-update that failed to install
+ * for everyone (see CHANGELOG.md), so nobody has actually received any of
+ * this yet. Update this function for the next release instead of leaving it
+ * stale — it was these exact bullets, unrelated to what shipped, last time.
+ */
 function RELEASE_NOTES(version) {
   return `## Ledgeur ${version}\n\n` +
-    "- The sidebar now shows a progress bar while the on-device model downloads in the background\n" +
-    "- Fixed that progress bar restarting from zero for every file a model download touches\n" +
-    "- \"System audio\" is now off by default — recording no longer asks for Screen Recording permission unless you turn it on\n" +
-    "- Added diagnostics for the rare case where audio is captured but the speech model returns no text\n";
+    "**Meetings**\n" +
+    "- Speaker separation over-split one person into two or three far less often, and a one-click \"merge into…\" fixes it when it still does\n" +
+    "- You can now play back a few seconds of someone's voice while naming them, instead of guessing from the transcript alone\n" +
+    "- Meeting summaries are noticeably more detailed and specific, and no longer repeat the same decision twice\n" +
+    "- Copying notes to the clipboard no longer drags the entire transcript along with them\n" +
+    "- Speakers can now name themselves — if someone says who they are on the call, Ledgeur picks it up\n" +
+    "- Notes are written closer to meeting speed, with several stability fixes to the on-device assistant\n" +
+    "\n**Tasks & captures**\n" +
+    "- Tasks can now be added and deleted by hand, multi-selected, bulk-marked done, and filtered to what the model found vs. what you added\n" +
+    "- \"Keep a thought\" lets you capture a task or note outside of a meeting — typed or said out loud\n" +
+    "\n**Everywhere else**\n" +
+    "- Recording no longer quietens your microphone for everyone else on a call, on Zoom and Google Meet\n" +
+    "- One shared design system and a proper phone layout across the app\n" +
+    "- The in-meeting copilot now has context from earlier in the meeting, not just the last few minutes\n" +
+    "- Fixed the auto-update installer itself — this is the release where updating actually works again\n";
 }
 
 /** A universal build silently falls back to one arch if a target is missing. */
@@ -282,7 +301,14 @@ function rebuildArtifactsAfterFixup(app, dmgPath, macosBundle, identity, updater
 
   const updaterBundle = join(macosBundle, "Ledgeur.app.tar.gz");
   say(`\n▸ Rebuilding ${updaterBundle} from the fixed .app…`);
-  run("tar", ["-czf", updaterBundle, "-C", macosBundle, "Ledgeur.app"]);
+  // Without COPYFILE_DISABLE=1, macOS's tar sneaks in an AppleDouble sidecar
+  // file (._Ledgeur.app) for every xattr-bearing entry in the freshly-signed
+  // bundle. `tauri build`'s own updater-bundling step sets this internally;
+  // this hand-rolled tar call didn't, so the updater would find "._Ledgeur.app"
+  // instead of the real bundle and fail to unpack it on every installed Mac.
+  run("tar", ["-czf", updaterBundle, "-C", macosBundle, "Ledgeur.app"], {
+    env: { ...process.env, COPYFILE_DISABLE: "1" },
+  });
   run("pnpm", ["tauri", "signer", "sign", updaterBundle], { env: { ...process.env, ...updaterEnv } });
 }
 
