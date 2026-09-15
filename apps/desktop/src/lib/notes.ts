@@ -19,6 +19,7 @@
 // elaborated into a plausible-sounding sentence nobody said.
 
 import {
+  dedupeSimilar,
   formatTranscript,
   summarizeTranscript,
   templateInstruction,
@@ -75,6 +76,25 @@ function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
  * ("something the group settled on", "someone committed to"), and asking
  * explicitly for the figures and owners to survive is what fixed it. Re-run
  * that test if this wording changes.
+ *
+ * ── The second round of complaints ──────────────────────────────────────────
+ * Real use surfaced three more failures, all traceable to this prompt asking
+ * for too little: a summary of 3-6 generic bullets that read as "a meeting
+ * happened about roughly this," action items that missed half of what was
+ * actually committed to, and — worst — decisions that were the same fact
+ * stated twice. "3-6 short bullets" was the whole instruction for what the
+ * summary should contain, which a small model reads as license to write one
+ * bullet per section of the meeting rather than one bullet per *thing that
+ * happened in* it. The fix is not "write more" in the abstract, which a small
+ * model turns into padding — it is naming what a summary bullet is for (one
+ * per substantive point, not one per topic) and how many there typically are
+ * (as many as the meeting had points, not a fixed 3-6). "List every…" for
+ * action items replaces what was an implicit "pick some" with an explicit
+ * completeness requirement. The duplicate-decisions failure came from the
+ * long-meeting reduce pass, not from here — see `REDUCE_SYSTEM` below — but
+ * the instruction to treat two differently-worded statements of the same fact
+ * as one is worth stating in the single-pass prompt too, since nothing stops
+ * a transcript itself from returning to the same decision twice.
  */
 const BASE_SYSTEM =
   "You are an expert meeting-notes writer. You are given a speech-to-text transcript " +
@@ -83,14 +103,22 @@ const BASE_SYSTEM =
   "- Be faithful. Never invent facts, names, numbers or commitments that are not in the transcript.\n" +
   "- Keep exact figures, prices, percentages, dates and names exactly as they were said.\n" +
   "- A DECISION is something the group settled on. Write what was agreed, including the " +
-  "number or date they agreed. Do not write that something was discussed or considered.\n" +
-  "- An ACTION ITEM is a concrete follow-up someone committed to. Name who owns it.\n" +
+  "number or date they agreed. Do not write that something was discussed or considered. If the " +
+  "same decision comes up more than once in the transcript, write it once.\n" +
+  "- An ACTION ITEM is a concrete follow-up someone committed to. Name who owns it. List every " +
+  "one the transcript supports, not a sample of them — a short meeting may have one or none, a " +
+  "long one may have a dozen, and the count should follow the transcript, not a target length.\n" +
   "- An OPEN QUESTION is something explicitly left unresolved, parked or deferred.\n" +
   "- Write in the past tense, about what happened.\n\n" +
   "Reply with ONLY a JSON object of this exact shape, and nothing else:\n" +
   '{"summary": string[], "actionItems": string[], "decisions": string[], "questions": string[]}\n\n' +
-  '"summary" is 3-6 short bullets covering what the meeting was about and what came out ' +
-  "of it. Use an empty array for any section the transcript does not cover.";
+  '"summary" is one bullet per substantive point the meeting actually made — what it was for, ' +
+  "what each topic covered turned up (not just that the topic came up), any disagreement and how " +
+  "it landed, and what came out of it. A meeting with five distinct points made needs five bullets, " +
+  "not three; a short check-in with one real point needs one, not padded to three. Specific and " +
+  'concrete beats broad: "the team agreed the mobile layout breaks below 375px and Sam will fix ' +
+  'it before Thursday" is a usable bullet, "the team discussed some technical issues" is not, ' +
+  "even about the same exchange. Use an empty array for any section the transcript does not cover.";
 
 /** Appended only when the user actually typed something. */
 const NOTES_SYSTEM =
@@ -121,20 +149,29 @@ function strings(v: unknown, limit: number): string[] {
   return out;
 }
 
-/** Parse the model's JSON reply into MeetingNotes. Throws if it isn't usable so
- *  the caller falls back to the heuristic extractor rather than saving nothing. */
+/**
+ * Parse the model's JSON reply into MeetingNotes. Throws if it isn't usable so
+ * the caller falls back to the heuristic extractor rather than saving nothing.
+ *
+ * `dedupeSimilar` runs on every field, not just decisions: it is the safety
+ * net for the model repeating itself under whatever wording, and asking for
+ * more detail (see `BASE_SYSTEM`) makes a near-duplicate more likely to slip
+ * in, not less. It runs on the raw model output *before* the length cap, so a
+ * genuine 14th action item does not lose its slot to an earlier repeat of the
+ * 3rd — dropping the repeat has to free the slot back up.
+ */
 export function parseAiNotes(raw: string, transcript: string): MeetingNotes {
   const match = raw.match(/\{[\s\S]*\}/);
   if (!match) throw new Error("Model did not return JSON notes.");
   const obj = JSON.parse(match[0]) as RawNotes;
-  const summary = strings(obj.summary, 8);
+  const summary = dedupeSimilar(strings(obj.summary, 24)).slice(0, 14);
   if (summary.length === 0) throw new Error("Model returned an empty summary.");
   const wordCount = (transcript.match(/[a-z0-9']+/gi) ?? []).length;
   return {
     summary,
-    actionItems: strings(obj.actionItems, 12),
-    decisions: strings(obj.decisions, 8),
-    questions: strings(obj.questions, 10),
+    actionItems: dedupeSimilar(strings(obj.actionItems, 24)).slice(0, 16),
+    decisions: dedupeSimilar(strings(obj.decisions, 16)).slice(0, 10),
+    questions: dedupeSimilar(strings(obj.questions, 16)).slice(0, 10),
     wordCount,
   };
 }
@@ -265,6 +302,71 @@ export function windowTranscript(transcript: string, chars = CHUNK_CHARS): strin
 }
 
 /**
+ * System prompt for the reduce pass over already-windowed notes.
+ *
+ * A dedicated prompt, not `BASE_SYSTEM` reused: the reduce pass is never given
+ * a transcript, so an instruction describing "[time] Speaker: what they said"
+ * describes an input that is not there. Reusing BASE_SYSTEM here used to hand
+ * the model a task description that did not match what it was actually being
+ * asked to do — merge some already-extracted lists — and a 1.5B model
+ * resolved that mismatch badly: a line pulled from the windowed notes and
+ * prefixed "Decision: " landed straight in the JSON `summary` array instead of
+ * `decisions` (visible verbatim, prefix and all, in notes the app had shipped
+ * before this was fixed), and a decision phrased two different ways across two
+ * windows survived as two separate decisions rather than being recognised as
+ * one. Naming the actual input shape, forbidding the item from crossing
+ * sections, and calling out reworded repeats explicitly targets both.
+ */
+const REDUCE_SYSTEM =
+  "You are merging meeting notes that were already extracted, separately, from consecutive " +
+  "parts of one meeting. You are given the summary, decisions, action items and open questions " +
+  "found in each part, grouped under headings — there is no transcript here, only these already-" +
+  "extracted lists. Merge each heading across every part into one final list for that heading: " +
+  "do not move an item into a different heading than the one it was given under, and do not write " +
+  'labels like "Decision:" or "Action:" into the text itself — the JSON field it belongs to is ' +
+  "the label. When two items, from the same or different parts, say the same thing — even worded " +
+  "differently, or with their clauses in a different order — keep only one, in whichever phrasing " +
+  "is clearer. Never invent anything that is not already in the lists you were given.\n\n" +
+  "Reply with ONLY a JSON object of this exact shape, and nothing else:\n" +
+  '{"summary": string[], "actionItems": string[], "decisions": string[], "questions": string[]}';
+
+/** One window's notes, grouped under headings the reduce pass can trust —
+ *  never a flat bullet list with a hand-written "Decision:" prefix, which is
+ *  what the model reducing them ends up echoing back verbatim. */
+function renderWindowNotes(index: number, total: number, notes: MeetingNotes): string {
+  const section = (heading: string, items: string[]) =>
+    items.length ? `${heading}:\n${items.map((i) => `- ${i}`).join("\n")}\n` : "";
+  return (
+    `Part ${index + 1} of ${total}:\n` +
+    section("Summary", notes.summary) +
+    section("Decisions", notes.decisions) +
+    section("Action items", notes.actionItems) +
+    section("Open questions", notes.questions)
+  ).trim();
+}
+
+/** The reduce pass's own prompt — see `REDUCE_SYSTEM` for why it is not
+ *  `buildNotesPrompt`. Exported for testing, same reason `buildNotesPrompt` is. */
+export function buildReducePrompt(
+  parts: readonly string[],
+  manualNotes = "",
+  templateId?: string,
+): { role: "system" | "user"; content: string }[] {
+  const notes = manualNotes.trim();
+  const system = REDUCE_SYSTEM + templateInstruction(templateFor(templateId)) + (notes
+    ? " The user's own notes from the meeting are given below the extracted parts and take " +
+      "priority over them: cover every point the user made, near the top of the summary, in " +
+      "their own words where the parts support it."
+    : "");
+  const user = `Notes already extracted from consecutive parts of one meeting, in order:\n\n${parts.join("\n\n")}`
+    + (notes ? `\n\nThe user's own notes from the meeting:\n\n${notes}` : "");
+  return [
+    { role: "system", content: system },
+    { role: "user", content: user },
+  ];
+}
+
+/**
  * Notes for a meeting too long for one pass: summarise each window, then
  * condense the collected points into the final set.
  *
@@ -287,14 +389,7 @@ async function condenseLongMeeting(
     const reply = await askForNotes(`(Part ${i + 1} of ${windows.length} of the meeting.)\n\n${window}`, "", templateId);
     try {
       const notes = parseAiNotes(reply, window);
-      parts.push(
-        [
-          ...notes.summary,
-          ...notes.decisions.map((d) => `Decision: ${d}`),
-          ...notes.actionItems.map((a) => `Action: ${a}`),
-          ...notes.questions.map((q) => `Open question: ${q}`),
-        ].map((p) => `- ${p}`).join("\n"),
-      );
+      parts.push(renderWindowNotes(i, windows.length, notes));
     } catch (e) {
       // One bad window should not lose the rest of the meeting.
       log.warn("a transcript window produced no usable notes", {
@@ -307,11 +402,8 @@ async function condenseLongMeeting(
 
   // Reduce: the collected points stand in for the transcript. They are already
   // prose, so they are far denser than raw speech and fit comfortably.
-  return askForNotes(
-    `These are notes taken from consecutive parts of one meeting, in order. ` +
-      `Merge them into a single set of notes for the whole meeting, removing ` +
-      `duplicates and keeping the wording faithful.\n\n${parts.join("\n")}`,
-    manualNotes,
-    templateId,
+  return withTimeout(
+    chatComplete(buildReducePrompt(parts, manualNotes, templateId), { temperature: 0.2, maxTokens: 768 }),
+    NOTES_TIMEOUT_MS,
   );
 }

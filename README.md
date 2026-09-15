@@ -132,6 +132,15 @@ holding that in a tab to diarize at the end is not reasonable. Clustering still
 runs once over everything at the end, because "which of these voices is the same
 person" cannot be answered twenty seconds at a time.
 
+Clustering weighs each turn by its duration, not by count: a short, noisy turn
+(an interjection, a word caught mid-hand-over) gives the embedding model its
+least reliable signal, so a handful of confident seconds from one voice
+outweighs several brief ones from another when deciding who two clusters
+belong to. Any cluster whose total speaking time stays under two seconds after
+the main pass is folded into its nearest neighbour regardless of similarity —
+a phantom split from noise is far likelier than a real participant who barely
+spoke.
+
 Voice prints live in IndexedDB and are **never synced**, not even on the paid
 plan — a voice print identifies a person after the transcript is deleted.
 
@@ -159,6 +168,9 @@ and the words it came from — everywhere it appears, and is one click to accept
 change, or reject. Correcting a guess also *un*-teaches whatever it taught the
 voice store, so a wrong name cannot quietly propagate into later meetings. A
 single misattributed line can be moved on its own, without touching the voice.
+If clustering splits one person into two speakers, "Merge into…" on either
+chip folds one entirely into the other, relabelling every line and combining
+their speaking time in one step.
 
 To recognise somebody next time, a few seconds of their speech is kept with the
 meeting — chosen for blandness rather than convenience. Every candidate window is

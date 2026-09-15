@@ -85,3 +85,42 @@ export function mixFloat32(a: Float32Array, b: Float32Array): Float32Array {
   }
   return out;
 }
+
+/**
+ * Wrap mono 16-bit PCM in a WAV header, as raw bytes.
+ *
+ * Exists so a stored `LocalVoiceSample` — kept only as bare PCM, because that
+ * is the format both speaker engines want — can also be handed to an
+ * `<audio>` element to play back. A WAV header is 44 bytes of fixed layout;
+ * there is no reason to pull in a dependency for it.
+ */
+export function pcm16ToWav(pcm: Int16Array, sampleRate: number): Uint8Array {
+  const bytesPerSample = 2;
+  const blockAlign = bytesPerSample; // mono
+  const dataSize = pcm.length * bytesPerSample;
+  const buffer = new ArrayBuffer(44 + dataSize);
+  const view = new DataView(buffer);
+
+  const writeString = (offset: number, s: string) => {
+    for (let i = 0; i < s.length; i++) view.setUint8(offset + i, s.charCodeAt(i));
+  };
+
+  writeString(0, "RIFF");
+  view.setUint32(4, 36 + dataSize, true);
+  writeString(8, "WAVE");
+  writeString(12, "fmt ");
+  view.setUint32(16, 16, true); // fmt chunk size
+  view.setUint16(20, 1, true); // PCM
+  view.setUint16(22, 1, true); // mono
+  view.setUint32(24, sampleRate, true);
+  view.setUint32(28, sampleRate * blockAlign, true); // byte rate
+  view.setUint16(32, blockAlign, true);
+  view.setUint16(34, 16, true); // bits per sample
+  writeString(36, "data");
+  view.setUint32(40, dataSize, true);
+
+  let offset = 44;
+  for (let i = 0; i < pcm.length; i++, offset += 2) view.setInt16(offset, pcm[i], true);
+
+  return new Uint8Array(buffer);
+}

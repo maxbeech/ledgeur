@@ -2,13 +2,13 @@
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 // Only import modules free of browser-only globals (no import.meta.env, DOM).
 import { mergeThread, quoteOf, messageToItem, type ThreadItem } from "../src/lib/thread.ts";
-import { parseAiNotes, buildNotesPrompt, windowTranscript } from "../src/lib/notes.ts";
+import { parseAiNotes, buildNotesPrompt, buildReducePrompt, windowTranscript } from "../src/lib/notes.ts";
 import {
   authErrorMessage, hasNoAuthMethod, NO_AUTH, parseAuthSettings, providerUnavailableMessage,
   signUpNextStep, ssoDomain, validateCredentials,
 } from "@ledgeur/core";
 import type { LocalSegment, ChatMessage } from "../src/lib/meetingsStore.ts";
-import { renameSpeakerInMeeting } from "../src/lib/renameSpeaker.ts";
+import { renameSpeakerInMeeting, mergeSpeakerInMeeting } from "../src/lib/renameSpeaker.ts";
 import { runModelWarmupTests } from "./modelWarmup.mts";
 import { runGranolaDesktopTests } from "./granola.mts";
 import { runSyncStoreTests, runPullMappingTests } from "./sync.mts";
@@ -67,6 +67,60 @@ ok("parseAiNotes throws on non-JSON", (() => { try { parseAiNotes("no json here"
 ok("parseAiNotes throws on empty summary", (() => {
   try { parseAiNotes(JSON.stringify({ summary: [] }), "x"); return false; } catch { return true; }
 })());
+
+// A regression test for the exact bug reported from real usage: the reduce
+// pass across a long meeting produced the same decision twice, reworded.
+ok("parseAiNotes drops a reworded-repeat decision", (() => {
+  const dup = JSON.stringify({
+    summary: ["Point one."],
+    decisions: [
+      "The team decided to focus on OpenHelmer and automate the product management process.",
+      "The team decided to automate the product management process and focus on OpenHelmer.",
+    ],
+  });
+  return parseAiNotes(dup, "x").decisions.length === 1;
+})());
+ok("parseAiNotes keeps distinct decisions", (() => {
+  const distinct = JSON.stringify({
+    summary: ["Point one."],
+    decisions: ["Shipped the pricing page.", "Sam owns the mobile fix."],
+  });
+  return parseAiNotes(distinct, "x").decisions.length === 2;
+})());
+
+// --- buildReducePrompt: the fix for notes bleeding between sections ---
+//
+// The reduce pass over a long meeting used to reuse BASE_SYSTEM, which
+// describes a transcript that is not actually there at that stage — the input
+// is already-extracted notes. A 1.5B model given that mismatch echoed a
+// "Decision: " prefixed line straight into the summary array instead of
+// sorting it into decisions, and repeated a decision restated across windows
+// rather than recognising it as the same fact. These assert the dedicated
+// prompt describes the real input and forbids both failures.
+{
+  const parts = [
+    "Part 1 of 2:\nSummary:\n- Kicked off the roadmap review.\nDecisions:\n- Shipped the pricing page.\n",
+    "Part 2 of 2:\nSummary:\n- Discussed mobile layout.\nAction items:\n- Sam to fix the mobile layout by Friday.\n",
+  ];
+  const reduce = buildReducePrompt(parts, "");
+  ok("the reduce prompt does not claim a transcript is present",
+    !/\[time\] Speaker/.test(reduce[0].content));
+  ok("the reduce prompt describes merging already-extracted notes",
+    /already extracted/i.test(reduce[0].content));
+  ok("the reduce prompt forbids moving an item to a different heading",
+    /not move an item|different heading/i.test(reduce[0].content));
+  ok("the reduce prompt calls out reworded repeats",
+    /worded differently|clauses in a different order/i.test(reduce[0].content));
+  ok("the reduce prompt forbids writing the label into the text",
+    /"Decision:"/.test(reduce[0].content));
+  ok("the reduce prompt still carries the JSON contract", reduce[0].content.includes('"actionItems"'));
+  ok("the reduce user message carries every part", reduce[1].content.includes("mobile layout by Friday"));
+
+  const withNotes = buildReducePrompt(parts, "pricing — Sam pushing back");
+  ok("the user's own notes reach the reduce prompt", withNotes[1].content.includes("Sam pushing back"));
+  ok("typed notes are given priority in the reduce prompt too", withNotes[0].content.includes("priority"));
+  ok("no typed notes means no priority instruction", !buildReducePrompt(parts)[0].content.includes("priority"));
+}
 
 // --- note templates steer the prompt without overriding the contract ---
 {
@@ -276,6 +330,26 @@ ok("sign-up next step says you're in when auto-confirmed", /signed in/.test(sign
     noPrint.meeting.segments[1].speakerLabel === "Sam");
   ok("a speaker with no stored print explains why it will not be remembered",
     /cannot teach|no stored voice print/i.test(noPrint.rememberError), noPrint.rememberError);
+
+  // --- merging one voice into another: the recovery for over-split speakers ---
+  const merged = await mergeSpeakerInMeeting(meeting, "Speaker 1", "Speaker 2");
+  ok("merging moves every line from the merged-away label",
+    merged.segments.filter((s) => s.speakerLabel === "Speaker 2").length === 3,
+    JSON.stringify(merged.segments.map((s) => s.speakerLabel)));
+  ok("merging removes the merged-away speaker entirely",
+    !merged.speakers?.some((s) => s.label === "Speaker 1"));
+  ok("merging combines speaking time onto the target",
+    merged.speakers?.find((s) => s.label === "Speaker 2")?.speakingSeconds === 3);
+  ok("a merged line drops its confidence, like any hand correction",
+    merged.segments.filter((s) => s.speakerLabel === "Speaker 2").every((s) => s.speakerConfidence === null));
+  ok("merging does not mutate the original", meeting.segments[0].speakerLabel === "Speaker 1");
+
+  const noopSame = await mergeSpeakerInMeeting(meeting, "Speaker 1", "Speaker 1");
+  ok("merging a speaker into itself is a no-op", noopSame === meeting);
+  const noopMissing = await mergeSpeakerInMeeting(meeting, "Speaker 1", "Speaker 9");
+  ok("merging into a speaker this meeting has no record of is a no-op", noopMissing === meeting);
+  const noopBlank = await mergeSpeakerInMeeting(meeting, "Speaker 1", "  ");
+  ok("merging into a blank label is a no-op", noopBlank === meeting);
 }
 
 // --- one copy of each shared module ---

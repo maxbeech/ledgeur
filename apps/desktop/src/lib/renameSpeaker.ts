@@ -162,6 +162,41 @@ export function reassignSegmentSpeaker(
 }
 
 /**
+ * Fold one voice entirely into another — the recovery for diarization
+ * splitting one person into two labels.
+ *
+ * Unlike `reassignSegmentSpeaker`, which moves a single misattributed line,
+ * this moves every line `fromLabel` ever spoke and removes `fromLabel` from
+ * the speaker list outright: the two were never different people, so there is
+ * nothing left for the old label to mean once the merge is done. If the
+ * merged-away voice had taught an auto-enrolled print, that print is forgotten
+ * — it was evidence for a split that turned out to be wrong, and letting it
+ * stand would keep splitting this person's voice in every later meeting.
+ */
+export async function mergeSpeakerInMeeting(
+  meeting: LocalMeeting,
+  fromLabel: string,
+  intoLabel: string,
+): Promise<LocalMeeting> {
+  if (!fromLabel || !intoLabel || fromLabel === intoLabel) return meeting;
+  const from = meeting.speakers?.find((s) => s.label === fromLabel);
+  if (!meeting.speakers?.some((s) => s.label === intoLabel)) return meeting;
+
+  if (from?.profileId && isGuessedSpeaker(from)) await forgetAutoEnrolment(from.profileId);
+
+  return {
+    ...meeting,
+    speakers: meeting.speakers
+      .filter((s) => s.label !== fromLabel)
+      .map((s) => (s.label === intoLabel
+        ? { ...s, speakingSeconds: s.speakingSeconds + (from?.speakingSeconds ?? 0) }
+        : s)),
+    segments: meeting.segments.map((s) =>
+      s.speakerLabel === fromLabel ? { ...s, speakerLabel: intoLabel, speakerConfidence: null } : s),
+  };
+}
+
+/**
  * Accept a guessed name as correct.
  *
  * One click, and the name stops being shown as a guess. If the guess was not

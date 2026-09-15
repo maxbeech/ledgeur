@@ -12,12 +12,13 @@
 // meeting.
 
 import { useEffect, useState } from "react";
-import { Check, Sparkles, X } from "lucide-react";
-import { Button, ErrorNote, Label, SpeakerChip } from "../ui.tsx";
+import { Check, GitMerge, Sparkles, Volume2, X } from "lucide-react";
+import { Button, ErrorNote, IconButton, Label, SpeakerChip } from "../ui.tsx";
 import {
-  confirmSpeakerGuess, rejectSpeakerGuess, renameSpeakerInMeeting,
+  confirmSpeakerGuess, mergeSpeakerInMeeting, rejectSpeakerGuess, renameSpeakerInMeeting,
 } from "../../lib/renameSpeaker.ts";
 import { inferSpeakerNames } from "../../lib/speakerNames.ts";
+import { playVoiceSample } from "../../lib/playVoiceSample.ts";
 import { applyNameProposals } from "@ledgeur/core";
 import type { LocalMeeting, LocalSpeaker } from "../../lib/meetingsStore.ts";
 
@@ -40,12 +41,17 @@ export function SpeakerPanel({ meeting, counts, onChange, renaming, onRenamingCh
   const [draft, setDraft] = useState("");
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
+  /** Which voice is showing its "merge into…" picker. Exclusive with
+   *  `renaming`: fixing who a speaker IS and folding two voices INTO one are
+   *  different edits, and letting both open at once for the same chip would
+   *  make it unclear which one a keystroke applies to. */
+  const [mergeTarget, setMergeTarget] = useState<string | null>(null);
 
   // Opening the field from a transcript line has to start it empty for a
   // placeholder and pre-filled for a real name, exactly as clicking the chip up
   // here does — otherwise the same action behaves differently in two places.
   useEffect(() => {
-    if (renaming) setDraft(/^speaker\s*\d+$/i.test(renaming) ? "" : renaming);
+    if (renaming) { setDraft(/^speaker\s*\d+$/i.test(renaming) ? "" : renaming); setMergeTarget(null); }
   }, [renaming]);
 
   const labels = [...counts.keys()];
@@ -91,6 +97,20 @@ export function SpeakerPanel({ meeting, counts, onChange, renaming, onRenamingCh
     }
   }
 
+  /** Fold `from` entirely into `into` — the recovery when diarization has
+   *  split one person into two labels. See `mergeSpeakerInMeeting`. */
+  async function merge(from: string, into: string) {
+    if (!into) return;
+    setMergeTarget(null);
+    setBusy(true);
+    try {
+      await onChange(await mergeSpeakerInMeeting(meeting, from, into));
+      setNote("");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   /**
    * Ask again, by hand.
    *
@@ -123,13 +143,28 @@ export function SpeakerPanel({ meeting, counts, onChange, renaming, onRenamingCh
     <div className="mb-5 border-b border-hairline pb-4">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
         <Label>Speakers</Label>
-        {labels.map((label) => (
+        {labels.map((label) => {
+          const sample = speakerFor(label)?.voiceSample;
+          return (
           <span key={label} className="flex items-baseline gap-1.5">
             {renaming === label ? (
               <form
                 onSubmit={(e) => { e.preventDefault(); void commitRename(label); }}
                 className="flex items-center gap-1.5"
               >
+                {/* A couple of seconds of this voice, so "who is this?" can be
+                    answered by ear instead of by reading the transcript again. */}
+                {sample && (
+                  <IconButton
+                    type="button"
+                    label={`Play ${label}'s voice`}
+                    size="sm"
+                    tone="soft"
+                    onClick={() => playVoiceSample(sample)}
+                  >
+                    <Volume2 className="h-3.5 w-3.5" />
+                  </IconButton>
+                )}
                 <input
                   autoFocus
                   value={draft}
@@ -141,22 +176,56 @@ export function SpeakerPanel({ meeting, counts, onChange, renaming, onRenamingCh
                 />
                 <Button size="sm" type="submit">Save</Button>
               </form>
+            ) : mergeTarget === label ? (
+              <span className="flex items-center gap-1.5">
+                <label htmlFor={`merge-${label}`} className="sr-only">Merge {label} into</label>
+                <select
+                  id={`merge-${label}`}
+                  autoFocus
+                  defaultValue=""
+                  onChange={(e) => void merge(label, e.target.value)}
+                  onBlur={() => setMergeTarget(null)}
+                  className="h-8 rounded-full border border-hairline-strong bg-surface px-2.5 text-sm outline-none focus:border-brand"
+                >
+                  <option value="" disabled>Merge into…</option>
+                  {labels.filter((l) => l !== label).map((l) => <option key={l} value={l}>{l}</option>)}
+                </select>
+              </span>
             ) : (
-              <button
-                type="button"
-                disabled={readOnly || busy}
-                onClick={() => { onRenamingChange(label); setNote(""); }}
-                title={isGuess(label)
-                  ? "Ledgeur worked this name out — click to change it"
-                  : "Say who this is — Ledgeur will recognise them next time"}
-                className="cursor-pointer disabled:cursor-default"
-              >
-                <SpeakerChip label={label} guessed={isGuess(label)} confidence={speakerFor(label)?.confidence ?? null} />
-              </button>
+              <span className="inline-flex items-center gap-0.5">
+                <button
+                  type="button"
+                  disabled={readOnly || busy}
+                  onClick={() => { onRenamingChange(label); setMergeTarget(null); setNote(""); }}
+                  title={isGuess(label)
+                    ? "Ledgeur worked this name out — click to change it"
+                    : "Say who this is — Ledgeur will recognise them next time"}
+                  className="cursor-pointer disabled:cursor-default"
+                >
+                  <SpeakerChip label={label} guessed={isGuess(label)} confidence={speakerFor(label)?.confidence ?? null} />
+                </button>
+                {/* Recovery for diarization splitting one person into two labels —
+                    hidden with only one voice in the meeting, since there is
+                    nothing to merge it into. */}
+                {!readOnly && labels.length > 1 && (
+                  <IconButton
+                    label={`Merge ${label} into another speaker`}
+                    title="This is the same person as another speaker — merge them"
+                    size="sm"
+                    tone="ghost"
+                    disabled={busy}
+                    onClick={() => { setMergeTarget(label); onRenamingChange(null); }}
+                    className="h-6 w-6 opacity-60 hover:opacity-100"
+                  >
+                    <GitMerge className="h-3.5 w-3.5" />
+                  </IconButton>
+                )}
+              </span>
             )}
             <span className="ldg-num text-2xs text-faint">×{counts.get(label)}</span>
           </span>
-        ))}
+          );
+        })}
       </div>
 
       {/* One row per guess, with the words that produced it. A guess the reader

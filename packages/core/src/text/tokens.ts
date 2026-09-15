@@ -75,3 +75,42 @@ export function documentFrequency(texts: readonly string[]): Map<string, number>
   }
   return df;
 }
+
+/**
+ * Jaccard similarity of two texts' content-token sets, in 0..1.
+ *
+ * Set overlap rather than sequence comparison on purpose: "the team decided
+ * to focus on X and automate Y" and "the team decided to automate Y and focus
+ * on X" are the same fact in a different order, and a model reducing several
+ * passes into one is prone to producing exactly that — a reworded repeat, not
+ * a copy. Order-sensitive comparison would miss it.
+ */
+export function textSimilarity(a: string, b: string): number {
+  const setA = new Set(contentTokens(a));
+  const setB = new Set(contentTokens(b));
+  if (setA.size === 0 || setB.size === 0) return 0;
+  let intersection = 0;
+  for (const t of setA) if (setB.has(t)) intersection++;
+  const union = setA.size + setB.size - intersection;
+  return union === 0 ? 0 : intersection / union;
+}
+
+/**
+ * Drop items that restate one already kept, however differently worded.
+ *
+ * A safety net behind note generation, not a replacement for asking the model
+ * not to repeat itself: exact-string dedupe (see `dedupe` below) catches a
+ * verbatim repeat, but not the far commoner case of a small model saying the
+ * same decision twice with its clauses swapped. Order-preserving — the first
+ * phrasing of a fact is kept, later restatements of it are dropped.
+ */
+export function dedupeSimilar(items: readonly string[], threshold = 0.6): string[] {
+  const kept: string[] = [];
+  for (const raw of items) {
+    const item = raw.trim();
+    if (!item) continue;
+    if (kept.some((k) => textSimilarity(k, item) >= threshold)) continue;
+    kept.push(item);
+  }
+  return kept;
+}

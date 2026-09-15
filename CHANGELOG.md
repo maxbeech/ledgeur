@@ -1,5 +1,125 @@
 # Changelog
 
+## Unreleased (2026-09-15) — Tasks can now be added, removed, filtered and bulk-edited
+
+The Tasks screen only ever let you tick one item done at a time, with no way
+to add a task by hand, delete one, or tell which items the model pulled out of
+a transcript apart from ones a person actually wrote. Meeting action items
+have no manual-add path — they are always the model's extraction — so a
+hand-added task is created as a capture (`kind: "task"`, `kindSource: "user"`
+from the start, via `addCapture` + `setCaptureKind`), the one kind of task a
+person can actually author; it is never shown as a guess. `TaskItem` gained an
+`auto` field (`useTasks.ts`) so the screen can filter All / Auto / Mine, and a
+`removeTask` that resolves "delete" differently per source: a capture is
+deleted outright, a cloud action item is set to the `cancelled` status the
+list already treats as gone, and a local unsynced one is removed from its
+meeting's `actionItems` array and re-saved. Rows now carry a selection
+checkbox alongside the done checkbox, with a "select all" and a bulk action
+bar (mark done / delete) once anything is selected.
+
+## Unreleased (2026-09-15) — A stored voice sample can now be heard, not just matched against
+
+`chooseVoiceSnippet` has kept a few seconds of someone's voice per speaker
+since voice-print matching shipped, but nothing ever played it back — it only
+ever fed the enrolment model. Naming a speaker meant trusting a guess (or a
+transcript line) with no way to just listen and check. `pcm16ToWav` (new,
+`packages/core/src/audio/pcm.ts`) wraps the stored 16 kHz mono PCM in a WAV
+header — 44 bytes, no dependency needed for that — and `playVoiceSample.ts`
+(new, desktop-only DOM plumbing) turns it into a Blob URL and plays it,
+making sure only one snippet is ever audible and its URL is always revoked.
+`SpeakerPanel` shows a small play button next to the rename field whenever
+that speaker has a kept sample.
+
+## Unreleased (2026-09-15) — Diarization over-split real people into extra speakers, with no easy way back
+
+Two real complaints, one from each end of the pipeline. First: the clustering
+in `cluster.ts` treated every turn as equally trustworthy evidence, but a
+short, noisy turn (an interjection, a cough, a word caught mid-hand-over) is
+the least reliable input the embedding model ever sees — so the turns most
+likely to be wrong were also disproportionately likely to spawn a phantom
+extra "speaker." `clusterEmbeddings` now accepts a `weights` array (turn
+duration, wired in from `assemble.ts`) that both makes long confident turns
+outweigh short noisy ones during average-linkage merging, and — the bigger
+fix — folds any cluster whose total weight stays under `MIN_SPEAKER_SECONDS`
+(2s) into its nearest neighbour after the main pass, however dissimilar. A
+real second participant who barely spoke is vanishingly rare next to a
+diarization glitch, so this removes far more false speakers than real ones.
+`MERGE_SIMILARITY` also moved from 0.30 to 0.24 — still inside the stable
+range both of the constant's own real-audio measurements validated, just
+leaning toward the safer-in-practice side of it now that the second half of
+this fix exists: `mergeSpeakerInMeeting` (new, `renameSpeaker.ts`) and a
+"Merge into…" control per speaker chip in `SpeakerPanel` — the one-click
+recovery the old code's comments described wanting but never actually built,
+so over-splitting stopped being a dead end.
+
+## Unreleased (2026-09-15) — Meeting notes were shallow, and a long meeting's reduce pass bled sections into each other
+
+Three symptoms, reported together, turned out to share one root cause for two
+of them. The notes prompt (`notes.ts`) asked for "3-6 short bullets" with no
+instruction on what a bullet was *for*, which a small model read as license to
+write one generic bullet per rough topic rather than one per actual point
+made — `BASE_SYSTEM` now asks for one bullet per substantive point, as many as
+the meeting had, with a worked example of specific-vs-generic. For a meeting
+too long for one pass, the reduce step over windowed notes reused the same
+system prompt that describes a `[time] Speaker: text` transcript — an input
+that pass never receives, since by then it only sees already-extracted notes
+flattened into one bullet list with hand-written `"Decision:"` / `"Action:"`
+prefixes. A 1.5B model given that mismatch resolved it badly: a
+`"Decision: "`-prefixed line landed straight in the JSON `summary` field
+instead of `decisions` (visible, prefix and all, in notes already shipped),
+and the same decision restated across two windows survived as two separate
+decisions. Fixed with a dedicated `REDUCE_SYSTEM` prompt that names the real
+input, keeps each window's sections under real headings instead of prefixed
+strings, and explicitly calls out reworded repeats. A deterministic safety net
+now backs every path regardless of prompt quality: `dedupeSimilar` (new,
+`text/tokens.ts`) drops a note line that restates one already kept — by
+content-token Jaccard similarity, not exact string match, so "decided to
+focus on X and automate Y" and "decided to automate Y and focus on X" collapse
+to one.
+
+## Unreleased (2026-09-15) — Copying a meeting's notes copied the whole transcript too
+
+The Copy button wrote `meeting.noteMarkdown` to the clipboard verbatim, which
+is also the stored record's markdown and always ends with a `## Transcript`
+section — right for the saved file and the Notion export, wrong for pasting a
+recap into a chat or an email. `notesToMarkdown` (`packages/core`) gained an
+`includeTranscript` option (default `true`, so every other caller is
+unaffected); the Copy button now builds fresh markdown from the meeting's
+structured fields with it turned off, rather than trimming the stored string,
+so it can never end up including what comes after by accident.
+
+## Unreleased (2026-09-15) — Auto-update was unpacking a hidden macOS sidecar file, not the app
+
+Every install of 0.3.7 and 0.3.8 failed with `failed to unpack '._Ledgeur.app'
+into ...` (the leading dot is easy to miss when copying the dialog text).
+`release-macos.mjs`'s `rebuildArtifactsAfterFixup` — added for the native-AI
+packaging fix — rebuilds the updater's `.app.tar.gz` with a raw `tar`
+invocation after re-signing the app bundle. Every file in a signed bundle now
+carries a `com.apple.provenance` xattr, and without `COPYFILE_DISABLE=1` set,
+macOS's `tar` preserves that as a legacy AppleDouble sidecar entry
+(`._Ledgeur.app`, `._Contents`, `._Info.plist`, …) alongside every real entry
+— confirmed by downloading the actual v0.3.8 GitHub release asset and
+inspecting its raw tar headers. `._Ledgeur.app` lands as the very first entry
+in the archive, a single-component top-level file; Tauri's updater strips one
+path component off every entry to flatten the top-level folder, so for that
+entry the destination collapses to the extraction root itself — a directory —
+and writing a file over it fails immediately, on every install. Fixed by
+setting `COPYFILE_DISABLE=1` on the `tar` call. Existing 0.3.7/0.3.8 GitHub
+release assets are still broken (tags can't be overwritten) — the fix only
+takes effect once a new version is built and published.
+
+## Unreleased (2026-09-10) — iOS dSYMs now reach Sentry
+
+`tauri ios build` archives to `src-tauri/gen/apple/build/ledgeur_iOS.xcarchive`,
+outside DerivedData, so its dSYMs survive a `cargo clean` or a DerivedData
+wipe — useful, since a stale-path build cache from a folder move (Cargo baking
+in `.../ProductFactory/ledgeur/...` before the repo moved to `.../Products/`)
+needed exactly that clean earlier today. `pnpm --filter @ledgeur/desktop
+release:ios:symbols` (`apps/desktop/scripts/upload-ios-symbols.mjs`) uploads
+the app and widget dSYMs from that archive to the `ledgeur/parleynotes-desktop`
+Sentry project, so native (Rust/Swift) crashes from the App Store build
+symbolicate instead of showing raw addresses.
+
 ## Unreleased (2026-09-10) — Recording a call stopped degrading the call
 
 Recording computer audio during a meeting made the user's microphone go quiet

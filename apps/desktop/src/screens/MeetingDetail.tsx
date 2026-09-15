@@ -16,7 +16,9 @@ import {
   CornerDownRight, FolderOpen, TriangleAlert,
 } from "lucide-react";
 import { formatElapsed, cn } from "@ledgeur/ui";
-import { attributeMeetingNotes, type AttributedNote, type AttributableLine } from "@ledgeur/core";
+import {
+  attributeMeetingNotes, notesToMarkdown, type AttributedNote, type AttributableLine, type MeetingNotes,
+} from "@ledgeur/core";
 import { Page } from "../components/PageHeader.tsx";
 import { Badge, Button, Card, ErrorNote, IconButton, Label, Notice, Segmented, Spinner } from "../components/ui.tsx";
 import { FollowUpPanel } from "../components/meeting/FollowUpPanel.tsx";
@@ -162,8 +164,28 @@ export function MeetingDetail() {
     );
   }
 
+  /**
+   * Copy the notes — never the transcript. `meeting.noteMarkdown` is the
+   * stored record and, like the Notion export, always carries the full
+   * transcript at the end; that is right for a record kept on file, but wrong
+   * for pasting a recap into a chat or an email, which is what this button is
+   * actually for. Built fresh from the structured fields rather than trimming
+   * `noteMarkdown`, so it can never accidentally include what came after.
+   */
   async function copyMd() {
-    await navigator.clipboard.writeText(meeting!.noteMarkdown);
+    const notes: MeetingNotes = {
+      summary: meeting!.summary,
+      decisions: meeting!.decisions,
+      questions: meeting!.questions,
+      actionItems: meeting!.actionItems,
+      wordCount: meeting!.wordCount,
+      generator: meeting!.notesGenerator,
+    };
+    const md = notesToMarkdown(
+      meeting!.title, meeting!.createdAt.slice(0, 10), notes, "", meeting!.manualNotes,
+      { includeTranscript: false },
+    );
+    await navigator.clipboard.writeText(md);
     setCopied(true);
     setTimeout(() => setCopied(false), 1500);
   }

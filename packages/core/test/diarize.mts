@@ -70,6 +70,60 @@ export function runDiarizeTests(ok: (name: string, cond: boolean, detail?: strin
     return labels[0] !== labels[2];
   })());
 
+  // ---------- weighted clustering & tiny-cluster reabsorption ----------
+  // H1 and H2 are the closest pair overall and merge first regardless of
+  // weight. B sits closer to H2 than to C, but not close enough for the
+  // *unweighted* average of (H1,B) and (H2,B) to beat B's similarity to C —
+  // so by default B joins C. Weighting H2 far more heavily than H1 pulls the
+  // merged cluster's similarity to B up toward H2's own (higher) value,
+  // which is enough to beat B-C and pull B the other way instead.
+  // minClusterWeight: 0 isolates the linkage-weighting effect from tiny-cluster
+  // reabsorption, which — correctly — would otherwise also fire here (passing
+  // `weights` alone defaults it on, see the next block of tests).
+  ok("a heavily-weighted cluster pulls a borderline point its way", (() => {
+    const points = [[1, 0, 0], [0.9, 0, 0.4], [0.55, 0, 0.83], [0, 0, 1]];
+    const unweighted = clusterEmbeddings(points, { threshold: 0.6, minClusterWeight: 0 });
+    const weighted = clusterEmbeddings(points, { threshold: 0.6, weights: [1, 50, 1, 1], minClusterWeight: 0 });
+    return unweighted[2] === unweighted[3] && unweighted[2] !== unweighted[0]
+      && weighted[2] === weighted[0] && weighted[2] !== weighted[3];
+  })());
+
+  ok("a tiny noisy cluster is folded into its nearest neighbour", (() => {
+    // Two clear voices, plus one near-orthogonal blip too short to trust.
+    const embeddings = [[1, 0, 0], [1, 0, 0], [0, 1, 0], [0, 1, 0], [0.6, 0.5, 0.5]];
+    const weights = [5, 5, 5, 5, 0.3];
+    const labels = clusterEmbeddings(embeddings, { threshold: 0.9, weights, minClusterWeight: 2 });
+    return new Set(labels).size === 2 && labels[4] !== undefined;
+  })());
+
+  ok("a real but quiet second speaker survives when above the weight floor", (() => {
+    const embeddings = [[1, 0], [1, 0], [1, 0], [0, 1]];
+    const weights = [5, 5, 5, 2.5];
+    const labels = clusterEmbeddings(embeddings, { threshold: 0.9, weights, minClusterWeight: 2 });
+    return new Set(labels).size === 2;
+  })());
+
+  ok("minClusterWeight is ignored when a speaker count is forced", (() => {
+    const embeddings = [[1, 0], [1, 0], [0, 1]];
+    const weights = [5, 5, 0.1];
+    const labels = clusterEmbeddings(embeddings, { speakers: 2, weights, minClusterWeight: 2 });
+    return new Set(labels).size === 2;
+  })());
+
+  ok("no weights means minClusterWeight defaults off", (() => {
+    // Without durations, "weight" and "turn count" are the same unit, and a
+    // lone embedding must not be silently absorbed just for being one turn.
+    const labels = clusterEmbeddings([[1, 0], [1, 0], [0, 1]], { threshold: 0.9 });
+    return new Set(labels).size === 2;
+  })());
+
+  ok("clustering is unchanged when every weight is equal", (() => {
+    const points = [[1, 0.02], [0.98, 0.05], [0.03, 1], [0.01, 0.99]];
+    const a = clusterEmbeddings(points);
+    const b = clusterEmbeddings(points, { weights: [1, 1, 1, 1] });
+    return JSON.stringify(a) === JSON.stringify(b);
+  })());
+
   // ---------- turns ----------
   const raw: RawTurn[] = [
     { start: 0, end: 2, speaker: 0, confidence: 0.9 },

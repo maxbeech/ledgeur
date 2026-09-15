@@ -3,7 +3,7 @@
 // here is a wrong answer rather than a crash — which is exactly why they are
 // pure functions with tests.
 
-import { STOPWORDS, tokenize, contentTokens, relevance, documentFrequency } from "../src/text/tokens.ts";
+import { STOPWORDS, tokenize, contentTokens, relevance, documentFrequency, textSimilarity, dedupeSimilar } from "../src/text/tokens.ts";
 import { packContext, renderContext, type ContextBlock } from "../src/context/blocks.ts";
 import {
   formatTranscriptLine, formatTranscript, selectTranscriptContext, speakerRoster,
@@ -38,6 +38,35 @@ export function runContextTests(ok: (name: string, cond: boolean, detail?: strin
   })());
   ok("documentFrequency counts documents not occurrences",
     documentFrequency(["pricing pricing pricing", "pricing page"]).get("pricing") === 2);
+
+  ok("textSimilarity is 1 for the same fact with clauses swapped",
+    textSimilarity(
+      "The team decided to focus on OpenHelmer and automate the product management process.",
+      "The team decided to automate the product management process and focus on OpenHelmer.",
+    ) === 1);
+  ok("textSimilarity is 0 for unrelated sentences",
+    textSimilarity("We shipped the pricing page.", "Sarah is out next week.") === 0);
+  ok("textSimilarity of an empty string is 0", textSimilarity("", "anything here") === 0);
+  ok("textSimilarity ignores filler-word differences",
+    textSimilarity("We decided to ship it.", "So, um, we basically decided to ship it, yeah.") === 1);
+
+  ok("dedupeSimilar drops a reworded repeat", (() => {
+    const out = dedupeSimilar([
+      "The team decided to focus on OpenHelmer and automate the product management process.",
+      "The team decided to automate the product management process and focus on OpenHelmer.",
+    ]);
+    return out.length === 1;
+  })());
+  ok("dedupeSimilar keeps the first phrasing", dedupeSimilar([
+    "The team decided to focus on OpenHelmer and automate the product management process.",
+    "The team decided to automate the product management process and focus on OpenHelmer.",
+  ])[0] === "The team decided to focus on OpenHelmer and automate the product management process.");
+  ok("dedupeSimilar keeps genuinely different points", dedupeSimilar([
+    "Sam will send the revised pricing by Friday.",
+    "Priya will update the onboarding docs.",
+  ]).length === 2);
+  ok("dedupeSimilar drops blanks", dedupeSimilar(["A real point about scope.", "  ", ""]).length === 1);
+  ok("dedupeSimilar of an empty list is empty", dedupeSimilar([]).length === 0);
 
   // ── packing ───────────────────────────────────────────────────────────────
   const blocks: ContextBlock[] = [

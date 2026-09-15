@@ -101,7 +101,14 @@ export function assembleDiarization(
     return unattributed(chunks);
   }
 
-  const assignments = clusterEmbeddings(analysed.embeddings, { speakers: options.speakers });
+  // Weight each embedding by the duration of the turn it came from, so a
+  // handful of seconds of confident speech outweighs a brief, noisy
+  // interjection when the clusterer decides who is who — see cluster.ts.
+  const weights = analysed.embeddedIndices.map((turnIndex) => {
+    const turn = analysed.turns[turnIndex];
+    return turn ? Math.max(0, turn.end - turn.start) : 0;
+  });
+  const assignments = clusterEmbeddings(analysed.embeddings, { speakers: options.speakers, weights });
   const withSpeakers = applyClusters(analysed.turns, analysed.embeddedIndices, assignments);
   const turns = mergeAdjacentTurns(withSpeakers) as SpeakerTurn[];
 

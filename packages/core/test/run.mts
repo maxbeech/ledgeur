@@ -4,7 +4,7 @@ import { parseSuggestions } from "../src/notes/suggest.ts";
 import { NOTE_TEMPLATES, DEFAULT_TEMPLATE_ID, templateById, templateInstruction } from "../src/notes/templates.ts";
 import { buildNotesRequest, providerById, AI_PROVIDERS } from "../src/notes/ai-notes.ts";
 import { toMeetingNote, actionItemsFromNotes } from "../src/notes/map.ts";
-import { resample, mergeToMono, rms, concatFloat32, mixFloat32, WHISPER_SAMPLE_RATE } from "../src/audio/pcm.ts";
+import { resample, mergeToMono, rms, concatFloat32, mixFloat32, pcm16ToWav, WHISPER_SAMPLE_RATE } from "../src/audio/pcm.ts";
 import { markdownToNotionBlocks, chunkBlocks, buildNotionPage } from "../src/integrations/notion.ts";
 import { chunkText, meetingChunks } from "../src/rag/chunk.ts";
 import { eventsToday, nextUpcoming, eventsNeedingPrompt, formatEventsForContext } from "../src/calendar/schedule.ts";
@@ -62,6 +62,10 @@ ok("markdown omits manual notes when absent", !md.includes("## Your notes"));
 const mdManual = notesToMarkdown("Planning call", "2026-06-14", notes, transcript, "Remember: Priya owns rollout.\nBudget cap £40k.");
 ok("markdown includes manual notes verbatim", mdManual.includes("## Your notes") && mdManual.includes("Budget cap £40k."));
 ok("manual notes come before action items", mdManual.indexOf("## Your notes") < mdManual.indexOf("## Action items"));
+const mdNoTranscript = notesToMarkdown("Planning call", "2026-06-14", notes, transcript, "", { includeTranscript: false });
+ok("includeTranscript:false omits the transcript section", !mdNoTranscript.includes("## Transcript"));
+ok("includeTranscript:false still keeps the notes", mdNoTranscript.includes("## Action items"));
+ok("includeTranscript defaults to true when omitted", notesToMarkdown("T", "2026-06-14", notes, transcript).includes("## Transcript"));
 
 // --- suggestion parsing ---
 ok("suggestions: JSON array", parseSuggestions('["Ask about the deadline.", "Confirm the owner.", "Push for a decision."]').length === 3);
@@ -97,6 +101,33 @@ ok("mergeToMono averages two channels", (() => {
   const m = mergeToMono([new Float32Array([0, 1]), new Float32Array([1, 1])]);
   return m[0] === 0.5 && m[1] === 1;
 })());
+
+ok("pcm16ToWav produces a valid RIFF/WAVE header", (() => {
+  const pcm = new Int16Array([0, 100, -100, 32767, -32768]);
+  const bytes = pcm16ToWav(pcm, 16000);
+  const chr = (i: number) => String.fromCharCode(bytes[i]);
+  const tag = (start: number) => [0, 1, 2, 3].map((i) => chr(start + i)).join("");
+  return tag(0) === "RIFF" && tag(8) === "WAVE" && tag(12) === "fmt " && tag(36) === "data";
+})());
+ok("pcm16ToWav is 44 bytes of header plus 2 bytes per sample", (() => {
+  const pcm = new Int16Array(10);
+  return pcm16ToWav(pcm, 16000).length === 44 + 20;
+})());
+ok("pcm16ToWav records the sample rate little-endian", (() => {
+  const bytes = pcm16ToWav(new Int16Array(0), 16000);
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  return view.getUint32(24, true) === 16000;
+})());
+ok("pcm16ToWav round-trips sample values", (() => {
+  const pcm = new Int16Array([1234, -1234, 32767, -32768, 0]);
+  const bytes = pcm16ToWav(pcm, 16000);
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  for (let i = 0; i < pcm.length; i++) {
+    if (view.getInt16(44 + i * 2, true) !== pcm[i]) return false;
+  }
+  return true;
+})());
+ok("pcm16ToWav of empty PCM is just the header", pcm16ToWav(new Int16Array(0), 16000).length === 44);
 ok("rms of zeros is 0", rms(new Float32Array([0, 0, 0])) === 0);
 ok("concatFloat32 length sums", concatFloat32([new Float32Array(4), new Float32Array(6)]).length === 10);
 ok("mixFloat32 sums sample-for-sample", (() => {

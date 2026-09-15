@@ -110,13 +110,20 @@ export function summarizeTranscript(transcript: string): MeetingNotes {
 /** Render notes + transcript to Markdown for export. Single source of truth for
  *  the export format, shared by the UI, exports (Notion) and tests.
  *  `manualNotes` — anything the user typed during the meeting — is preserved
- *  verbatim in its own section so the enhanced summary includes their words. */
+ *  verbatim in its own section so the enhanced summary includes their words.
+ *
+ *  `includeTranscript` (default true) exists for the one caller that wants the
+ *  notes without it: copying notes to the clipboard for a summary elsewhere.
+ *  The stored record, Notion export and webhook payload all still want the
+ *  full thing, so the default stays on rather than making every other caller
+ *  opt in. */
 export function notesToMarkdown(
   title: string,
   dateISO: string,
   notes: MeetingNotes,
   transcript: string,
   manualNotes?: string,
+  { includeTranscript = true }: { includeTranscript?: boolean } = {},
 ): string {
   const section = (h: string, items: string[], bullet = "- ") =>
     items.length ? `\n## ${h}\n\n${items.map((i) => bullet + i).join("\n")}\n` : "";
@@ -128,6 +135,6 @@ export function notesToMarkdown(
     section("Action items", notes.actionItems, "- [ ] ") +
     section("Decisions", notes.decisions) +
     section("Open questions", notes.questions) +
-    `\n## Transcript\n\n${transcript.trim()}\n`
+    (includeTranscript ? `\n## Transcript\n\n${transcript.trim()}\n` : "")
   );
 }
