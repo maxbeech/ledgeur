@@ -1,6 +1,6 @@
 {
   "name": "@ledgeur/desktop",
-  "version": "0.3.7",
+  "version": "0.3.8",
   "private": true,
   "description": "Ledgeur cross-platform app (Tauri 2 + Vite + React) — macOS, Windows, iOS, Android.",
   "license": "MIT",
@@ -20,7 +20,8 @@
     "tauri:build:ai": "tauri build --features native-ai",
     "ios:dev": "tauri ios dev",
     "android:dev": "tauri android dev",
-    "release:mac": "node scripts/release-macos.mjs"
+    "release:mac": "node scripts/release-macos.mjs",
+    "release:ios:symbols": "node scripts/upload-ios-symbols.mjs"
   },
   "dependencies": {
     "@fontsource-variable/plus-jakarta-sans": "5.3.0",
