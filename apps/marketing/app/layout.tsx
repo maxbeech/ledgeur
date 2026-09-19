@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 import { SITE } from "@/lib/site";
 import { Header, Footer } from "@/components/site/Chrome";
+import { OpenHelmAnalytics } from "../../../lib/openhelm-analytics";
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE.url),
@@ -54,6 +55,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <Header />
         <div id="main">{children}</div>
         <Footer />
+        <OpenHelmAnalytics />
       </body>
     </html>
   );
