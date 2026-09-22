@@ -139,29 +139,27 @@ function updaterSigningEnv() {
  * dumps every commit message, most of which are internal and meaningless to
  * someone deciding whether to update.
  *
- * 1.1.0 covers everything accumulated since 0.3.7: the last two version
- * numbers (0.3.7, 0.3.8) both shipped an auto-update that failed to install
- * for everyone (see CHANGELOG.md), so nobody has actually received any of
- * this yet. Update this function for the next release instead of leaving it
- * stale — it was these exact bullets, unrelated to what shipped, last time.
+ * 1.1.2 fixes a real report from using 1.1.1 on this machine: a 4-person
+ * meeting diarized as 126 "speakers." The 1.1.0 diarization fix below only
+ * ever reached the browser diarization path, not the one the shipped desktop
+ * app actually runs — see CHANGELOG.md's 2026-09-22 entries. Update this
+ * function for the next release instead of leaving it stale.
  */
 function RELEASE_NOTES(version) {
   return `## Ledgeur ${version}\n\n` +
     "**Meetings**\n" +
+    "- Fixed real recordings coming back with dozens of extra \"speakers\" instead of the actual handful of people in the room\n" +
+    "- Suggesting who's who from the transcript is far more reliable now that speaker separation is fixed\n" +
+    "- Meeting notes now include a full, detailed write-up of everything discussed, alongside the quick summary\n" +
+    "\n**Since 1.1.0**\n" +
     "- Speaker separation over-split one person into two or three far less often, and a one-click \"merge into…\" fixes it when it still does\n" +
     "- You can now play back a few seconds of someone's voice while naming them, instead of guessing from the transcript alone\n" +
     "- Meeting summaries are noticeably more detailed and specific, and no longer repeat the same decision twice\n" +
     "- Copying notes to the clipboard no longer drags the entire transcript along with them\n" +
     "- Speakers can now name themselves — if someone says who they are on the call, Ledgeur picks it up\n" +
     "- Notes are written closer to meeting speed, with several stability fixes to the on-device assistant\n" +
-    "\n**Tasks & captures**\n" +
     "- Tasks can now be added and deleted by hand, multi-selected, bulk-marked done, and filtered to what the model found vs. what you added\n" +
-    "- \"Keep a thought\" lets you capture a task or note outside of a meeting — typed or said out loud\n" +
-    "\n**Everywhere else**\n" +
-    "- Recording no longer quietens your microphone for everyone else on a call, on Zoom and Google Meet\n" +
-    "- One shared design system and a proper phone layout across the app\n" +
-    "- The in-meeting copilot now has context from earlier in the meeting, not just the last few minutes\n" +
-    "- Fixed the auto-update installer itself — this is the release where updating actually works again\n";
+    "- \"Keep a thought\" lets you capture a task or note outside of a meeting — typed or said out loud\n";
 }
 
 /** A universal build silently falls back to one arch if a target is missing. */

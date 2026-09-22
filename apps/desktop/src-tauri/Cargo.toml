@@ -1,6 +1,6 @@
 [package]
 name = "ledgeur"
-version = "1.1.1"
+version = "1.1.2"
 description = "Ledgeur — the centre of the company's brain"
 authors = ["Ledgeur"]
 edition = "2021"
