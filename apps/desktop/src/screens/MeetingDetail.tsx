@@ -17,7 +17,8 @@ import {
 } from "lucide-react";
 import { formatElapsed, cn } from "@ledgeur/ui";
 import {
-  attributeMeetingNotes, notesToMarkdown, type AttributedNote, type AttributableLine, type MeetingNotes,
+  attributeMeetingNotes, notesToMarkdown, parseNotesMarkdown,
+  type AttributedNote, type AttributableLine, type MeetingNotes,
 } from "@ledgeur/core";
 import { Page } from "../components/PageHeader.tsx";
 import { Badge, Button, Card, ErrorNote, IconButton, Label, Notice, Segmented, Spinner } from "../components/ui.tsx";
@@ -178,6 +179,7 @@ export function MeetingDetail() {
       decisions: meeting!.decisions,
       questions: meeting!.questions,
       actionItems: meeting!.actionItems,
+      detailedNotes: meeting!.detailedNotes,
       wordCount: meeting!.wordCount,
       generator: meeting!.notesGenerator,
     };
@@ -282,6 +284,15 @@ export function MeetingDetail() {
             </Notice>
           )}
           <NoteBlock title="Summary" items={attributed?.summary ?? []} onJump={openAt} />
+          {meeting.detailedNotes?.trim() && (
+            <Card className="p-5">
+              <div className="mb-3 flex items-center gap-2">
+                <MessageSquareText className="h-4 w-4 text-brand-strong" />
+                <Label>Meeting notes</Label>
+              </div>
+              <DetailedNotes markdown={meeting.detailedNotes} />
+            </Card>
+          )}
           {meeting.manualNotes?.trim() && (
             <Card className="border-brand/40 p-5">
               <div className="mb-3 flex items-center gap-2"><PenLine className="h-4 w-4 text-brand-strong" /><Label>Your notes</Label></div>
@@ -368,6 +379,38 @@ export function MeetingDetail() {
         </Card>
       )}
     </Page>
+  );
+}
+
+/**
+ * The full write-up (`detailedNotes`), rendered from the small Markdown
+ * subset the model is asked for — see `parseNotesMarkdown`. Not a general
+ * Markdown renderer: headings, paragraphs and bullet lists are all the prompt
+ * produces, so that is all this draws.
+ */
+function DetailedNotes({ markdown }: { markdown: string }) {
+  const blocks = useMemo(() => parseNotesMarkdown(markdown), [markdown]);
+  return (
+    <div className="space-y-3">
+      {blocks.map((block, i) => {
+        if (block.kind === "heading") {
+          return <h3 key={i} className="text-sm font-semibold text-ink-text first:mt-0">{block.text}</h3>;
+        }
+        if (block.kind === "list") {
+          return (
+            <ul key={i} className="space-y-1.5">
+              {block.items.map((item, j) => (
+                <li key={j} className="flex items-start gap-2.5 text-ink-text">
+                  <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-brand" />
+                  <span>{item}</span>
+                </li>
+              ))}
+            </ul>
+          );
+        }
+        return <p key={i} className="text-ink-text">{block.text}</p>;
+      })}
+    </div>
   );
 }
 

@@ -123,6 +123,15 @@ export interface LocalMeeting {
   decisions: string[];
   questions: string[];
   actionItems: string[];
+  /** The full narrative write-up — every topic in the detail it was actually
+   *  discussed in, not condensed to `summary`'s one line per point. Markdown.
+   *  Only the on-device model writes one (see `generateDetailedNotes` in
+   *  notes.ts); absent on meetings recorded before this existed, and on ones
+   *  where the model was unavailable and the heuristic fallback ran instead.
+   *  Local to this device — not yet part of the cloud sync payload, so a
+   *  meeting opened as a read-only copy from another device will not show it
+   *  even though the recording device has one. */
+  detailedNotes?: string;
   /** Notes the user typed during the meeting (kept verbatim in the export). */
   manualNotes?: string;
   /** Copilot/user/suggestion thread — persisted only when the user opts in

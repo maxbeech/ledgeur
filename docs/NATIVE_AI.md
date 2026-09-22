@@ -59,6 +59,27 @@ profiles; matches at ≥ 0.5 similarity label the transcript with the real name
 and a confidence figure (`speaker_confidence`). Unmatched speakers stay
 anonymous "Speaker N" — identity is never guessed.
 
+### Folding away phantom speakers
+
+sherpa-onnx's fast clustering (`DIARIZE_DISTANCE_THRESHOLD` in `engine.rs`) is
+a plain threshold over cosine distance, with no notion of cluster size — every
+turn that lands outside the threshold of every voice heard so far becomes its
+own permanent "speaker." pyannote's segmentation model routinely cuts far more
+turns than there are people in a room (an interjection, a cough, a word caught
+mid-hand-over), so left alone this over-splits badly on real recordings — a
+real 4-person meeting once came back as 126 "speakers."
+
+`fold_tiny_clusters` (`ai/mod.rs`) runs immediately after sherpa's pass: any
+cluster whose total speaking time stays under `MIN_SPEAKER_MS` (2s) is folded
+into whichever surviving cluster its own audio — embedded via
+`engine::cluster_embeddings`, one CAM++ pass per cluster, reusing the same
+clip-collection `identify_speakers` already does for voice-profile matching —
+sounds most similar to, however weakly. Pure and unit-tested independently of
+the model. This is the native-Rust equivalent of the `MIN_SPEAKER_SECONDS`
+correction described below for the browser path; the two are separate
+implementations over separate embedding spaces and were fixed separately —
+see the 2026-09-22 changelog entry.
+
 ### Live speakers vs. the pass on stop
 
 Two different problems, solved two different ways.

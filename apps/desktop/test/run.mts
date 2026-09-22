@@ -2,7 +2,7 @@
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 // Only import modules free of browser-only globals (no import.meta.env, DOM).
 import { mergeThread, quoteOf, messageToItem, type ThreadItem } from "../src/lib/thread.ts";
-import { parseAiNotes, buildNotesPrompt, buildReducePrompt, windowTranscript } from "../src/lib/notes.ts";
+import { parseAiNotes, buildNotesPrompt, buildDetailedNotesPrompt, buildReducePrompt, windowTranscript } from "../src/lib/notes.ts";
 import {
   authErrorMessage, hasNoAuthMethod, NO_AUTH, parseAuthSettings, providerUnavailableMessage,
   signUpNextStep, ssoDomain, validateCredentials,
@@ -17,6 +17,7 @@ import { runSpeakerNameTests } from "./speakerNames.mts";
 import { runCaptureStoreTests, runCaptureSyncTests } from "./capture.mts";
 import { runTaskPushTests } from "./taskPush.mts";
 import { runCallAppsTests } from "./callApps.mts";
+import { runAnalyticsTests, runAnalyticsAsyncTests } from "./analytics.mts";
 
 let pass = 0, fail = 0;
 const ok = (name: string, cond: boolean, detail = "") => {
@@ -202,6 +203,35 @@ ok("parseAiNotes keeps distinct decisions", (() => {
     ok("a short transcript is a single window", one.length === 1 && one[0] === "[00:01] Speaker 1: short meeting");
     ok("an empty transcript yields no windows", windowTranscript("", 500).length === 0);
   }
+}
+
+// --- buildDetailedNotesPrompt: the full write-up, separate from the bullets ---
+//
+// A distinct prompt and pass from buildNotesPrompt (see the header on
+// DETAILED_SYSTEM in notes.ts): a 768-token bullet-summary reply has no room
+// for a page of real detail too, so the write-up is asked for, and parsed, on
+// its own. These pin the contract that pass is built against.
+{
+  const plain = buildDetailedNotesPrompt("we agreed to ship on Friday", "");
+  ok("a detailed prompt has system + user", plain.length === 2 && plain[0].role === "system");
+  ok("a detailed prompt carries the transcript", plain[1].content.includes("ship on Friday"));
+  ok("a detailed prompt asks for full detail, not a condensed recap",
+    /not a condensed recap|not condense/i.test(plain[0].content));
+  ok("a detailed prompt asks for a heading per topic", /heading per topic/i.test(plain[0].content));
+  // It must never regress into the JSON contract — this is a different
+  // reply shape from buildNotesPrompt on purpose (see the header comment).
+  ok("a detailed prompt does not carry the JSON contract", !plain[0].content.includes('"actionItems"'));
+  ok("a detailed prompt still keeps the never-invent rule", /never invent facts/i.test(plain[0].content));
+  ok("a detailed prompt still keeps the keep-the-figures rule", /exact figures/i.test(plain[0].content));
+
+  const withNotes = buildDetailedNotesPrompt("we agreed to ship on Friday", "pricing - Sam pushing back");
+  ok("typed notes reach the detailed prompt", withNotes[1].content.includes("Sam pushing back"));
+  ok("typed notes add their own instruction to the detailed prompt", withNotes[0].content.includes("typed their own"));
+  ok("a blank transcript-only detailed prompt has no typed-notes instruction",
+    !buildDetailedNotesPrompt("x", "   \n  ")[0].content.includes("typed their own"));
+
+  const sales = buildDetailedNotesPrompt("transcript", "", "sales");
+  ok("a template steers the detailed prompt too", sales[0].content.includes("sales conversation"));
 }
 
 // --- auth capabilities & messages ---
@@ -401,6 +431,9 @@ await runTaskPushTests(ok);
 runCallAppsTests(ok);
 
 await runModelWarmupTests(ok);
+
+runAnalyticsTests(ok);
+await runAnalyticsAsyncTests(ok);
 
 console.log(`\n${pass} passed, ${fail} failed`);
 if (fail > 0) process.exit(1);

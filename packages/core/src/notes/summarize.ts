@@ -11,6 +11,21 @@ export interface MeetingNotes {
   questions: string[];
   wordCount: number;
   /**
+   * A full, narrative write-up of the meeting — every topic covered, in the
+   * detail it was actually discussed in, not condensed to one line the way
+   * `summary` is. Markdown text (topic headings, paragraphs, nested detail),
+   * not a bullet array, because a meeting's worth of real detail does not fit
+   * the "one line, one point" shape the other fields use.
+   *
+   * Only ever written by the on-device model (see
+   * `apps/desktop/src/lib/notes.ts`) — there is no offline heuristic for "write
+   * this out in full", so the extractive fallback leaves it unset rather than
+   * padding it out with lifted sentences. Optional so meetings recorded before
+   * this existed, and ones where the model failed or was unavailable, stay
+   * valid with just the bullets they already have.
+   */
+  detailedNotes?: string;
+  /**
    * How these notes were produced. `"extractive"` means the heuristic
    * summariser below picked sentences straight out of the transcript because no
    * model was available — worth saying out loud, because those bullets read as
@@ -128,10 +143,12 @@ export function notesToMarkdown(
   const section = (h: string, items: string[], bullet = "- ") =>
     items.length ? `\n## ${h}\n\n${items.map((i) => bullet + i).join("\n")}\n` : "";
   const manual = manualNotes?.trim() ? `\n## Your notes\n\n${manualNotes.trim()}\n` : "";
+  const detailed = notes.detailedNotes?.trim() ? `\n## Meeting notes\n\n${notes.detailedNotes.trim()}\n` : "";
   return (
     `# ${title}\n\n_${dateISO} · ${notes.wordCount} words_\n` +
     section("Summary", notes.summary) +
     manual +
+    detailed +
     section("Action items", notes.actionItems, "- [ ] ") +
     section("Decisions", notes.decisions) +
     section("Open questions", notes.questions) +

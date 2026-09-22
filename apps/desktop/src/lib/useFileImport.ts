@@ -22,6 +22,7 @@ import { saveMeeting, type LocalMeeting, type LocalSegment, type LocalSpeaker } 
 import { autoLabelSpeakers } from "./speakerNames.ts";
 import { generateMeetingNotes } from "./notes.ts";
 import { createLogger } from "./logger.ts";
+import { track } from "./analytics.ts";
 
 const log = createLogger("import");
 
@@ -57,6 +58,7 @@ export function useFileImport() {
     if (running.current) return null;
     running.current = true;
     setState({ ...IDLE, busy: true, name: file.name, step: "Reading the file…" });
+    track("capture_started", { source: "import" });
 
     if (file.size > MAX_IMPORT_BYTES) {
       running.current = false;
@@ -142,6 +144,7 @@ export function useFileImport() {
       const named = await autoLabelSpeakers({ segments, speakers, audio, spans: [] });
       segments = named.segments;
       speakers = named.speakers;
+      if (named.applied.length) track("speaker_named", { source: "import", count: named.applied.length });
       if (named.error) log.info("speaker names were not inferred", { reason: named.error });
 
       patch({ step: "Writing the notes…" });
@@ -168,6 +171,7 @@ export function useFileImport() {
         decisions: notes.decisions,
         questions: notes.questions,
         actionItems: notes.actionItems,
+        detailedNotes: notes.detailedNotes,
         manualNotes: "",
         noteMarkdown: notesToMarkdown(title, startedAt.slice(0, 10), notes, transcript, ""),
         wordCount: notes.wordCount,
@@ -176,11 +180,13 @@ export function useFileImport() {
       };
       await saveMeeting(meeting, "none");
       log.info("imported", { id, segments: segments.length, speakers: diarized.speakers.length });
+      track("meeting_saved", { source: "import", segments: segments.length, word_count: notes.wordCount });
 
       setState({ ...IDLE, warning: diarized.warning ?? "", name: file.name });
       return id;
     } catch (e) {
       log.error("import failed", e);
+      track("meeting_save_failed", { source: "import" });
       setState({ ...IDLE, error: e instanceof Error ? e.message : String(e), name: file.name });
       return null;
     } finally {

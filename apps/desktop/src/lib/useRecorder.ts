@@ -47,6 +47,7 @@ import { setAudioLevel } from "./audioLevel.ts";
 import { ensureTranscriber, ensureDiarizer, getEngineStatus } from "./asrEngine.ts";
 import { isSystemAudioTapAvailable, SystemAudioTap } from "./systemAudioTap.ts";
 import { createLogger } from "./logger.ts";
+import { track } from "./analytics.ts";
 import {
   EMPTY_TRANSCRIPT_WARNING, emptyTranscriptInitial, onEmptySlice, onTranscribedSlice,
 } from "./emptyTranscript.ts";
@@ -448,6 +449,7 @@ export function useRecorder(getThreadMessages?: () => ChatMessage[]) {
         backlogSeconds: 0, modelPhase: "loading", modelProgress: 0, device: "", takeId: uid(),
         systemAudio: opts.system ? "tap" : "off", systemAudioHeard: false,
       });
+      track("capture_started", { source: "live", system_audio: opts.system, mic: opts.mic });
 
       // getDisplayMedia/getUserMedia must be requested while the click that
       // triggered `start` is still "live" — a browser's user-activation window
@@ -711,7 +713,10 @@ export function useRecorder(getThreadMessages?: () => ChatMessage[]) {
       });
       segments.current = named.segments;
       speakers.current = named.speakers;
-      if (named.applied.length) patch({ segments: segments.current });
+      if (named.applied.length) {
+        patch({ segments: segments.current });
+        track("speaker_named", { source: "live", count: named.applied.length });
+      }
       if (named.error) log.info("speaker names were not inferred", { reason: named.error });
       patch({ processingPhase: "writing the notes", processingProgress: 0 });
     }
@@ -730,40 +735,56 @@ export function useRecorder(getThreadMessages?: () => ChatMessage[]) {
         peakRms: peakRms.current, silenceThreshold: SILENCE_RMS, durationSeconds: Math.round((Date.now() - Date.parse(startedAt.current)) / 1000),
       });
     }
-    const manualNotes = notesRef.current.trim();
-    // Notes are written by the on-device model from the transcript AND whatever
-    // the user typed during the meeting, falling back to the local heuristic
-    // extractor when no model is available.
-    // Passed as segments, not as the flat `transcript` string: the notes writer
-    // needs the speaker labels and timestamps to attribute anything.
-    const notes = await generateMeetingNotes(segments.current, manualNotes, template.current);
-    // The copilot/user thread is saved with the meeting only when the user opts
-    // in — by default just the spoken transcript is kept.
-    const saveChat = getSettings().saveChatWithMeeting;
-    const messages = saveChat ? threadRef.current?.() ?? [] : [];
-    const id = uid();
-    const now = new Date().toISOString();
-    const meeting: LocalMeeting = {
-      id, title: title || "Untitled meeting", createdAt: now, startedAt: startedAt.current, endedAt: now,
-      status: "complete", lang: lang.current, segments: segments.current,
-      speakers: speakers.current.length ? speakers.current : undefined,
-      summary: notes.summary, decisions: notes.decisions, questions: notes.questions, actionItems: notes.actionItems,
-      manualNotes,
-      messages: messages.length ? messages : undefined,
-      noteMarkdown: notesToMarkdown(title || "Untitled meeting", now.slice(0, 10), notes, transcript, manualNotes),
-      wordCount: notes.wordCount, notesGenerator: notes.generator, synced: false, updatedAt: now,
-      templateId: template.current,
-    };
-    await saveMeeting(meeting, "none");
-    // The pipeline is process-wide and deliberately NOT disposed here: disposing
-    // it is what made every recording after the first pay a full model reload.
-    diarizer.current = null;
-    fullAudio.current = []; fullLen.current = 0; audioSpans.current = [];
-    asrChunks.current = []; slices.current = []; analysing.current = []; speakers.current = [];
-    setAudioLevel(0);
-    patch({ status: "complete", meetingId: id });
-    log.info("recording saved", { meetingId: id, segments: meeting.segments.length, wordCount: notes.wordCount });
-    return id;
+    // Notes generation and the save that follows are the two async steps that
+    // can still fail after everything above has already succeeded — and,
+    // unlike the passes above, a failure here has nothing safe to fall back
+    // to: there is no meeting to show. Unhandled, this rejected the `stop()`
+    // promise silently and left the UI parked on "processing" forever with no
+    // exception anywhere and no report to Sentry — a stalled user with no
+    // trace of why. Caught here, it is reported and the user is told.
+    try {
+      const manualNotes = notesRef.current.trim();
+      // Notes are written by the on-device model from the transcript AND
+      // whatever the user typed during the meeting, falling back to the local
+      // heuristic extractor when no model is available.
+      // Passed as segments, not as the flat `transcript` string: the notes
+      // writer needs the speaker labels and timestamps to attribute anything.
+      const notes = await generateMeetingNotes(segments.current, manualNotes, template.current);
+      // The copilot/user thread is saved with the meeting only when the user
+      // opts in — by default just the spoken transcript is kept.
+      const saveChat = getSettings().saveChatWithMeeting;
+      const messages = saveChat ? threadRef.current?.() ?? [] : [];
+      const id = uid();
+      const now = new Date().toISOString();
+      const meeting: LocalMeeting = {
+        id, title: title || "Untitled meeting", createdAt: now, startedAt: startedAt.current, endedAt: now,
+        status: "complete", lang: lang.current, segments: segments.current,
+        speakers: speakers.current.length ? speakers.current : undefined,
+        summary: notes.summary, decisions: notes.decisions, questions: notes.questions, actionItems: notes.actionItems,
+        detailedNotes: notes.detailedNotes,
+        manualNotes,
+        messages: messages.length ? messages : undefined,
+        noteMarkdown: notesToMarkdown(title || "Untitled meeting", now.slice(0, 10), notes, transcript, manualNotes),
+        wordCount: notes.wordCount, notesGenerator: notes.generator, synced: false, updatedAt: now,
+        templateId: template.current,
+      };
+      await saveMeeting(meeting, "none");
+      // The pipeline is process-wide and deliberately NOT disposed here: disposing
+      // it is what made every recording after the first pay a full model reload.
+      diarizer.current = null;
+      fullAudio.current = []; fullLen.current = 0; audioSpans.current = [];
+      asrChunks.current = []; slices.current = []; analysing.current = []; speakers.current = [];
+      setAudioLevel(0);
+      patch({ status: "complete", meetingId: id });
+      log.info("recording saved", { meetingId: id, segments: meeting.segments.length, wordCount: notes.wordCount });
+      track("meeting_saved", { source: "live", segments: meeting.segments.length, word_count: notes.wordCount });
+      return id;
+    } catch (e) {
+      log.error("notes generation or save failed, transcript is lost", e);
+      track("meeting_save_failed", { source: "live" });
+      patch({ status: "error", error: e instanceof Error ? e.message : String(e) });
+      return null;
+    }
   }, [pump, transcribeOne]);
 
   const reset = useCallback(() => {

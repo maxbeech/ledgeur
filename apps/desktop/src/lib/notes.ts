@@ -131,6 +131,148 @@ const NOTES_SYSTEM =
   "never invent detail to fill a fragment out. Add points from the transcript that " +
   "they did not note only after theirs.";
 
+/**
+ * System prompt for the long-form write-up (`detailedNotes`).
+ *
+ * A separate pass, not an extra field bolted onto `BASE_SYSTEM`'s JSON
+ * contract: `BASE_SYSTEM` asks for one line per point specifically so the
+ * summary stays skimmable, and a 768-token reply budget has no room for both
+ * that and a full write-up in the same call. Reusing it would either starve
+ * the bullets or truncate the write-up — see `askForDetailedNotes` for the
+ * token budget this pass gets instead.
+ *
+ * Free-form Markdown, not JSON: a page of real detail does not fit a
+ * `string[]` shape without either one giant string per array entry or an
+ * artificial line break for every sentence, and a JSON string of that length
+ * pays for a lot of escaping the model does not need to get right.
+ */
+const DETAILED_SYSTEM =
+  "You are an expert meeting-notes writer. You are given a speech-to-text transcript " +
+  "where each line is `[time] Speaker: what they said`.\n\n" +
+  "Write a thorough, well-organised set of meeting notes covering everything of substance " +
+  "that was discussed — not a condensed recap. For each topic the meeting covered, write what " +
+  "was actually said about it: the context, the reasoning, any numbers, dates, names or figures " +
+  "mentioned, who raised or owned each point, any disagreement and how it was resolved (or left " +
+  "unresolved), and what came out of it. Do not compress a topic down to its conclusion if the " +
+  "discussion around it — the why, the alternatives considered, the objections raised — is still " +
+  "useful to someone who was not there. Leave out only small talk, technical restarts and dead air.\n\n" +
+  "Rules:\n" +
+  "- Be faithful. Never invent facts, names, numbers or commitments that are not in the transcript.\n" +
+  "- Keep exact figures, prices, percentages, dates and names exactly as they were said.\n" +
+  "- Write in the past tense, about what happened.\n" +
+  "- Organise with a `##` Markdown heading per topic, in the order the meeting covered them. Use " +
+  "short paragraphs or nested bullets under each heading, whichever reads more naturally for that " +
+  "topic. Do not use a heading for a topic covered in one sentence — fold it into the nearest " +
+  "related section or a short closing paragraph instead.\n" +
+  "- Reply with ONLY the Markdown notes — no preamble, no JSON, no code fence around it.";
+
+/** Appended only when the user actually typed something — same rule as
+ *  `NOTES_SYSTEM`, restated for the write-up rather than the bullet summary. */
+const DETAILED_NOTES_SYSTEM =
+  " The user also typed their own rough notes during the meeting. Cover every point they made, " +
+  "expanded with the detail from the transcript, and keep their wording and emphasis where you " +
+  "can. If a fragment is not supported by the transcript, keep it as they wrote it rather than " +
+  "elaborating on it — never invent detail to fill a fragment out.";
+
+/**
+ * Transcript characters per detailed-notes pass.
+ *
+ * Smaller than `CHUNK_CHARS`: this pass asks for a much longer reply (see
+ * `DETAILED_MAX_TOKENS`), and both come out of the same 8192-token window —
+ * see `N_CTX` in `src-tauri/src/ai/llm.rs`. Leaving the transcript budget at
+ * `CHUNK_CHARS` here would let the reply budget crowd it out, and the Rust
+ * side trims silently when a prompt overflows, which for this feature would
+ * mean quietly dropping exactly the context it exists to keep.
+ */
+const DETAILED_CHUNK_CHARS = 11_000;
+
+/** Reply budget for one detailed-notes pass — several times `askForNotes`'s
+ *  768, because this is asking for a page of prose, not a dozen bullets. */
+const DETAILED_MAX_TOKENS = 1536;
+
+/** Build the two messages for a detailed-notes pass. Exported for testing,
+ *  same reason `buildNotesPrompt` is. */
+export function buildDetailedNotesPrompt(
+  transcript: string,
+  manualNotes = "",
+  templateId?: string,
+): { role: "system" | "user"; content: string }[] {
+  const notes = manualNotes.trim();
+  const user = notes
+    ? `The user's own notes from the meeting:\n\n${notes}\n\nTranscript:\n\n${transcript}`
+    : `Transcript:\n\n${transcript}`;
+  const system = DETAILED_SYSTEM + templateInstruction(templateFor(templateId)) + (notes ? DETAILED_NOTES_SYSTEM : "");
+  return [
+    { role: "system", content: system },
+    { role: "user", content: user },
+  ];
+}
+
+/** Strip a code fence the model wrapped the reply in despite being asked not
+ *  to — small models do this often enough with "reply with only X" that it is
+ *  worth handling rather than showing the fence marks in the notes. */
+function stripCodeFence(raw: string): string {
+  const trimmed = raw.trim();
+  const fenced = trimmed.match(/^```(?:markdown|md)?\s*\n([\s\S]*?)\n?```$/i);
+  return (fenced ? fenced[1] : trimmed).trim();
+}
+
+/** One detailed-notes pass over a transcript that already fits the window. */
+function askForDetailedNotes(transcript: string, manualNotes: string, templateId?: string): Promise<string> {
+  return withTimeout(
+    chatComplete(
+      buildDetailedNotesPrompt(transcript, manualNotes, templateId),
+      { temperature: 0.2, maxTokens: DETAILED_MAX_TOKENS },
+    ),
+    NOTES_TIMEOUT_MS,
+  ).then(stripCodeFence);
+}
+
+/**
+ * The detailed write-up for a whole meeting, windowed the same way
+ * `condenseLongMeeting` windows the bullet notes — but concatenated, not
+ * reduced. A reduce pass would compress exactly the detail this feature
+ * exists to keep, so a long meeting instead gets one write-up per window,
+ * each under its own "Part N" heading, in order.
+ *
+ * Never throws: one window that fails to write is logged and skipped rather
+ * than losing the rest of the meeting's notes, and a meeting where every
+ * window fails resolves to `undefined` so the caller can treat "no detailed
+ * notes" the same way it treats "recorded before this existed".
+ */
+async function generateDetailedNotes(
+  transcript: string,
+  manualNotes: string,
+  templateId?: string,
+): Promise<string | undefined> {
+  const windows = windowTranscript(transcript, DETAILED_CHUNK_CHARS);
+  if (windows.length === 1) {
+    return askForDetailedNotes(windows[0], manualNotes, templateId).catch((e) => {
+      log.warn("detailed notes were not written", { reason: e instanceof Error ? e.message : String(e) });
+      return undefined;
+    });
+  }
+  log.info("writing detailed notes in windows", { windows: windows.length });
+  const parts: string[] = [];
+  for (const [i, window] of windows.entries()) {
+    try {
+      // Manual notes go only to the first window's worth of attention the user
+      // gets from this pass — repeating them per window, as in
+      // `condenseLongMeeting`, would have each window try to speak to points
+      // it cannot see; unlike the bullet pass there is no final reduce step
+      // here to give them their own pass instead, so the first window is it.
+      const reply = await askForDetailedNotes(window, i === 0 ? manualNotes : "", templateId);
+      parts.push(`## Part ${i + 1} of ${windows.length}\n\n${reply}`);
+    } catch (e) {
+      log.warn("a detailed-notes window failed", {
+        window: i + 1,
+        reason: e instanceof Error ? e.message : String(e),
+      });
+    }
+  }
+  return parts.length ? parts.join("\n\n") : undefined;
+}
+
 interface RawNotes {
   summary?: unknown;
   actionItems?: unknown;
@@ -247,7 +389,19 @@ export async function generateMeetingNotes(
       transcriptChars: text.length,
       summaryPoints: parsed.summary.length,
     });
-    return { ...parsed, generator: "model" };
+    // A second, independent pass for the full write-up — see
+    // `generateDetailedNotes`. Only attempted once the model has already
+    // proven it can answer at all (the bullet pass above succeeded): if that
+    // one just fell back, the model is unavailable or unreachable, and a
+    // second, longer call would just fail the same way after paying its own
+    // timeout. Never allowed to fail the meeting — a write-up that could not
+    // be written leaves `detailedNotes` unset rather than losing the notes
+    // that already exist.
+    const detailedNotes = await generateDetailedNotes(text, notes, templateId).catch((e) => {
+      log.warn("detailed notes were not written", { reason: e instanceof Error ? e.message : String(e) });
+      return undefined;
+    });
+    return { ...parsed, detailedNotes, generator: "model" };
   } catch (e) {
     // No model, unreachable endpoint, timeout, or an unparseable reply — use the
     // local deterministic extractor so notes are still real and grounded. The

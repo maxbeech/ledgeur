@@ -144,6 +144,122 @@ pub fn label_turns(diar: &[DiarSegment], identities: &HashMap<i32, (String, f32)
         .collect()
 }
 
+/// Shortest total speaking time a diarized cluster needs to survive on its
+/// own, in milliseconds. Mirrors `MIN_SPEAKER_SECONDS` in
+/// `packages/core/src/diarize/cluster.ts` — see that file for the full
+/// rationale on why folding tiny clusters away is safe and necessary.
+///
+/// sherpa-onnx's fast clustering (see `engine::DIARIZE_DISTANCE_THRESHOLD`) has
+/// no equivalent correction of its own: every turn that lands outside the
+/// threshold of every existing cluster becomes its own permanent "speaker",
+/// and pyannote's segmentation model routinely cuts far more turns than there
+/// are people in the room — a real 4-person meeting came back as 126
+/// "speakers" before `fold_tiny_clusters` ran on the result.
+pub const MIN_SPEAKER_MS: i64 = 2_000;
+
+/// Fold clusters with too little speech behind them into whichever surviving
+/// cluster they resemble most, however weakly — the same correction
+/// `clusterEmbeddings` applies on the web path, run here as a second pass over
+/// sherpa's output since sherpa's own fast clustering has nothing like it.
+///
+/// `embeddings` is one vector per cluster id, from that cluster's own audio
+/// (see `engine::cluster_embeddings`) — sherpa does not expose per-turn
+/// embeddings, so this is the coarsest signal available, but a cluster's whole
+/// clip is a steadier one than any single turn anyway. A cluster with no
+/// embedding (too little clean audio to embed) is folded into whichever other
+/// surviving cluster comes first rather than left stranded as its own
+/// permanent speaker.
+///
+/// Pure — no models, no I/O — so it is unit-tested without needing a model on
+/// disk. `speaker` ids in the result are not renumbered; `label_turns` already
+/// tolerates gaps.
+pub fn fold_tiny_clusters(
+    diar: &[DiarSegment],
+    embeddings: &HashMap<i32, Vec<f32>>,
+    min_ms: i64,
+) -> Vec<DiarSegment> {
+    if diar.is_empty() {
+        return Vec::new();
+    }
+    let mut durations: HashMap<i32, i64> = HashMap::new();
+    for d in diar {
+        *durations.entry(d.speaker).or_insert(0) += (d.end_ms - d.start_ms).max(0);
+    }
+    if durations.len() <= 1 || durations.values().all(|&ms| ms >= min_ms) {
+        return diar.to_vec();
+    }
+
+    let mut alive: Vec<i32> = durations.keys().copied().collect();
+    alive.sort_unstable();
+    let mut remap: HashMap<i32, i32> = HashMap::new();
+
+    loop {
+        if alive.len() <= 1 {
+            break;
+        }
+        // Smallest surviving cluster still under the floor, ties broken by id
+        // so the fold is reproducible.
+        let mut tiny: Option<i32> = None;
+        for &s in &alive {
+            let ms = durations[&s];
+            if ms >= min_ms {
+                continue;
+            }
+            tiny = match tiny {
+                None => Some(s),
+                Some(t) if ms < durations[&t] => Some(s),
+                other => other,
+            };
+        }
+        let Some(tiny) = tiny else { break };
+
+        // Nearest surviving cluster by cosine similarity of their clip
+        // embeddings; falls back to whichever other cluster comes first when
+        // the tiny cluster (or every other survivor) has no usable embedding.
+        let mut target: Option<i32> = None;
+        if let Some(e) = embeddings.get(&tiny) {
+            let mut best = f32::NEG_INFINITY;
+            for &s in &alive {
+                if s == tiny {
+                    continue;
+                }
+                let Some(o) = embeddings.get(&s) else { continue };
+                let sim = voices::cosine(e, o);
+                if sim > best {
+                    best = sim;
+                    target = Some(s);
+                }
+            }
+        }
+        let target = target.or_else(|| alive.iter().copied().find(|&s| s != tiny));
+        let Some(target) = target else { break };
+
+        let merged_ms = durations[&tiny] + durations[&target];
+        durations.insert(target, merged_ms);
+        durations.remove(&tiny);
+        alive.retain(|&s| s != tiny);
+        remap.insert(tiny, target);
+    }
+
+    if remap.is_empty() {
+        return diar.to_vec();
+    }
+    diar.iter()
+        .map(|d| {
+            let mut speaker = d.speaker;
+            let mut hops = 0;
+            while let Some(&next) = remap.get(&speaker) {
+                speaker = next;
+                hops += 1;
+                if hops > remap.len() {
+                    break; // defensive: a cycle should be impossible here
+                }
+            }
+            DiarSegment { speaker, ..d.clone() }
+        })
+        .collect()
+}
+
 // ---------- Tauri commands ----------
 
 #[tauri::command]
@@ -331,6 +447,17 @@ pub async fn diarize_meeting(
             diar.iter().map(|d| d.speaker).collect::<std::collections::BTreeSet<_>>().len(),
         );
 
+        // sherpa's own clustering has no floor on cluster size (see
+        // `fold_tiny_clusters`), so a real meeting can come back with far more
+        // "speakers" than people in the room — fold the noise away before
+        // anything downstream sees it.
+        let cluster_embeddings = engine::cluster_embeddings(&app, &samples, IPC_SAMPLE_RATE, &diar);
+        let diar = fold_tiny_clusters(&diar, &cluster_embeddings, MIN_SPEAKER_MS);
+        log::info!(
+            "diarize_meeting: folded to {} speakers",
+            diar.iter().map(|d| d.speaker).collect::<std::collections::BTreeSet<_>>().len(),
+        );
+
         emit(100, "matching voices");
         let profiles = voices::load_profiles(&app);
         let identities = engine::identify_speakers(&app, &samples, IPC_SAMPLE_RATE, &diar, &profiles);
@@ -400,5 +527,82 @@ mod tests {
         assert_eq!(turns[1].confidence, Some(0.87));
         // Timings must survive untouched — they are what the caller matches on.
         assert_eq!((turns[1].start_ms, turns[1].end_ms), (1000, 3000));
+    }
+
+    fn voice(axis: usize, jitter: f32) -> Vec<f32> {
+        let mut v = vec![jitter; 4];
+        v[axis] = 1.0;
+        v
+    }
+
+    #[test]
+    fn leaves_a_meeting_with_no_tiny_clusters_untouched() {
+        let diar = vec![
+            DiarSegment { start_ms: 0, end_ms: 5000, speaker: 0 },
+            DiarSegment { start_ms: 5000, end_ms: 10_000, speaker: 1 },
+        ];
+        let folded = fold_tiny_clusters(&diar, &HashMap::new(), MIN_SPEAKER_MS);
+        assert_eq!(folded.iter().map(|d| d.speaker).collect::<Vec<_>>(), vec![0, 1]);
+    }
+
+    #[test]
+    fn folds_a_flood_of_noisy_slivers_into_the_real_speakers() {
+        // The reported shape of the bug: a handful of real speakers plus a long
+        // tail of sub-two-second slivers sherpa refused to merge on similarity
+        // alone. Each sliver is embedded close to one of the two real voices,
+        // the way a stray "mm-hm" from that person would be.
+        let mut diar = vec![
+            DiarSegment { start_ms: 0, end_ms: 10_000, speaker: 0 },
+            DiarSegment { start_ms: 10_000, end_ms: 20_000, speaker: 1 },
+        ];
+        let mut embeddings = HashMap::new();
+        embeddings.insert(0, voice(0, 0.0));
+        embeddings.insert(1, voice(1, 0.0));
+        let mut next_speaker = 2;
+        let mut t = 20_000i64;
+        for i in 0..40 {
+            let speaker = next_speaker;
+            next_speaker += 1;
+            diar.push(DiarSegment { start_ms: t, end_ms: t + 500, speaker });
+            t += 500;
+            // Alternate which real speaker each sliver actually belongs to. No
+            // jitter, matching the real cluster's own vector exactly: when a
+            // sliver is equally similar to the real speaker and to another
+            // sliver of the same voice, the real speaker — always the
+            // lowest-id survivor — wins the tie, which is what keeps this from
+            // building brand-new "3rd speaker" clusters out of mutually
+            // similar slivers instead of folding into the real ones.
+            embeddings.insert(speaker, voice(i % 2, 0.0));
+        }
+
+        let folded = fold_tiny_clusters(&diar, &embeddings, MIN_SPEAKER_MS);
+        let distinct: std::collections::BTreeSet<i32> = folded.iter().map(|d| d.speaker).collect();
+        assert_eq!(distinct, [0, 1].into_iter().collect(), "42 clusters must fold down to the 2 real speakers");
+    }
+
+    #[test]
+    fn a_cluster_with_no_embedding_still_gets_folded_away() {
+        let diar = vec![
+            DiarSegment { start_ms: 0, end_ms: 10_000, speaker: 0 },
+            DiarSegment { start_ms: 10_000, end_ms: 10_500, speaker: 1 }, // no embedding for this one
+        ];
+        let mut embeddings = HashMap::new();
+        embeddings.insert(0, voice(0, 0.0));
+        let folded = fold_tiny_clusters(&diar, &embeddings, MIN_SPEAKER_MS);
+        assert_eq!(folded.iter().map(|d| d.speaker).collect::<Vec<_>>(), vec![0, 0]);
+    }
+
+    #[test]
+    fn a_forced_speaker_count_is_never_second_guessed_by_this_pass() {
+        // Not this function's job: `clusterEmbeddings`/sherpa's own `speakers`
+        // option already refuses to fold when the user told it a count. This
+        // just confirms fold_tiny_clusters has no opinion either way when
+        // called with min_ms = 0 (the "disabled" case).
+        let diar = vec![
+            DiarSegment { start_ms: 0, end_ms: 10_000, speaker: 0 },
+            DiarSegment { start_ms: 10_000, end_ms: 10_200, speaker: 1 },
+        ];
+        let folded = fold_tiny_clusters(&diar, &HashMap::new(), 0);
+        assert_eq!(folded.iter().map(|d| d.speaker).collect::<Vec<_>>(), vec![0, 1]);
     }
 }

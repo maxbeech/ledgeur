@@ -20,6 +20,9 @@ mod inner {
     pub fn identify_speakers(
         _a: &tauri::AppHandle, _s: &[f32], _r: u32, _d: &[DiarSegment], _p: &[VoiceProfile],
     ) -> HashMap<i32, (String, f32)> { HashMap::new() }
+    pub fn cluster_embeddings(
+        _a: &tauri::AppHandle, _s: &[f32], _r: u32, _d: &[DiarSegment],
+    ) -> HashMap<i32, Vec<f32>> { HashMap::new() }
     pub fn reset_live_speakers() {}
     pub fn live_speaker(
         _a: &tauri::AppHandle, _s: &[f32], _r: u32,
@@ -477,6 +480,26 @@ mod inner {
         Some((speaker_label(index), None))
     }
 
+    /// Up to `max_samples` of one cluster's own audio, concatenated in turn
+    /// order. Shared by `identify_speakers` (voice-profile matching) and
+    /// `cluster_embeddings` (tiny-cluster folding) — both are "what does this
+    /// speaker sound like", just asked for different reasons.
+    fn collect_clip(audio: &[f32], diar: &[DiarSegment], spk: i32, max_samples: usize) -> Vec<f32> {
+        let mut clip: Vec<f32> = Vec::new();
+        for d in diar.iter().filter(|d| d.speaker == spk) {
+            let a = ((d.start_ms.max(0) as usize) * 16).min(audio.len());
+            let b = ((d.end_ms.max(0) as usize) * 16).min(audio.len());
+            if b > a {
+                clip.extend_from_slice(&audio[a..b]);
+            }
+            if clip.len() >= max_samples {
+                clip.truncate(max_samples);
+                break;
+            }
+        }
+        clip
+    }
+
     /// Match each diarized speaker against enrolled voice profiles. Collects up
     /// to ~12 s of that speaker's audio, embeds it, and keeps matches at/above
     /// the cosine threshold. Failures degrade to anonymous "Speaker N" labels.
@@ -498,18 +521,7 @@ mod inner {
         speakers.sort_unstable();
         speakers.dedup();
         for spk in speakers {
-            let mut clip: Vec<f32> = Vec::new();
-            for d in diar.iter().filter(|d| d.speaker == spk) {
-                let a = ((d.start_ms.max(0) as usize) * 16).min(audio.len());
-                let b = ((d.end_ms.max(0) as usize) * 16).min(audio.len());
-                if b > a {
-                    clip.extend_from_slice(&audio[a..b]);
-                }
-                if clip.len() >= max_samples {
-                    clip.truncate(max_samples);
-                    break;
-                }
-            }
+            let clip = collect_clip(&audio, diar, spk, max_samples);
             if clip.len() < min_samples {
                 continue;
             }
@@ -520,6 +532,42 @@ mod inner {
                     }
                 }
                 Err(e) => eprintln!("voice identification failed for speaker {spk}: {e}"),
+            }
+        }
+        out
+    }
+
+    /// One embedding per diarized cluster id, from up to ~12 s of that
+    /// cluster's own audio — unlike `identify_speakers`, this runs regardless
+    /// of whether any voice profile is enrolled, because `fold_tiny_clusters`
+    /// in `ai/mod.rs` needs a "what does this cluster sound like" answer for
+    /// every cluster sherpa produced, not just ones being matched to a name.
+    pub fn cluster_embeddings(
+        app: &tauri::AppHandle,
+        samples: &[f32],
+        rate: u32,
+        diar: &[DiarSegment],
+    ) -> HashMap<i32, Vec<f32>> {
+        let mut out = HashMap::new();
+        if diar.is_empty() {
+            return out;
+        }
+        let audio = resample_16k(samples, rate);
+        let max_samples = 12 * 16000usize;
+        // Lower than `identify_speakers`' 1 s floor: this only has to place a
+        // *nearer* neighbour among survivors, not clear a fixed similarity bar,
+        // so half a second of even noisy speech is still useful signal.
+        let min_samples = 16000usize / 2;
+        let mut speakers: Vec<i32> = diar.iter().map(|d| d.speaker).collect();
+        speakers.sort_unstable();
+        speakers.dedup();
+        for spk in speakers {
+            let clip = collect_clip(&audio, diar, spk, max_samples);
+            if clip.len() < min_samples {
+                continue;
+            }
+            if let Ok(embedding) = embed_voice(app, &clip, 16000) {
+                out.insert(spk, embedding);
             }
         }
         out
@@ -582,7 +630,7 @@ mod inner {
 }
 
 pub use inner::{
-    diarize, download_models, embed_voice, identify_speakers, live_speaker,
+    cluster_embeddings, diarize, download_models, embed_voice, identify_speakers, live_speaker,
     reset_live_speakers, transcribe,
 };
 

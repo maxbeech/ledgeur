@@ -1,5 +1,6 @@
 // @ledgeur/core test suite — pure-logic checks. Run: pnpm --filter @ledgeur/core test
 import { splitSentences, extractiveSummary, summarizeTranscript, notesToMarkdown } from "../src/notes/summarize.ts";
+import { parseNotesMarkdown } from "../src/notes/markdown.ts";
 import { parseSuggestions } from "../src/notes/suggest.ts";
 import { NOTE_TEMPLATES, DEFAULT_TEMPLATE_ID, templateById, templateInstruction } from "../src/notes/templates.ts";
 import { buildNotesRequest, providerById, AI_PROVIDERS } from "../src/notes/ai-notes.ts";
@@ -66,6 +67,27 @@ const mdNoTranscript = notesToMarkdown("Planning call", "2026-06-14", notes, tra
 ok("includeTranscript:false omits the transcript section", !mdNoTranscript.includes("## Transcript"));
 ok("includeTranscript:false still keeps the notes", mdNoTranscript.includes("## Action items"));
 ok("includeTranscript defaults to true when omitted", notesToMarkdown("T", "2026-06-14", notes, transcript).includes("## Transcript"));
+ok("markdown omits detailed notes when absent", !md.includes("## Meeting notes"));
+const mdDetailed = notesToMarkdown("Planning call", "2026-06-14", { ...notes, detailedNotes: "Pricing was discussed at length." }, transcript);
+ok("markdown includes detailed notes when present", mdDetailed.includes("## Meeting notes") && mdDetailed.includes("Pricing was discussed at length."));
+ok("detailed notes come before action items", mdDetailed.indexOf("## Meeting notes") < mdDetailed.indexOf("## Action items"));
+
+// --- notes markdown parsing (the detailed write-up) ---
+ok("parseNotesMarkdown reads a heading", parseNotesMarkdown("## Pricing").length === 1
+  && parseNotesMarkdown("## Pricing")[0].kind === "heading");
+ok("parseNotesMarkdown groups consecutive bullets into one list", (() => {
+  const blocks = parseNotesMarkdown("- one\n- two\n- three");
+  return blocks.length === 1 && blocks[0].kind === "list" && (blocks[0] as { items: string[] }).items.length === 3;
+})());
+ok("parseNotesMarkdown treats a blank line as ending a paragraph", (() => {
+  const blocks = parseNotesMarkdown("First line.\nStill first paragraph.\n\nSecond paragraph.");
+  return blocks.length === 2 && blocks.every((b) => b.kind === "paragraph");
+})());
+ok("parseNotesMarkdown reads heading, paragraph and list together in order", (() => {
+  const blocks = parseNotesMarkdown("## Budget\n\nThe team agreed a cap.\n\n- £40k for Q1\n- Revisit in April");
+  return blocks.map((b) => b.kind).join(",") === "heading,paragraph,list";
+})());
+ok("parseNotesMarkdown ignores blank input", parseNotesMarkdown("   \n\n  ").length === 0);
 
 // --- suggestion parsing ---
 ok("suggestions: JSON array", parseSuggestions('["Ask about the deadline.", "Confirm the owner.", "Push for a decision."]').length === 3);
