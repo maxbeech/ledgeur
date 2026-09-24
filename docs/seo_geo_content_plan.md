@@ -114,6 +114,26 @@ anything measured anywhere in this research, against real volume and a
 $4.35 to $12.61 top-of-page bid range. It is the single highest-leverage term
 available and it previously had one blog post pointed at it.
 
+### September 2026 editorial expansion
+
+✅ **Published in the content registry, 2026-09-25.** Fifteen supporting posts
+now extend the three measured pillars without creating a second broad
+"AI meeting assistant" page. The batch is five posts per pillar: capture and
+record governance, private-transcription quality, and meeting records for AI
+agents. Their primary keywords are deliberately specific workflow queries; the
+three high-volume terms above remain owned by their pillar pages.
+
+The typed `SEPTEMBER_2026_CAMPAIGN` array in
+`apps/marketing/lib/posts/september-2026-campaign.ts` is the source of truth.
+`lib/posts.ts` feeds it to `/blog`, static article routes and `app/sitemap.ts`.
+Each post carries its keyword set, external sources, internal cluster links,
+FAQs and schema selection. The campaign’s authoritative citations are official
+OpenAI, MDN, ICO, NIST and MCP documentation, checked on 2026-09-25.
+
+**Image status:** the requested Pipedream MCP image integration is not present
+in this workspace. The campaign uses the existing route-level social image for
+Open Graph/Twitter only; it does not claim that a new featured image was added.
+
 "speaker diarization" carries a $9.80 to $75.96 bid range on 880 searches. That
 spread is what a technical buyer looks like, and nobody in this category has
 written the honest version of the page.
@@ -175,6 +195,13 @@ The same properties that make the product defensible make it citable:
 
 ## Open
 
+- 🟡 **25 September 2026 remediation:** the canonical source, sitemap and
+  robots already use `https://www.ledgeur.com`, and live apex requests make one
+  permanent hop to that host. The six discovered-but-not-indexed blog articles
+  were materially rewritten with specific workflows, primary sources and a
+  visible revision date; Circleback, all-hands and the two thin template pages
+  gained source-backed or task-specific depth. Search Console re-crawl and
+  index selection remain asynchronous and must be checked in the owner UI.
 - ⬜ Submit the sitemap in Search Console and watch for first impressions.
 - ⬜ Re-measure in 90 days. With zero impressions today, any movement is signal.
 - ⬜ Decide whether `ai context layer` deserves its own page once it clears

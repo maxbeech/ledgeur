@@ -10,6 +10,9 @@ export interface UseCase {
   why: string;
   /** What the structured notes capture for this use case. */
   captures: string[];
+  /** Audience-specific workflow, rendered only when it adds real operational
+   * detail beyond a generic feature checklist. */
+  workflow?: string[];
 }
 
 export const USE_CASES: UseCase[] = [
@@ -82,6 +85,12 @@ export const USE_CASES: UseCase[] = [
     headline: "Share all-hands recaps with the whole team",
     why: "Capture the all-hands tab, summarise the key announcements and Q&A, and share a clean recap with anyone who couldn't attend — without a paid seat each.",
     captures: ["Key announcements", "Q&A highlights", "Decisions and what changes", "A digest to post in Slack"],
+    workflow: [
+      "Before the call, agree which announcements must survive into the written recap and who can confirm the wording.",
+      "During Q&A, keep the question with the answer. A neat answer without its question is usually useless to someone who missed the meeting.",
+      "Publish a short, dated digest in the company channel, then link to the fuller record so people can check context without asking a presenter to repeat it.",
+      "Keep confidential people, financial or customer material out of the broad recap; a whole-company audience is not the right permission model for every meeting note.",
+    ],
   },
 ];
 

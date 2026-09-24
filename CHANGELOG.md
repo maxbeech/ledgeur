@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased
+
+- Added fifteen source-backed SEO/GEO blog posts across the measured private
+  meeting-assistant, private-transcription and meetings-for-agents pillars.
+  The typed campaign adds keyword metadata, FAQs, internal/external links and
+  structured-data selection while keeping routes and sitemap registration in
+  the existing central post registry.
+- Extended article rendering for accessible tables, source panels, callouts,
+  table-of-contents navigation and FAQ/HowTo JSON-LD.
+- Aligned Google crawl signals on `https://www.ledgeur.com`, kept permanent
+  apex redirects intentional, and materially revised the Search Console
+  discovered-but-not-indexed content with primary sources and practical steps.
+
 ## Unreleased (2026-09-22) — A 4-person meeting was coming back as 126 "speakers" — on the desktop app specifically
 
 The 2026-09-15 diarization fix below (weighted clustering, folding tiny

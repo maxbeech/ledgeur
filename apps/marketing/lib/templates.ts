@@ -33,6 +33,9 @@ interface TemplatePage {
   /** The headings, in the order they belong in a document. This is the part
    *  people copy, so it is written to be copied rather than to read well. */
   headings: readonly string[];
+  /** Practical editorial guidance unique to the meeting type, not generic
+   * template filler. It is shown below the copyable document. */
+  advice?: readonly string[];
   /** Monthly US search volume for the page's phrase, from Keyword Planner on
    *  2026-09-09. Kept so a future prioritisation is made against a number
    *  somebody measured rather than a hunch. */
@@ -112,6 +115,11 @@ const PAGES: readonly TemplatePage[] = [
       "Budget, timeline, and who else has to approve",
       "The concrete next step, and who owns it",
     ],
+    advice: [
+      "Write the problem in the prospect's words before translating it into your product language. A later hand-off is much more useful when it preserves the phrase that made the buyer care.",
+      "Keep objections separate from feature requests. An objection is a reason not to buy now; a request may be useful information, but it does not tell you what is blocking the deal.",
+      "End with one mutually understood next step. If there is no date or owner, record that as an open question instead of creating a false commitment in the CRM.",
+    ],
     demand: "10/mo",
   },
   {
@@ -125,6 +133,11 @@ const PAGES: readonly TemplatePage[] = [
       "Workarounds they have built, and what those cost",
       "Features or changes they asked for, kept apart from problems they described",
       "Anything that contradicts an assumption we walked in with",
+    ],
+    advice: [
+      "Keep quotes alongside the surrounding context. A sentence lifted from an interview can sound like product validation when the next sentence explains why it would not change behaviour.",
+      "Do not merge participants into a single theme while taking notes. Capture the evidence first, then synthesise it across interviews in a separate research artefact.",
+      "Mark your own assumptions and prompts. It makes it possible to distinguish what the participant introduced from what the interviewer led them towards.",
     ],
     demand: "40/mo",
   },

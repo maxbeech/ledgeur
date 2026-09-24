@@ -71,7 +71,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
     // A post's own date, so a genuinely updated post is the one that stands out.
     urls.push({
       url: `${SITE.url}/blog/${post.slug}`,
-      lastModified: new Date(post.date),
+      lastModified: new Date(post.updated ?? post.date),
       priority: 0.6,
       changeFrequency: "yearly",
     });

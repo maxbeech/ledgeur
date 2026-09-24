@@ -1,4 +1,4 @@
-// The pillars: three hubs that give twenty-eight flat blog posts a shape.
+// The pillars: three hubs that give the blog a shape.
 //
 // ── The problem this solves ─────────────────────────────────────────────────
 // Everything under /blog sat at one level, mixing comparison, how-to and
@@ -106,6 +106,11 @@ export const GUIDES: readonly Guide[] = [
       "ai-meeting-notes-without-a-bot",
       "meeting-notes-for-remote-teams",
       "what-is-meeting-recording-software",
+      "browser-tab-audio-for-meeting-notes",
+      "meeting-recording-consent-checklist",
+      "customer-interview-transcription-workflow",
+      "sales-call-notes-privacy-workflow",
+      "consultant-meeting-notes-workflow",
     ],
     pages: [
       ["Compare the products directly", "/alternatives"],
@@ -168,6 +173,11 @@ export const GUIDES: readonly Guide[] = [
       "self-hosted-meeting-notes-for-enterprise",
       "free-meeting-transcription-tools",
       "hipaa-compliant-meeting-notes",
+      "meeting-transcript-quality-checklist",
+      "private-board-meeting-notes",
+      "speaker-label-review-for-meetings",
+      "webgpu-local-transcription-readiness",
+      "meeting-note-retention-policy",
     ],
     pages: [
       ["How speaker identification works", "/speaker-identification"],
@@ -225,6 +235,11 @@ export const GUIDES: readonly Guide[] = [
       "meeting-recording-transcription-software-compared",
       "extract-action-items-from-meetings",
       "meeting-notes-best-practices",
+      "product-team-decision-log-from-meetings",
+      "meeting-notes-for-ai-agents",
+      "mcp-meeting-records-explained",
+      "meeting-transcripts-as-company-context",
+      "ai-agent-meeting-search-permissions",
     ],
     pages: [
       ["Meetings as company memory", "/company-memory"],

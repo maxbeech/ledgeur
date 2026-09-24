@@ -15,14 +15,42 @@ import { GUIDES } from "../lib/guides.ts";
 import { TEMPLATES, templateBySlug, templateMarkdown } from "../lib/templates.ts";
 import { POSTS, postBySlug } from "../lib/posts.ts";
 import { COMPETITORS } from "../lib/competitors.ts";
+import { USE_CASES } from "../lib/usecases.ts";
 import { PLANS, TEAM_PRICE_USD, ENTERPRISE_FLOOR_USD } from "../lib/plans.ts";
 import { SITE } from "../lib/site.ts";
 import { NOTE_TEMPLATES } from "@ledgeur/core";
+import { SEPTEMBER_2026_CAMPAIGN } from "../lib/posts/september-2026-campaign.ts";
 
 const sitemap = readFileSync(new URL("../app/sitemap.ts", import.meta.url), "utf8");
 const read = (path: string) => readFileSync(new URL(path, import.meta.url), "utf8");
 
 export function runContentTests(ok: (name: string, cond: boolean, detail?: string) => void) {
+  // ---------- September 2026 SEO/GEO campaign ----------
+  // This is intentionally tested from the rendered data, rather than by
+  // counting entries in a source file. A post that is not registered cannot
+  // appear in the index, get a static route, or make it into the sitemap.
+  const campaign = POSTS.filter((post) => post.campaign === "september-2026-seo-geo");
+  const words = (post: typeof campaign[number]) => JSON.stringify({ body: post.body, faqs: post.faqs }).match(/\b[\p{L}\p{N}’'-]+\b/gu)?.length ?? 0;
+  ok("the September campaign contains exactly 15 posts", campaign.length === 15, String(campaign.length));
+  ok("campaign titles stay below 60 characters", campaign.every((post) => post.title.length < 60), campaign.filter((post) => post.title.length >= 60).map((post) => post.title).join(" | "));
+  ok("campaign descriptions stay below 155 characters", campaign.every((post) => post.description.length < 155), campaign.filter((post) => post.description.length >= 155).map((post) => post.slug).join(", "));
+  ok("campaign dates are within the publication week", campaign.every((post) => post.date >= "2026-09-18" && post.date <= "2026-09-25"), campaign.map((post) => `${post.slug}:${post.date}`).join(", "));
+  ok("campaign has varied editorial formats", new Set(campaign.map((post) => post.category)).size === 3, campaign.map((post) => post.category).join(", "));
+  ok("campaign has a primary and six supporting keywords", campaign.every((post) => post.keyword.length > 0 && (post.supportingKeywords?.length ?? 0) >= 6), campaign.filter((post) => (post.supportingKeywords?.length ?? 0) < 6).map((post) => post.slug).join(", "));
+  ok("campaign has two long-tail phrases", campaign.every((post) => (post.longTailKeywords?.length ?? 0) >= 2), campaign.filter((post) => (post.longTailKeywords?.length ?? 0) < 2).map((post) => post.slug).join(", "));
+  ok("campaign is substantive", campaign.every((post) => words(post) >= 1200), campaign.map((post) => `${post.slug}:${words(post)}`).join(", "));
+  ok("campaign has three to five answerable FAQs", campaign.every((post) => (post.faqs?.length ?? 0) >= 3 && (post.faqs?.length ?? 0) <= 5), campaign.filter((post) => (post.faqs?.length ?? 0) < 3 || (post.faqs?.length ?? 0) > 5).map((post) => post.slug).join(", "));
+  ok("campaign cites two to five authoritative sources", campaign.every((post) => (post.sources?.length ?? 0) >= 2 && (post.sources?.length ?? 0) <= 5 && post.sources?.every((source) => source.href.startsWith("https://"))), campaign.filter((post) => (post.sources?.length ?? 0) < 2 || (post.sources?.length ?? 0) > 5).map((post) => post.slug).join(", "));
+  ok("campaign connects three or more relevant internal pages", campaign.every((post) => (post.internalLinks?.length ?? 0) >= 3 && post.internalLinks?.every((link) => link.href.startsWith("/"))), campaign.filter((post) => (post.internalLinks?.length ?? 0) < 3).map((post) => post.slug).join(", "));
+  ok("campaign has FAQs and an appropriate structured-data type", campaign.every((post) => post.schemaTypes?.includes("FAQPage") && (post.schemaTypes?.includes("HowTo") || post.schemaTypes?.includes("Review") || post.category === "News" || post.category === "Academy")), campaign.filter((post) => !post.schemaTypes?.includes("FAQPage")).map((post) => post.slug).join(", "));
+  ok("campaign has descriptive social-image alt text", campaign.every((post) => post.featuredImageAlt?.includes(post.keyword)), campaign.filter((post) => !post.featuredImageAlt?.includes(post.keyword)).map((post) => post.slug).join(", "));
+  ok("campaign posts are in the central registry", SEPTEMBER_2026_CAMPAIGN.every((post) => postBySlug(post.slug) === post), SEPTEMBER_2026_CAMPAIGN.map((post) => post.slug).filter((slug) => !postBySlug(slug)).join(", "));
+  ok("the route renders campaign tables, source links and FAQ schema", (() => {
+    const route = read("../app/blog/[slug]/page.tsx");
+    return route.includes("ldg-table") && route.includes("Authoritative references") && route.includes('"@type": "FAQPage"');
+  })());
+  ok("the sitemap receives every campaign post through POSTS", campaign.every(() => sitemap.includes("for (const post of POSTS)")), "sitemap must iterate the central registry");
+
   // ---------- the gap list is one list ----------
   // /security and /pricing published contradictory claims about SAML for
   // months. The fix was one source; this is the test that keeps it one.
@@ -145,6 +173,35 @@ export function runContentTests(ok: (name: string, cond: boolean, detail?: strin
   // Every post is still reachable from somewhere: a post in no pillar and no
   // index is a post nobody will find.
   ok("every post is on the blog index", POSTS.length >= 28);
+
+  // Search Console discovered these articles but did not index them. Keep a
+  // high bar for material revisions: precise advice and primary sources, not
+  // filler added merely to hit a generic word-count target.
+  const indexingCandidates = [
+    "open-source-granola-alternative", "how-to-transcribe-microsoft-teams-meetings",
+    "ai-meeting-notes-without-a-bot", "ai-meeting-summarizer-guide",
+    "meeting-notes-best-practices", "meeting-notes-for-remote-teams",
+  ];
+  const countWords = (post: typeof POSTS[number]) => post.body.reduce((count, block) => {
+    if (block.type === "p" || block.type === "h2" || block.type === "h3" || block.type === "quote" || block.type === "callout") return count + block.text.split(/\s+/).length;
+    if (block.type === "ul" || block.type === "ol") return count + block.items.join(" ").split(/\s+/).length;
+    if (block.type === "table") return count + block.rows.flat().join(" ").split(/\s+/).length;
+    return count;
+  }, 0);
+  for (const slug of indexingCandidates) {
+    const post = postBySlug(slug);
+    ok(`${slug} is materially updated`, post?.updated === "2026-09-25", post?.updated);
+    ok(`${slug} has substantive guidance`, Boolean(post && countWords(post) >= 450), `${countWords(post ?? POSTS[0])} words`);
+    ok(`${slug} has primary sources`, Boolean(post && (post.sources?.length ?? 0) >= 2));
+  }
+  const circleback = COMPETITORS.find((competitor) => competitor.slug === "circleback");
+  ok("the Circleback comparison cites vendor documentation", Boolean(circleback && (circleback.sources?.length ?? 0) >= 2));
+  const allHands = USE_CASES.find((useCase) => useCase.slug === "all-hands");
+  ok("the all-hands page includes a specific publishing workflow", Boolean(allHands && (allHands.workflow?.length ?? 0) >= 4));
+  for (const slug of ["sales-call", "user-interview"]) {
+    const template = templateBySlug(slug);
+    ok(`${slug} template includes audience-specific guidance`, Boolean(template && (template.advice?.length ?? 0) >= 3));
+  }
 
   // ---------- the canonical origin must not redirect ----------
   // Every canonical tag, sitemap entry, OpenGraph url and JSON-LD

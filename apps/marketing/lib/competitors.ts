@@ -14,6 +14,8 @@ export interface Competitor {
   model: string;
   /** Concrete points where Ledgeur differs. */
   diff: string[];
+  /** Primary vendor documentation used for the comparison when available. */
+  sources?: readonly { label: string; href: string }[];
 }
 
 export const COMPETITORS: Competitor[] = [
@@ -188,6 +190,10 @@ export const COMPETITORS: Competitor[] = [
       "Free forever for one person, with no minute cap, rather than a free tier that exists to sell the Pro one.",
       "Open source under MIT, so the record keeps working whatever happens to the company.",
       "Circleback's automation catalogue is wider today. Ledgeur pushes action items to Linear, Todoist and Asana, and anything else through a signed webhook.",
+    ],
+    sources: [
+      { label: "Circleback product overview", href: "https://www.circleback.ai/" },
+      { label: "Circleback pricing", href: "https://www.circleback.ai/pricing" },
     ],
   },
   {

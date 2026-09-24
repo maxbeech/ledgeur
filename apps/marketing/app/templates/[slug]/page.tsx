@@ -66,6 +66,15 @@ export default async function TemplatePage({ params }: { params: Promise<{ slug:
           </pre>
         </div>
 
+        {t.advice && t.advice.length > 0 && (
+          <div className="mt-14">
+            <SectionHead kicker="Use it well" title="The detail that makes this note useful" />
+            <ul className="mt-6 space-y-3 text-base leading-relaxed text-muted">
+              {t.advice.map((item) => <li key={item}>{item}</li>)}
+            </ul>
+          </div>
+        )}
+
         {/* What the same template does inside the product. This is the bridge
             from "I came for a document" to "the document could write itself",
             and it has to be specific to be worth reading. */}

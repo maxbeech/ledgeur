@@ -31,10 +31,22 @@ The Vercel marketing app sends errors, low-volume performance traces, source map
 |---|---|
 | `apps/desktop` | The app — Tauri 2 + Vite + React (all platforms) |
 | `apps/marketing` | Next.js 16 marketing/SEO site (Vercel) |
+
+Marketing canonical URLs, sitemap entries and robots directives are derived
+from `apps/marketing/lib/site.ts`. The production origin is
+`https://www.ledgeur.com`; the apex domain permanently redirects there.
 | `packages/core` | Shared domain model, diarization logic, the meeting library, browser controllers, auth wording, notes/audio logic, Supabase client |
 | `packages/asr` | Browser speech-to-text **and speaker-diarization** workers + their load plans (synced into each app's `public/`) |
 | `packages/ui` | Design tokens, the shared `theme.css`, and the React primitives both apps render |
 | `supabase/` | Database schema (migrations) — source of truth for data |
+
+### Marketing content
+
+Blog content is typed data in `apps/marketing/lib/posts/`. The central
+`apps/marketing/lib/posts.ts` registry drives the `/blog` index, static article
+routes, structured metadata and the sitemap. Read `docs/seo_geo_content_plan.md`
+before adding a campaign; it records the measured pillar terms and prevents
+new articles from competing with the pages that own them.
 
 ## Develop
 

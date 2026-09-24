@@ -84,6 +84,11 @@ export default async function AlternativePage({ params }: { params: Promise<{ sl
           tool&rsquo;s publicly described model at the time of writing, not a judgement about its
           quality — {competitor.name} is good software that made a different architectural choice.
         </p>
+        {competitor.sources && competitor.sources.length > 0 && (
+          <p className="mt-3 text-xs leading-relaxed text-faint">
+            Sources: {competitor.sources.map((source, index) => <span key={source.href}>{index > 0 && " · "}<a className="underline" href={source.href}>{source.label}</a></span>)}.
+          </p>
+        )}
       </Section>
     </main>
   );

@@ -55,6 +55,15 @@ export default async function UseCasePage({ params }: { params: Promise<{ slug: 
           ))}
         </ul>
 
+        {useCase.workflow && useCase.workflow.length > 0 && (
+          <div className="mt-14">
+            <SectionHead kicker="A workable rhythm" title={`How to handle ${useCase.name.toLowerCase()} notes`} />
+            <ol className="mt-6 space-y-3 text-base leading-relaxed text-muted">
+              {useCase.workflow.map((step) => <li key={step}>{step}</li>)}
+            </ol>
+          </div>
+        )}
+
         <CtaBlock
           title={`Use Ledgeur for ${useCase.name.toLowerCase()}`}
           body="Free, private, on-device, with the speakers separated. Record it or drag in a recording you already have."

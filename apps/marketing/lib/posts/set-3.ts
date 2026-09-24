@@ -168,7 +168,8 @@ export const SET_3: Post[] = [
     description: "AI meeting summarizers produce a structured recap from a transcript. Here's how LLM-based summarization works, what it gets right, and where it still makes mistakes.",
     keyword: "meeting summarizer ai",
     date: "2026-06-20",
-    readMins: 6,
+    updated: "2026-09-25",
+    readMins: 8,
     body: [
       { type: "p", text: "An AI meeting summarizer takes a transcript and produces a structured overview: key topics, decisions made, action items and sometimes a verbatim quote or two. Most tools use a large language model (LLM) like GPT-4 or Claude for the summarisation step, after the audio has been transcribed with a speech-to-text model like Whisper." },
       { type: "h2", text: "The two-step pipeline" },
@@ -184,7 +185,20 @@ export const SET_3: Post[] = [
         "Non-English speakers: accented English reduces transcription accuracy, which cascades to summary quality.",
       ] },
       { type: "h2", text: "Local vs cloud summarization" },
-      { type: "p", text: "Cloud tools send your transcript to an LLM API for summarisation. Ledgeur' summary step also uses an LLM, but can be configured to run locally using an open-source model on your device. This keeps both the audio and the summary generation off any external server — important for privileged or confidential meetings." },
+      { type: "p", text: "Cloud tools send a transcript to an LLM API for summarisation. Ledgeur can use a configured model for notes, including a local model where the setup supports it. The important distinction is to understand the complete path: keeping audio on-device does not automatically make a summary private if the transcript is then sent to a remote model. Check the provider, retention terms and settings before using a meeting record with confidential content." },
+      { type: "h2", text: "How to get a summary you can rely on" },
+      { type: "p", text: "Ask for structure before eloquence. A useful meeting summary separates decisions, actions, open questions and background. It gives an owner and date only when the transcript makes them clear; it does not invent them to make the note feel complete. If the meeting was contentious, keep a link or timestamp back to the relevant part of the transcript rather than asking a model to guess at tone." },
+      { type: "p", text: "Review the claims with the highest cost of being wrong. For an internal planning call that is usually the release date and owner. For a sales or customer call it may be a commercial commitment, security assurance or exact quote. A two-minute review focused on those points is better than reading a polished paragraph and assuming it is right." },
+      { type: "h2", text: "A practical prompt for a first pass" },
+      { type: "callout", title: "Keep the model honest", text: "List only decisions that were explicitly made. For each action, include an owner and due date only if stated. Put uncertainty and unresolved points in a separate section. Do not infer motives, sentiment or commitments from silence." },
+    ],
+    faqs: [
+      { question: "Can an AI meeting summarizer replace the transcript?", answer: "No. A summary is a navigation aid. Keep the transcript or recording available when a detail, quote or disputed decision needs checking." },
+      { question: "Why does a good transcript still produce a poor summary?", answer: "A model can misread an implicit decision, lose context in a long call or turn vague language into a confident statement. The review step is part of the workflow." },
+    ],
+    sources: [
+      { label: "OpenAI Whisper model card", href: "https://github.com/openai/whisper/blob/main/model-card.md" },
+      { label: "NIST AI Risk Management Framework", href: "https://www.nist.gov/itl/ai-risk-management-framework" },
     ],
   },
   {
@@ -216,7 +230,8 @@ export const SET_3: Post[] = [
     description: "Remote teams depend on written meeting notes more than co-located ones. Here's how to structure notes, who owns them, and how to share them so everyone can act on them.",
     keyword: "meeting notes remote work",
     date: "2026-06-20",
-    readMins: 5,
+    updated: "2026-09-25",
+    readMins: 8,
     body: [
       { type: "p", text: "In a co-located office, decisions can be reinforced by walking over and asking. For remote and distributed teams, the written meeting note is the only reliable record. If it is not documented, it does not exist." },
       { type: "h2", text: "What remote meeting notes must include" },
@@ -233,6 +248,19 @@ export const SET_3: Post[] = [
       { type: "p", text: "Notes should live somewhere the whole team can find them without asking: a shared Notion, Confluence, Google Doc or similar. Link the note to the recurring meeting in the calendar invite. Send a summary to the team Slack channel after each meeting with the key decisions and action items bolded — people skim Slack; full notes live in Notion." },
       { type: "h2", text: "AI transcription as a baseline" },
       { type: "p", text: "Using AI transcription and summarisation as a starting point dramatically reduces the effort of producing good meeting notes. The AI handles the verbatim transcript and pulls out explicit decisions and action items. The human note-taker reviews for accuracy, adds context the AI missed, and formats for readability. This typically takes 5–10 minutes after a 1-hour meeting." },
+      { type: "h2", text: "Write for the person in the other time zone" },
+      { type: "p", text: "Remote notes are most valuable to the person who was asleep, in another customer call or simply not invited. Give them the decision before the discussion. Name the alternatives that were rejected if that context prevents the same debate returning next week. Link out to the source document, issue or recording rather than copying a thread of detail into the recap. The goal is not to prove the meeting happened; it is to let work continue without a private follow-up." },
+      { type: "p", text: "This is also why an owner matters. 'Marketing will review the launch copy' sounds complete but leaves a distributed team unable to tell whether anyone is moving it. 'Maya will review the launch copy by Thursday and post the decision in the launch channel' creates a hand-off people can see. If the owner or date was not agreed, leave it as an open question rather than making one up in the notes." },
+      { type: "h2", text: "Choose one home and one broadcast channel" },
+      { type: "ul", items: ["Keep the full note in a predictable, searchable location with a stable link.", "Post a short recap in the team's usual channel: decisions, actions and the link — not a wall of copied transcript.", "Use a consistent title that includes the recurring meeting name and date, so people can scan an archive.", "Protect 1:1s, hiring and sensitive customer conversations with a narrower audience; broad visibility is not the same as good documentation."] },
+    ],
+    faqs: [
+      { question: "Who owns notes for a remote recurring meeting?", answer: "Name a rotating editor or meeting owner. A transcript can be automatic, but someone should check and publish the decision and action record." },
+      { question: "Where should remote meeting notes live?", answer: "Use the shared workspace people already search, with a consistent home for the full record and a short recap in the team channel." },
+    ],
+    sources: [
+      { label: "GitLab Remote Playbook: handbook-first communication", href: "https://handbook.gitlab.com/handbook/company/culture/all-remote/guide/" },
+      { label: "Ledgeur project status meeting template", href: "https://www.ledgeur.com/templates/project-status-meeting" },
     ],
   },
   {
