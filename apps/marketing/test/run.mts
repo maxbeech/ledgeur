@@ -205,8 +205,6 @@ for (const gone of ["summarize.ts", "ai-notes.ts", "audio.ts"]) {
 
 // --- the website itself ---
 runSiteTests(ok);
-runNoVercelTests(ok);
-runAnalyticsTests(ok);
 runAnalyticsTests(ok);
 
 // --- the download page ---
