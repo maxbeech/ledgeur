@@ -15,6 +15,9 @@
   the existing central post registry.
 - Extended article rendering for accessible tables, source panels, callouts,
   table-of-contents navigation and FAQ/HowTo JSON-LD.
+- Added an attributed Pexels featured image to every September campaign post,
+  selected through the Pipedream connector and rendered from the typed post
+  record alongside its photographer credit.
 - Aligned Google crawl signals on `https://www.ledgeur.com`, kept permanent
   apex redirects intentional, and materially revised the Search Console
   discovered-but-not-indexed content with primary sources and practical steps.

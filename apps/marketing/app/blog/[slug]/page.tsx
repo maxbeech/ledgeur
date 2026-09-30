@@ -82,6 +82,15 @@ export default async function PostPage({ params }: { params: Promise<{ slug: str
 
         <article className="ldg-article">
           {post.category && <p className="ldg-eyebrow">{post.category}</p>}
+          {post.featuredImage && (
+            <figure className="ldg-featured-image">
+              {/* Pexels CDN assets are intentionally rendered directly so each
+                  article retains its image credit without an unverified proxy. */}
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={post.featuredImage.src} alt={post.featuredImage.alt} />
+              <figcaption>Photo by <a href={post.featuredImage.sourceUrl}>{post.featuredImage.photographer}</a> on Pexels.</figcaption>
+            </figure>
+          )}
           {post.body.some((block) => block.type === "h2") && (
             <nav className="ldg-toc" aria-label="On this page">
               <strong>On this page</strong>

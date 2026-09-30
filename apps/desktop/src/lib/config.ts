@@ -15,6 +15,12 @@ export const CONFIG = {
   localLlmUrl: env.VITE_LOCAL_LLM_URL ?? "http://127.0.0.1:8081/v1",
   /** Error tracking. Blank disables Sentry entirely (local-only dev is silent). */
   sentryDsn: env.VITE_SENTRY_DSN ?? "",
+  /** Product analytics (GA4 Measurement Protocol). This surface has no
+   *  document for gtag.js, so it reports through the same OpenHelm Analytics
+   *  property via ../../../../lib/openhelm-analytics-mp.ts. Blank disables it
+   *  entirely — no client id is even generated. */
+  gaMeasurementId: env.VITE_GA_MEASUREMENT_ID ?? "",
+  gaApiSecret: env.VITE_GA_API_SECRET ?? "",
   mode: env.MODE ?? "development",
 } as const;
 

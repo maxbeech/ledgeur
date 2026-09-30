@@ -44,10 +44,11 @@ export function runContentTests(ok: (name: string, cond: boolean, detail?: strin
   ok("campaign connects three or more relevant internal pages", campaign.every((post) => (post.internalLinks?.length ?? 0) >= 3 && post.internalLinks?.every((link) => link.href.startsWith("/"))), campaign.filter((post) => (post.internalLinks?.length ?? 0) < 3).map((post) => post.slug).join(", "));
   ok("campaign has FAQs and an appropriate structured-data type", campaign.every((post) => post.schemaTypes?.includes("FAQPage") && (post.schemaTypes?.includes("HowTo") || post.schemaTypes?.includes("Review") || post.category === "News" || post.category === "Academy")), campaign.filter((post) => !post.schemaTypes?.includes("FAQPage")).map((post) => post.slug).join(", "));
   ok("campaign has descriptive social-image alt text", campaign.every((post) => post.featuredImageAlt?.includes(post.keyword)), campaign.filter((post) => !post.featuredImageAlt?.includes(post.keyword)).map((post) => post.slug).join(", "));
+  ok("campaign has an attributed Pexels image for every post", campaign.every((post) => post.featuredImage?.src.startsWith("https://images.pexels.com/") && post.featuredImage.sourceUrl.startsWith("https://www.pexels.com/") && post.featuredImage.photographer.length > 1), campaign.filter((post) => !post.featuredImage).map((post) => post.slug).join(", "));
   ok("campaign posts are in the central registry", SEPTEMBER_2026_CAMPAIGN.every((post) => postBySlug(post.slug) === post), SEPTEMBER_2026_CAMPAIGN.map((post) => post.slug).filter((slug) => !postBySlug(slug)).join(", "));
   ok("the route renders campaign tables, source links and FAQ schema", (() => {
     const route = read("../app/blog/[slug]/page.tsx");
-    return route.includes("ldg-table") && route.includes("Authoritative references") && route.includes('"@type": "FAQPage"');
+    return route.includes("ldg-table") && route.includes("ldg-featured-image") && route.includes("Authoritative references") && route.includes('"@type": "FAQPage"');
   })());
   ok("the sitemap receives every campaign post through POSTS", campaign.every(() => sitemap.includes("for (const post of POSTS)")), "sitemap must iterate the central registry");
 

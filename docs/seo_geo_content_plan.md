@@ -130,9 +130,10 @@ Each post carries its keyword set, external sources, internal cluster links,
 FAQs and schema selection. The campaign’s authoritative citations are official
 OpenAI, MDN, ICO, NIST and MCP documentation, checked on 2026-09-25.
 
-**Image status:** the requested Pipedream MCP image integration is not present
-in this workspace. The campaign uses the existing route-level social image for
-Open Graph/Twitter only; it does not claim that a new featured image was added.
+**Image status:** ✅ On 30 September 2026, each campaign post gained a distinct
+featured image selected through the Pipedream Pexels connector. The typed
+campaign keeps the direct image URL, descriptive alt text, photographer and
+Pexels source URL together, and the article template renders that attribution.
 
 "speaker diarization" carries a $9.80 to $75.96 bid range on 880 searches. That
 spread is what a technical buyer looks like, and nobody in this category has

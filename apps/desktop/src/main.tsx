@@ -4,12 +4,14 @@ import { App } from "./App.tsx";
 import { AppErrorBoundary } from "./components/shell/AppErrorBoundary.tsx";
 import { initSentry } from "./lib/sentry.ts";
 import { createLogger } from "./lib/logger.ts";
+import { track } from "./lib/analytics.ts";
 import { watchTheme } from "./lib/theme.ts";
 import "./theme.css";
 
 initSentry();
 // Light / dark / system, applied before the first paint so nothing flashes.
 watchTheme();
+track("app_opened");
 
 const log = createLogger("window");
 window.addEventListener("error", (e) => log.error("uncaught error", e.error ?? e.message));

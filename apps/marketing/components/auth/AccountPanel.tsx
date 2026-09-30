@@ -11,6 +11,7 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
+import * as Sentry from "@sentry/nextjs";
 import {
   issueAccessToken, listAccessTokens, revokeAccessToken,
   hostedClientConfig, stdioClientConfig, hostedEndpoint,
@@ -20,6 +21,7 @@ import { Avatar, Badge, Button, Card, ErrorNote, Label, Notice } from "@ledgeur/
 import { getSupabase } from "@/lib/supabase";
 import { useSession } from "@/lib/useSession";
 import { SITE, SUPABASE, TEAM_PRICE_USD } from "@/lib/site";
+import { track } from "../../../../lib/openhelm-analytics";
 import CheckoutButton from "@/components/CheckoutButton";
 
 interface Workspace { id: string; name: string; plan: "free" | "team" | "company" }
@@ -92,6 +94,7 @@ export default function AccountPanel() {
     const sb = getSupabase();
     if (!sb) return;
     setPortalBusy(true); setError("");
+    track("billing_portal_opened");
     try {
       const { data } = await sb.auth.getSession();
       const token = data.session?.access_token;
@@ -99,8 +102,10 @@ export default function AccountPanel() {
       const body = await res.json();
       if (body.url) { window.location.href = body.url; return; }
       setError(body.error ?? "Could not open the billing portal.");
-    } catch {
+      Sentry.captureMessage(`billing portal not opened: ${body.code ?? "unknown"}`, "warning");
+    } catch (e) {
       setError("Could not reach the server.");
+      Sentry.captureException(e);
     } finally {
       setPortalBusy(false);
     }

@@ -71,8 +71,10 @@ export default function Privacy() {
           ))}
         </ul>
         <p>
-          That is the complete list. There is no analytics script on this site, no advertising
-          pixel, no session recorder and no third-party tag manager.
+          That is the complete list. There is no advertising pixel, no session recorder and no
+          third-party tag manager beyond the Google Analytics tag described above, which is off
+          in this deployment unless a measurement id has been configured for it, and never sends
+          your email, your name, or anything you recorded or wrote.
         </p>
 
         <h2>Who else is involved</h2>

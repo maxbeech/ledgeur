@@ -22,6 +22,7 @@ import {
   applyRouting, capturesInSpace, markUnsorted, newCapture, setKind, setSpace, unfileOrphans,
   type CaptureEntry, type CaptureKind, type CaptureRecord, type CaptureRouting,
 } from "@ledgeur/core";
+import { track } from "./analytics.ts";
 
 const KEY = "ledgeur.captures";
 
@@ -97,6 +98,7 @@ export function addCapture(text: string, entry: CaptureEntry): CaptureRecord {
   if (!trimmed) throw new Error("Nothing to keep.");
   const record = newCapture({ id: uid(), text: trimmed, entry });
   commit([...records, record]);
+  track("capture_kept", { entry });
   return record;
 }
 

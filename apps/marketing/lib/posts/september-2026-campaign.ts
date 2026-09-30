@@ -1,11 +1,8 @@
-import type { Block, Post, PostCategory, SchemaType, Source } from "./post-types";
+import type { Block, FeaturedImage, Post, PostCategory, SchemaType, Source } from "./post-types";
 
 // This is deliberately a data module, not a second publishing path. The
 // aggregator in ../posts.ts remains the sole source for the blog, routes,
 // sitemap, metadata and structured data.
-
-const PIPEDREAM_IMAGE_STATUS =
-  "Pipedream image publishing was unavailable in this workspace on 25 September 2026. These posts use the existing route-level social image; do not represent it as a newly commissioned featured photograph.";
 
 const SOURCES = {
   screen: { label: "MDN: Screen Capture API", href: "https://developer.mozilla.org/en-US/docs/Web/API/Screen_Capture_API/Using_Screen_Capture" },
@@ -154,6 +151,28 @@ const SPECS: CampaignSpec[] = [
   },
 ];
 
+// Every image below was selected and downloaded through the Pipedream Pexels
+// connector on 30 September 2026. The hosted CDN source keeps the image sharp
+// without committing 15 large binary files, and every rendered image retains a
+// human-readable photographer credit and source link.
+const FEATURED_IMAGES: Record<string, FeaturedImage> = {
+  "browser-tab-audio-for-meeting-notes": { src: "https://images.pexels.com/photos/8382280/pexels-photo-8382280.jpeg?auto=compress&cs=tinysrgb&fit=crop&h=627&w=1200", alt: "Browser tab audio capture workflow with a recorder on a desk", photographer: "cottonbro studio", sourceUrl: "https://www.pexels.com/photo/a-man-using-a-recorder-8382280/" },
+  "meeting-recording-consent-checklist": { src: "https://images.pexels.com/photos/6986455/pexels-photo-6986455.jpeg?auto=compress&cs=tinysrgb&fit=crop&h=627&w=1200", alt: "Meeting recording consent checklist reviewed on a laptop", photographer: "cottonbro studio", sourceUrl: "https://www.pexels.com/photo/google-browser-on-laptop-6986455/" },
+  "meeting-transcript-quality-checklist": { src: "https://images.pexels.com/photos/8463160/pexels-photo-8463160.jpeg?auto=compress&cs=tinysrgb&fit=crop&h=627&w=1200", alt: "Meeting transcript quality checklist for a video conference team", photographer: "Kampus Production", sourceUrl: "https://www.pexels.com/photo/colleagues-in-a-video-conference-8463160/" },
+  "private-board-meeting-notes": { src: "https://images.pexels.com/photos/8463143/pexels-photo-8463143.jpeg?auto=compress&cs=tinysrgb&fit=crop&h=627&w=1200", alt: "Private board meeting notes discussed beside a laptop", photographer: "Kampus Production", sourceUrl: "https://www.pexels.com/photo/woman-working-with-laptop-8463143/" },
+  "customer-interview-transcription-workflow": { src: "https://images.pexels.com/photos/8463165/pexels-photo-8463165.jpeg?auto=compress&cs=tinysrgb&fit=crop&h=627&w=1200", alt: "Customer interview transcription workflow during a video meeting", photographer: "Kampus Production", sourceUrl: "https://www.pexels.com/photo/group-of-people-in-a-meeting-8463165/" },
+  "sales-call-notes-privacy-workflow": { src: "https://images.pexels.com/photos/8369220/pexels-photo-8369220.jpeg?auto=compress&cs=tinysrgb&fit=crop&h=627&w=1200", alt: "Sales call notes privacy workflow with a camera on a desk", photographer: "cottonbro studio", sourceUrl: "https://www.pexels.com/photo/black-video-camera-on-brown-wooden-table-8369220/" },
+  "product-team-decision-log-from-meetings": { src: "https://images.pexels.com/photos/8369195/pexels-photo-8369195.jpeg?auto=compress&cs=tinysrgb&fit=crop&h=627&w=1200", alt: "Product decision log from meetings reviewed at a desk", photographer: "cottonbro studio", sourceUrl: "https://www.pexels.com/photo/a-man-in-gray-suit-sitting-on-the-chair-while-working-8369195/" },
+  "meeting-notes-for-ai-agents": { src: "https://images.pexels.com/photos/23496922/pexels-photo-23496922.jpeg?auto=compress&cs=tinysrgb&fit=crop&h=627&w=1200", alt: "Meeting notes for AI agents prepared on a laptop", photographer: "Vitaly Gariev", sourceUrl: "https://www.pexels.com/photo/a-man-in-a-suit-sitting-at-a-table-with-a-laptop-23496922/" },
+  "mcp-meeting-records-explained": { src: "https://images.pexels.com/photos/2041638/pexels-photo-2041638.jpeg?auto=compress&cs=tinysrgb&fit=crop&h=627&w=1200", alt: "MCP meeting records discussed around laptops and notes", photographer: "CoWomen", sourceUrl: "https://www.pexels.com/photo/white-ceramic-mug-beside-laptop-2041638/" },
+  "meeting-transcripts-as-company-context": { src: "https://images.pexels.com/photos/3747486/pexels-photo-3747486.jpeg?auto=compress&cs=tinysrgb&fit=crop&h=627&w=1200", alt: "Meeting transcripts as company context across shared workstations", photographer: "Polina Zimmerman", sourceUrl: "https://www.pexels.com/photo/photo-of-computers-near-window-3747486/" },
+  "ai-agent-meeting-search-permissions": { src: "https://images.pexels.com/photos/7439124/pexels-photo-7439124.jpeg?auto=compress&cs=tinysrgb&fit=crop&h=627&w=1200", alt: "AI agent meeting search permissions reviewed on a laptop", photographer: "cottonbro studio", sourceUrl: "https://www.pexels.com/photo/woman-using-a-laptop-7439124/" },
+  "speaker-label-review-for-meetings": { src: "https://images.pexels.com/photos/3760368/pexels-photo-3760368.jpeg?auto=compress&cs=tinysrgb&fit=crop&h=627&w=1200", alt: "Speaker label review for meetings on a laptop keyboard", photographer: "Andrea Piacquadio", sourceUrl: "https://www.pexels.com/photo/a-man-using-laptop-computer-on-white-table-3760368/" },
+  "webgpu-local-transcription-readiness": { src: "https://images.pexels.com/photos/60504/security-protection-anti-virus-software-60504.jpeg?auto=compress&cs=tinysrgb&fit=crop&h=627&w=1200", alt: "WebGPU local transcription readiness with a security display", photographer: "Pixabay", sourceUrl: "https://www.pexels.com/photo/security-logo-60504/" },
+  "consultant-meeting-notes-workflow": { src: "https://images.pexels.com/photos/17486300/pexels-photo-17486300.jpeg?auto=compress&cs=tinysrgb&fit=crop&h=627&w=1200", alt: "Consultant meeting notes workflow with a video camera", photographer: "Alan Videomaker Fotógrafo", sourceUrl: "https://www.pexels.com/photo/office-table-on-camera-screen-17486300/" },
+  "meeting-note-retention-policy": { src: "https://images.pexels.com/photos/5483071/pexels-photo-5483071.jpeg?auto=compress&cs=tinysrgb&fit=crop&h=627&w=1200", alt: "Meeting notes retention policy reviewed on a laptop", photographer: "cottonbro studio", sourceUrl: "https://www.pexels.com/photo/hands-on-a-laptop-keyboard-5483071/" },
+};
+
 const sentence = (spec: CampaignSpec, flavour: number) => {
   const variants = [
     `For ${spec.keyword}, the most reliable approach is a small, visible routine rather than a heroic clean-up job at the end. That routine should leave a reader able to see what happened, what was decided, and what remains uncertain.`,
@@ -221,9 +240,8 @@ export const SEPTEMBER_2026_CAMPAIGN: Post[] = SPECS.map((spec) => ({
   internalLinks: spec.internal,
   schemaTypes: spec.schema,
   campaign: "september-2026-seo-geo",
-  featuredImageAlt: `${spec.keyword}: a Ledgeur on-device meeting-record workflow`,
+  featuredImage: { ...FEATURED_IMAGES[spec.slug], alt: `${spec.keyword}: ${FEATURED_IMAGES[spec.slug].alt}` },
+  featuredImageAlt: `${spec.keyword}: ${FEATURED_IMAGES[spec.slug].alt}`,
   expertReviewNote: "Editorially reviewed against the cited first-party sources; confirm organisation-specific legal and policy requirements before adopting the workflow.",
   body: body(spec),
 }));
-
-export { PIPEDREAM_IMAGE_STATUS };

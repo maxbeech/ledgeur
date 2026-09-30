@@ -2,6 +2,12 @@
 // aggregator can both import the type without a circular dependency.
 
 export type Source = { label: string; href: string };
+export type FeaturedImage = {
+  src: string;
+  alt: string;
+  photographer: string;
+  sourceUrl: string;
+};
 
 export type Block =
   | { type: "h2"; text: string }
@@ -39,5 +45,6 @@ export interface Post {
   schemaTypes?: SchemaType[];
   campaign?: string;
   featuredImageAlt?: string;
+  featuredImage?: FeaturedImage;
   expertReviewNote?: string;
 }

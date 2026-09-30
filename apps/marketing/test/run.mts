@@ -27,6 +27,7 @@ import { SUPABASE, MIN_PASSWORD_LENGTH } from "../lib/site.ts";
 import { runContentTests } from "./content.mts";
 import { runSiteTests } from "./site.mts";
 import { runNoVercelTests } from "./no-vercel.mts";
+import { runAnalyticsTests } from "./analytics.mts";
 
 let pass = 0, fail = 0;
 const ok = (name: string, cond: boolean, detail = "") => {
@@ -204,6 +205,9 @@ for (const gone of ["summarize.ts", "ai-notes.ts", "audio.ts"]) {
 
 // --- the website itself ---
 runSiteTests(ok);
+runNoVercelTests(ok);
+runAnalyticsTests(ok);
+runAnalyticsTests(ok);
 
 // --- the download page ---
 // It offers a real file from a real release or it says there is none. The one

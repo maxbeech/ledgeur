@@ -53,4 +53,9 @@ export const DATA_COLLECTED: readonly { what: string; when: string; why: string 
   { what: "Your meetings, transcripts and notes", when: "Only on a paid plan, and only meetings you sync.", why: "So they are available on your other devices and to your workspace." },
   { what: "Payment details", when: "Only if you subscribe.", why: "Handled entirely by Stripe. We never see or store a card number." },
   { what: "A hash of each access token", when: "Only if you generate one.", why: "To check a presented token and to let you revoke it. The token itself is never stored." },
+  {
+    what: "Anonymous product-usage events (page views; on the desktop app, actions like recording or importing a meeting, or starting a trial)",
+    when: "Only once this deployment's Google Analytics property is configured — off by default.",
+    why: "To see which parts of the product get used. Never your email, your name, or anything you recorded or wrote.",
+  },
 ];
