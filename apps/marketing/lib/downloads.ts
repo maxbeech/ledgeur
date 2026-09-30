@@ -1,7 +1,7 @@
 // The desktop build, as published on GitHub Releases.
 //
 // The binary is not committed to this repo and never should be: a 13 MB DMG per
-// release would bloat every clone and every Vercel deployment for a file the CDN
+// release would bloat every clone and every deployment for a file the CDN
 // in front of GitHub Releases already serves. So the page asks GitHub what the
 // latest release actually contains, at build time and then on a schedule.
 //

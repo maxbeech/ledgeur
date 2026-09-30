@@ -3,7 +3,7 @@ import { withSentryConfig } from "@sentry/nextjs";
 
 // The transcription Web Worker lives in /public and loads transformers.js from a
 // CDN at runtime, so nothing here needs to bundle the ML runtime. We add a long
-// cache header for the worker (Vercel edge / Fast Origin Transfer friendly).
+// cache header for the worker (the CDN in front of the site honours it).
 // All SEO pages are statically generated.
 const nextConfig: NextConfig = {
   async headers() {

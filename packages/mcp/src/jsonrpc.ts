@@ -1,9 +1,9 @@
 // A stateless JSON-RPC 2.0 handler for MCP over Streamable HTTP.
 //
 // WHY NOT THE SDK'S SERVER TRANSPORT. The stdio server uses it and should: it
-// is a long-lived process with a session. A Next.js route handler on Vercel is
+// is a long-lived process with a session. A Next.js route handler is
 // neither, and the SDK's HTTP transport wants a session lifecycle that a
-// serverless function cannot honour without external state. Every method below
+// stateless request handler cannot honour without external state. Every method below
 // is a pure function of one request, so a stateless handler is both smaller and
 // more honest about what the deployment actually is.
 //

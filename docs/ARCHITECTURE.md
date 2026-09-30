@@ -36,7 +36,7 @@
 ```
 ledgeur/
 ├─ apps/
-│  ├─ marketing/        Next.js 16 SEO/marketing site (Vercel)
+│  ├─ marketing/        Next.js 16 SEO/marketing site (Helm7)
 │  └─ desktop/          Tauri 2 app — macOS · Windows · iOS · Android
 │     ├─ src/           React + Vite frontend (the whole product UI)
 │     └─ src-tauri/     Rust core (native audio, on-device AI sidecars)

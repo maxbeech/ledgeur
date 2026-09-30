@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- **Hosting**: the marketing site (`apps/marketing`) moved from Vercel to Helm7.
+  Sentry's environment label now comes from `NODE_ENV` instead of `VERCEL_ENV`,
+  the privacy page names Helm7 as the host, and a `no-vercel` test keeps
+  `@vercel/*` packages, `VERCEL_*` variables, `x-vercel-*` headers, `maxDuration`
+  and `vercel.json` out of the source. Behaviour is otherwise unchanged; the
+  Supabase project and the Stripe webhook (a Supabase function) stay where they are.
 - Added fifteen source-backed SEO/GEO blog posts across the measured private
   meeting-assistant, private-transcription and meetings-for-agents pillars.
   The typed campaign adds keyword metadata, FAQs, internal/external links and

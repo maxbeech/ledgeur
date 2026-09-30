@@ -82,7 +82,7 @@ export default function Privacy() {
         <ul>
           <li><strong>Supabase</strong> — the database and authentication behind sync.</li>
           <li><strong>Stripe</strong> — payments. Card details go directly to Stripe and never touch our servers.</li>
-          <li><strong>Vercel</strong> — hosting for this website and the agent endpoint.</li>
+          <li><strong>Helm7</strong> — hosting for this website and the agent endpoint.</li>
         </ul>
         <p>
           One more is involved even on the free plan, and it matters that you know: the first time

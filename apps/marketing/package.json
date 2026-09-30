@@ -2,7 +2,7 @@
   "name": "@ledgeur/marketing",
   "version": "0.2.0",
   "private": true,
-  "description": "Ledgeur marketing + SEO site (Next.js on Vercel).",
+  "description": "Ledgeur marketing + SEO site (Next.js on Helm7).",
   "license": "MIT",
   "scripts": {
     "predev": "node ../../packages/asr/sync.mjs public",

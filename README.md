@@ -23,14 +23,14 @@ rule and a test that enforces it.
 > [`docs/MOBILE.md`](docs/MOBILE.md), [`docs/REDESIGN.md`](docs/REDESIGN.md)
 > and [`docs/ROADMAP.md`](docs/ROADMAP.md).
 
-The Vercel marketing app sends errors, low-volume performance traces, source maps, and user feedback to Sentry; no telemetry runs if `NEXT_PUBLIC_SENTRY_DSN` is absent.
+The marketing app sends errors, low-volume performance traces, source maps, and user feedback to Sentry; no telemetry runs if `NEXT_PUBLIC_SENTRY_DSN` is absent.
 
 ## Monorepo
 
 | Path | What |
 |---|---|
 | `apps/desktop` | The app — Tauri 2 + Vite + React (all platforms) |
-| `apps/marketing` | Next.js 16 marketing/SEO site (Vercel) |
+| `apps/marketing` | Next.js 16 marketing/SEO site (Helm7) |
 
 Marketing canonical URLs, sitemap entries and robots directives are derived
 from `apps/marketing/lib/site.ts`. The production origin is

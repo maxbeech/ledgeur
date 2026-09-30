@@ -15,7 +15,7 @@ import { CustomerLogos } from "@/components/site/CustomerLogos";
 
 // Fully static. Nothing on this page is personalised or time-sensitive, so it
 // is prerendered once at build and served from the edge cache — the cheapest
-// and fastest thing Vercel can do with it.
+// and fastest thing the host can do with it.
 export const dynamic = "force-static";
 
 /** Each value prop gets its own pastel family — the four are different

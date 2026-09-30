@@ -163,7 +163,7 @@ export function runContentTests(ok: (name: string, cond: boolean, detail?: strin
     const page = `../app/${route}/page.tsx`;
     ok(`/${route} exists`, existsSync(new URL(page, import.meta.url)));
     ok(`/${route} is in the sitemap`, sitemap.includes(`/${route}`), route);
-    // Vercel's free tier is the budget. Static content is prerendered and
+    // The host's CPU is the budget. Static content is prerendered and
     // revalidated weekly rather than rendered per request.
     const source = read(page);
     ok(`/${route} is prerendered rather than dynamic`,

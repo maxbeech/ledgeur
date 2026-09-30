@@ -3,11 +3,12 @@
 What has to be set, where, and what breaks if it is not. Everything here is a
 real requirement of code in this repository — nothing is aspirational.
 
-## The website and web app (Vercel)
+## The website and web app (Helm7)
 
 `apps/marketing` is the marketing site, the web app at `/app`, the checkout
-routes and the hosted agent endpoint. It is a Next.js app; deploying is a git
-push once the project is linked.
+routes and the hosted agent endpoint. It is a Next.js app, built by Helm7 from the `master` branch (root directory
+`apps/marketing`); deploying is a `deploy` on the Helm7 product. Helm7 builds see only
+`NEXT_PUBLIC_*` variables, so nothing may read a secret at build time.
 
 ### Environment variables
 

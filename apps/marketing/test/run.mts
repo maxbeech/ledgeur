@@ -26,6 +26,7 @@ import {
 import { SUPABASE, MIN_PASSWORD_LENGTH } from "../lib/site.ts";
 import { runContentTests } from "./content.mts";
 import { runSiteTests } from "./site.mts";
+import { runNoVercelTests } from "./no-vercel.mts";
 
 let pass = 0, fail = 0;
 const ok = (name: string, cond: boolean, detail = "") => {
@@ -296,6 +297,7 @@ ok("/download is linked from the footer",
   readFileSync(new URL("../lib/site.ts", import.meta.url), "utf8").includes('"/download"'));
 
 runContentTests(ok);
+runNoVercelTests(ok);
 
 console.log(`\n${pass} passed, ${fail} failed`);
 if (fail > 0) process.exit(1);
