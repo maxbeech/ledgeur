@@ -13,7 +13,8 @@ import * as Sentry from "@sentry/nextjs";
 import { Button, ErrorNote } from "@ledgeur/ui/components";
 import { getSupabase } from "@/lib/supabase";
 import { useSession } from "@/lib/useSession";
-import { track } from "../../../lib/openhelm-analytics";
+import { emit } from "@/lib/analytics-events";
+import { reasonCode } from "@/lib/analytics-identity";
 import EmailLink from "@/components/EmailLink";
 
 export default function CheckoutButton({
@@ -41,7 +42,7 @@ export default function CheckoutButton({
     }
 
     setBusy(true);
-    track("checkout_started");
+    emit("checkout_started", {});
     try {
       const sb = getSupabase();
       // Ask for a fresh token rather than reusing one that may have expired
@@ -57,10 +58,12 @@ export default function CheckoutButton({
       const body = await res.json();
       if (body.url) { window.location.href = body.url; return; }
 
+      emit("checkout_failed", { reason: reasonCode({ code: body.code ?? `http_${res.status}` }) });
       setError(body.error ?? "Checkout could not be started.");
       setShowContact(body.code === "not_configured" || body.code === "no_workspace");
       Sentry.captureMessage(`checkout not started: ${body.code ?? "unknown"}`, "warning");
     } catch (e) {
+      emit("checkout_failed", { reason: "network" });
       setError("Could not reach the server. Check your connection and try again.");
       Sentry.captureException(e);
     } finally {

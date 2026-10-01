@@ -50,6 +50,31 @@ const DEBUG_URL = "https://www.google-analytics.com/debug/mp/collect";
 /** GA4 caps a single Measurement Protocol request at 25 events. */
 export const MAX_EVENTS_PER_REQUEST = 25;
 
+/*
+ * THE CONTRACT OPENHELM READS (OpenHelm `shared/src/product-analytics.ts`).
+ * Two user properties on every event: a pseudonymous user reference and the
+ * user's plan. OpenHelm's User funnel shows one user's progress by that ref
+ * and active users by plan; both only work once the property's `oh_user_ref`
+ * and `oh_plan` user-scoped custom dimensions exist.
+ */
+export const USER_PROPERTY_REF = "oh_user_ref";
+export const USER_PROPERTY_PLAN = "oh_plan";
+export type AnalyticsPlan = "anonymous" | "free" | "paid";
+
+/**
+ * The first 16 hex characters of SHA-256 over the product's own user id.
+ * Never send the id itself (or an email) to GA. Unsalted on purpose, so support
+ * can look a user up in OpenHelm by pasting the id. Works in the browser and on
+ * the server (Web Crypto). Pinned vector: "00000000-0000-0000-0000-000000000000"
+ * → "12b9377cbe7e5c94".
+ */
+export async function userRefFor(userId: string): Promise<string> {
+  const id = userId.trim();
+  if (!id) throw new Error("userRefFor needs a non-empty user id");
+  const digest = await globalThis.crypto.subtle.digest("SHA-256", new TextEncoder().encode(id));
+  return Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, "0")).join("").slice(0, 16);
+}
+
 export type Surface = "desktop" | "server" | "android" | "ios" | "web";
 
 export interface AnalyticsEvent {

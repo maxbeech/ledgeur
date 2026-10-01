@@ -21,6 +21,7 @@ import {
   AudioCapture, TranscriberController, DiarizerController,
   listVoiceProfiles, putMeeting,
 } from "@ledgeur/core/browser";
+import { emit } from "./analytics-events";
 
 export interface ImportState {
   busy: boolean;
@@ -155,10 +156,12 @@ export function useImport(onImported?: (meeting: LocalMeeting) => void) {
       meeting.title = deriveTitle(meeting);
 
       await putMeeting(meeting);
+      emit("meeting_saved", { source: "web_import", segments: segments.length, word_count: meeting.notes?.wordCount });
       setState({ ...IDLE, warning, name: file.name });
       done.current?.(meeting);
       return meeting;
     } catch (e) {
+      emit("meeting_save_failed", { source: "web_import" });
       setState({ ...IDLE, error: (e as Error).message, name: file.name });
       return null;
     } finally {
