@@ -22,6 +22,8 @@ import {
 import { Button, Card, ErrorNote, Field, Input, Notice } from "@ledgeur/ui/components";
 import { getSupabase, hasBackend } from "@/lib/supabase";
 import { SITE, SUPABASE } from "@/lib/site";
+import { emit } from "@/lib/analytics-events";
+import { reasonCode } from "@/lib/analytics-identity";
 
 type Mode = "signin" | "signup" | "reset";
 
@@ -82,6 +84,7 @@ export default function SignInForm() {
       if (mode === "signin") {
         const { error: err } = await sb.auth.signInWithPassword({ email: email.trim(), password });
         if (err) throw err;
+        emit("login", { method: "email" });
         router.replace(next);
         return;
       }
@@ -92,6 +95,7 @@ export default function SignInForm() {
           options: { emailRedirectTo: `${SITE.url}/auth/callback` },
         });
         if (err) throw err;
+        emit("sign_up", { method: "email" });
         // Whether they are signed in already depends on the project's confirm
         // setting, so the message asks the backend rather than guessing.
         const step = signUpNextStep(caps ?? NO_AUTH);
@@ -105,6 +109,8 @@ export default function SignInForm() {
       if (err) throw err;
       setNotice("If that address has an account, a reset link is on its way. It expires quickly, so open it soon.");
     } catch (err) {
+      if (mode === "signin") emit("login_failed", { reason: reasonCode(err) });
+      else if (mode === "signup") emit("sign_up_failed", { reason: reasonCode(err) });
       setError(authErrorMessage(err));
     } finally {
       setBusy(false);

@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- **Analytics**: the web app now sets the `oh_user_ref` / `oh_plan` user properties
+  for signed-in visitors (hash computed server-side by `/api/analytics/identity`)
+  and reports `sign_up`, `login`, `purchase`, web recording and import events,
+  each with a `_failed` twin. `purchase` fires only once the workspace reads as
+  paid. The shared GA client now pushes `arguments` to `dataLayer`, the only
+  shape gtag.js acts on.
 - **Hosting**: the marketing site (`apps/marketing`) moved from Vercel to Helm7.
   Sentry's environment label now comes from `NODE_ENV` instead of `VERCEL_ENV`,
   the privacy page names Helm7 as the host, and a `no-vercel` test keeps

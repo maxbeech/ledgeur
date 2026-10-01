@@ -24,6 +24,7 @@ import {
   AudioCapture, TranscriberController, DiarizerController,
   listVoiceProfiles, putMeeting, type AnalysedSlice,
 } from "@ledgeur/core/browser";
+import { emit } from "./analytics-events";
 
 /** How often captured audio is handed to the models. Long enough that Whisper
  *  has real context to work with, short enough that the transcript feels live. */
@@ -224,6 +225,7 @@ export function useWebRecorder(onSaved?: (meeting: LocalMeeting) => void) {
       });
       await cap.start({ mic: opts.mic, system: opts.system });
       capture.current = cap;
+      emit("capture_started", { source: "web", system_audio: opts.system, mic: opts.mic });
 
       // Recording from here on. The model download runs behind it.
       patch({ phase: "recording", step: "" });
@@ -255,6 +257,7 @@ export function useWebRecorder(onSaved?: (meeting: LocalMeeting) => void) {
       }
     } catch (e) {
       await teardown();
+      emit("capture_failed", { source: "web" });
       patch({ phase: "error", error: (e as Error).message, step: "" });
     }
   }, [drain, patch, teardown]);
@@ -334,11 +337,13 @@ export function useWebRecorder(onSaved?: (meeting: LocalMeeting) => void) {
     } catch (e) {
       // The meeting is still in memory and on screen; say so rather than
       // pretending it saved.
+      emit("meeting_save_failed", { source: "web" });
       patch({ phase: "error", error: `The meeting could not be saved to this browser's storage (${(e as Error).message}). Copy the transcript before you leave this page.` });
       await teardown();
       return meeting;
     }
 
+    emit("meeting_saved", { source: "web", segments: segments.length, word_count: notes.wordCount });
     await teardown();
     patch({ phase: "done", meetingId: meeting.id, step: "" });
     savedRef.current?.(meeting);
