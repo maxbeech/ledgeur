@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- **Sentry**: the desktop app's project moved from the old `ledgeur` org to `maxed-labs`
+  (`ledgeur_desktop`); the iOS dSYM upload script targets it. Desktop builds need the new
+  `VITE_SENTRY_DSN`/`SENTRY_DSN` in `apps/desktop/.env` and a fresh release to start reporting there.
 - **Analytics**: the web app now sets the `oh_user_ref` / `oh_plan` user properties
   for signed-in visitors (hash computed server-side by `/api/analytics/identity`)
   and reports `sign_up`, `login`, `purchase`, web recording and import events,

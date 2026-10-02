@@ -20,8 +20,8 @@ import { fileURLToPath } from "node:url";
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const ARCHIVE = join(ROOT, "src-tauri/gen/apple/build/ledgeur_iOS.xcarchive");
 const DSYMS = join(ARCHIVE, "dSYMs");
-const SENTRY_ORG = "ledgeur";
-const SENTRY_PROJECT = "parleynotes-desktop";
+const SENTRY_ORG = "maxed-labs";
+const SENTRY_PROJECT = "ledgeur_desktop";
 
 if (!existsSync(DSYMS)) {
   console.error(`No dSYMs found at ${DSYMS} — build with 'tauri ios build' first.`);
