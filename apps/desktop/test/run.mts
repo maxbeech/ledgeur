@@ -18,6 +18,7 @@ import { runCaptureStoreTests, runCaptureSyncTests } from "./capture.mts";
 import { runTaskPushTests } from "./taskPush.mts";
 import { runCallAppsTests } from "./callApps.mts";
 import { runAnalyticsTests, runAnalyticsAsyncTests } from "./analytics.mts";
+import { runReportingTests } from "./reporting.mts";
 
 let pass = 0, fail = 0;
 const ok = (name: string, cond: boolean, detail = "") => {
@@ -434,6 +435,7 @@ await runModelWarmupTests(ok);
 
 runAnalyticsTests(ok);
 await runAnalyticsAsyncTests(ok);
+await runReportingTests(ok);
 
 console.log(`\n${pass} passed, ${fail} failed`);
 if (fail > 0) process.exit(1);

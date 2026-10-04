@@ -9,6 +9,7 @@ import { useState } from "react";
 import { Mail, Copy, Check, Sparkles, ExternalLink, RefreshCw } from "lucide-react";
 import { mailtoUrl, type FollowUpEmail } from "@ledgeur/core";
 import { Badge, Button, Card, ErrorNote, Field, IconButton, Input, Label, Spinner, Textarea } from "../ui.tsx";
+import { copyText, COPY_FAILED_MESSAGE } from "../../lib/clipboard.ts";
 import { draftFollowUp } from "../../lib/followUp.ts";
 import type { LocalMeeting } from "../../lib/meetingsStore.ts";
 
@@ -35,7 +36,8 @@ export function FollowUpPanel({ meeting }: { meeting: LocalMeeting }) {
 
   async function copy() {
     if (!draft) return;
-    await navigator.clipboard.writeText(`Subject: ${draft.subject}\n\n${draft.body}`);
+    if (!(await copyText(`Subject: ${draft.subject}\n\n${draft.body}`))) { setError(COPY_FAILED_MESSAGE); return; }
+    setError("");
     setCopied(true);
     setTimeout(() => setCopied(false), 1500);
   }

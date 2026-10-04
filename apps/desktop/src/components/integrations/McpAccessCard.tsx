@@ -3,6 +3,7 @@ import { Server, Copy, Check } from "lucide-react";
 import type { Session } from "@supabase/supabase-js";
 import { Button, Card, Badge, Spinner, ErrorNote } from "../ui.tsx";
 import { generateMcpConfig, type McpConfigResult } from "../../lib/mcp.ts";
+import { copyText, COPY_FAILED_MESSAGE } from "../../lib/clipboard.ts";
 import { openExternal } from "../../lib/runtime.ts";
 import { upgradeUrl } from "../../lib/links.ts";
 
@@ -27,8 +28,9 @@ export function McpAccessCard({ session }: { session: Session | null }) {
     }
   }
 
-  function copy(which: "hosted" | "stdio", text: string) {
-    void navigator.clipboard.writeText(text);
+  async function copy(which: "hosted" | "stdio", text: string) {
+    if (!(await copyText(text))) { setError(COPY_FAILED_MESSAGE); return; }
+    setError("");
     setCopied(which);
     setTimeout(() => setCopied(null), 1500);
   }

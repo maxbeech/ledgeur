@@ -22,6 +22,7 @@ import { useEffect, useState } from "react";
 import { Brain, Check, Copy, ArrowLeftRight } from "lucide-react";
 import { hostedEndpoint } from "@ledgeur/mcp";
 import { Button, Card, Badge, Spinner, ErrorNote } from "../ui.tsx";
+import { copyText, COPY_FAILED_MESSAGE } from "../../lib/clipboard.ts";
 import { openExternal } from "../../lib/runtime.ts";
 import { SITE_URL } from "../../lib/links.ts";
 import {
@@ -136,8 +137,8 @@ export function ContextelyCard({ signedIn }: { signedIn: boolean }) {
               <Button
                 size="sm"
                 tone="secondary"
-                onClick={() => {
-                  void navigator.clipboard.writeText(endpoint);
+                onClick={async () => {
+                  if (!(await copyText(endpoint))) { setState({ busy: false, err: COPY_FAILED_MESSAGE }); return; }
                   setCopied(true);
                   setTimeout(() => setCopied(false), 1500);
                 }}

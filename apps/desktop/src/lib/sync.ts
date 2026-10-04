@@ -673,7 +673,11 @@ async function runOnce(reason: string): Promise<void> {
     log.info("sync done", { pushed, pulled, mode });
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);
-    log.error("sync failed", e);
+    // No network is the device's state, not a bug in the sync: say it as a
+    // warning (a breadcrumb), and keep the error report for what the backend
+    // actually refused.
+    if (isOffline(message)) log.warn("sync skipped, no connection", { message });
+    else log.error("sync failed", e);
     // A device with no connection is not a broken one, and "TypeError: Failed
     // to fetch" is not something to put in front of a person. Nothing is lost
     // meanwhile: everything is on the device, and the next run picks it up.

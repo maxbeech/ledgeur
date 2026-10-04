@@ -23,6 +23,8 @@ rule and a test that enforces it.
 > [`docs/MOBILE.md`](docs/MOBILE.md), [`docs/REDESIGN.md`](docs/REDESIGN.md)
 > and [`docs/ROADMAP.md`](docs/ROADMAP.md).
 
+The desktop app reports errors to Sentry only from a production build with `VITE_SENTRY_DSN` set; log warnings become breadcrumbs, only errors become issues.
+
 The marketing app sends errors, low-volume performance traces, source maps, and user feedback to Sentry; no telemetry runs if `NEXT_PUBLIC_SENTRY_DSN` is absent.
 
 ## Monorepo

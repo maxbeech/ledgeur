@@ -29,6 +29,7 @@ import { getMeeting, saveMeeting, deleteMeeting, subscribeMeetings, type LocalMe
 import { reassignSegmentSpeaker } from "../lib/renameSpeaker.ts";
 import { getCloudMeeting, deleteCloudMeeting } from "../lib/cloudMeeting.ts";
 import { hasBackend } from "../lib/config.ts";
+import { copyText, COPY_FAILED_MESSAGE } from "../lib/clipboard.ts";
 import { saveMeetingToNotion } from "../lib/notion.ts";
 import { useFolders, setMeetingFolder } from "../lib/folders.ts";
 
@@ -187,7 +188,7 @@ export function MeetingDetail() {
       meeting!.title, meeting!.createdAt.slice(0, 10), notes, "", meeting!.manualNotes,
       { includeTranscript: false },
     );
-    await navigator.clipboard.writeText(md);
+    if (!(await copyText(md))) { setNotion({ busy: false, msg: COPY_FAILED_MESSAGE, error: true }); return; }
     setCopied(true);
     setTimeout(() => setCopied(false), 1500);
   }

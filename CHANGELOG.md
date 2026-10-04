@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- **Desktop error reports**: only a production build sends errors to Sentry now, so a
+  `pnpm dev` session no longer files hot-reload crashes as customer issues. Warnings
+  (a slow model, speaker naming timing out, an offline sync, a backend missing a
+  migration) are breadcrumbs on the next real error instead of issues of their own.
+  The Copy buttons say so when the system refuses the clipboard write, rather than
+  flashing "Copied" and leaving an unhandled error behind. Needs a new desktop release.
 - **Sentry**: the desktop app's project moved from the old `ledgeur` org to `maxed-labs`
   (`ledgeur_desktop`); the iOS dSYM upload script targets it. Desktop builds need the new
   `VITE_SENTRY_DSN`/`SENTRY_DSN` in `apps/desktop/.env` and a fresh release to start reporting there.
