@@ -61,7 +61,7 @@ export default function CheckoutButton({
       emit("checkout_failed", { reason: reasonCode({ code: body.code ?? `http_${res.status}` }) });
       setError(body.error ?? "Checkout could not be started.");
       setShowContact(body.code === "not_configured" || body.code === "no_workspace");
-      Sentry.captureMessage(`checkout not started: ${body.code ?? "unknown"}`, "warning");
+      Sentry.captureMessage(`checkout not started: ${/^\w{1,64}$/.test(String(body.code)) ? body.code : "unknown"}`, "warning");
     } catch (e) {
       emit("checkout_failed", { reason: "network" });
       setError("Could not reach the server. Check your connection and try again.");

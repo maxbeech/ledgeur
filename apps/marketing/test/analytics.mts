@@ -84,12 +84,12 @@ export function runAnalyticsTests(ok: Ok): void {
   ok("AccountPanel reports portal failures to Sentry", /Sentry\.captureException/.test(accountPanel));
 
   const checkoutRoute = read("../app/api/checkout/route.ts");
-  ok("/api/checkout reports its catch block to Sentry", /Sentry\.captureException/.test(checkoutRoute));
-  ok("/api/checkout reports a Stripe-refused session to Sentry", /Sentry\.captureMessage/.test(checkoutRoute));
+  ok("/api/checkout reports its catch block to Sentry", /captureServerError\(/.test(checkoutRoute));
+  ok("/api/checkout reports a Stripe-refused session to Sentry", /captureServerMessage\(/.test(checkoutRoute));
 
   const portalRoute = read("../app/api/portal/route.ts");
-  ok("/api/portal reports its catch block to Sentry", /Sentry\.captureException/.test(portalRoute));
-  ok("/api/portal reports a Stripe-refused session to Sentry", /Sentry\.captureMessage/.test(portalRoute));
+  ok("/api/portal reports its catch block to Sentry", /captureServerError\(/.test(portalRoute));
+  ok("/api/portal reports a Stripe-refused session to Sentry", /captureServerMessage\(/.test(portalRoute));
 
   const webhook = read("../../../supabase/functions/stripe-webhook/index.ts");
   ok("the Stripe webhook checks the activation write for an error instead of discarding it",

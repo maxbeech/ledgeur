@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import * as Sentry from "@sentry/nextjs";
+import { captureServerError, captureServerMessage } from "@/lib/observability";
 import { createLedgeurClient } from "@ledgeur/core";
 import { SITE, SUPABASE } from "@/lib/site";
 
@@ -102,14 +102,16 @@ export async function POST(req: Request) {
     });
     const session = await res.json();
     if (!res.ok) {
-      Sentry.captureMessage(`Stripe checkout session refused: ${session?.error?.message ?? res.status}`, {
-        level: "error", extra: { orgId, userId: user.id },
+      // Codes only: Stripe's error text can quote the customer's own input.
+      captureServerMessage("Stripe checkout session refused", {
+        scope: "api.checkout", status: res.status, stripeCode: session?.error?.code, stripeType: session?.error?.type,
+        orgId, userId: user.id,
       });
       return NextResponse.json({ error: session?.error?.message ?? "Stripe refused the request." }, { status: 502 });
     }
     return NextResponse.json({ url: session.url });
   } catch (e) {
-    Sentry.captureException(e, { extra: { orgId, userId: user.id } });
+    captureServerError(e, { scope: "api.checkout", orgId, userId: user.id });
     return NextResponse.json({ error: "Could not reach Stripe. Try again in a moment." }, { status: 502 });
   }
 }

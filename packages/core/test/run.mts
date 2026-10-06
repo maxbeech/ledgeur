@@ -16,6 +16,7 @@ import { runAssembleTests } from "./assemble.mts";
 import { runAttributeTests } from "./attribute.mts";
 import { runNameTests, runSnippetTests } from "./names.mts";
 import { runCaptureTests } from "./capture.mts";
+import { runSentryScrubTests } from "./sentry-scrub.mts";
 import { runTaskPushTests } from "./tasks.mts";
 import { runSyncTests } from "./sync.mts";
 import { runFailureTests } from "./failures.mts";
@@ -270,6 +271,7 @@ runMergeTests(ok);
 runSegmenterTests(ok);
 runContextTests(ok);
 runCaptureTests(ok);
+runSentryScrubTests(ok);
 runTaskPushTests(ok);
 await runGranolaTests(ok);
 

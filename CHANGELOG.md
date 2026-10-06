@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+- **Sentry scrubbing hardened** (web, desktop and the Stripe webhook): one shared scrubber
+  (`@ledgeur/core/sentry`) now covers errors, logs, breadcrumbs and transactions. It redacts
+  emails, phone numbers, bearer/JWT tokens, API keys and password/secret/token fields,
+  strips query strings from breadcrumb and span URLs, truncates text to 10k characters
+  before matching (linear-time patterns, so hostile text cannot stall it), and fails closed:
+  if scrubbing throws, the event is dropped rather than sent raw. Feedback events keep the
+  reporter's own name, email and message but are otherwise scrubbed like everything else.
+  Capture helpers now accept ids, codes and counts only; Stripe refusals and webhook
+  failures report codes rather than provider or database error text. Needs a new desktop
+  release and an edge function redeploy for the webhook.
 - **Sentry standard**: both surfaces now send errors, logs and user feedback to their own
   Sentry projects (`ledgeur_web`, `ledgeur_desktop`). Console output is forwarded as
   Sentry Logs (emails and access tokens are redacted first). A "Send feedback" control sits

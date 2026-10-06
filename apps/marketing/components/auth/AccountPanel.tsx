@@ -108,7 +108,7 @@ export default function AccountPanel() {
       if (body.url) { window.location.href = body.url; return; }
       emit("billing_portal_failed", { reason: reasonCode({ code: body.code ?? `http_${res.status}` }) });
       setError(body.error ?? "Could not open the billing portal.");
-      Sentry.captureMessage(`billing portal not opened: ${body.code ?? "unknown"}`, "warning");
+      Sentry.captureMessage(`billing portal not opened: ${/^\w{1,64}$/.test(String(body.code)) ? body.code : "unknown"}`, "warning");
     } catch (e) {
       emit("billing_portal_failed", { reason: "network" });
       setError("Could not reach the server.");

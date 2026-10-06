@@ -5,6 +5,7 @@
 // if a customer had hit them.
 
 import * as Sentry from "@sentry/react";
+import { sentryScrubHooks } from "@ledgeur/core/sentry";
 import { CONFIG } from "./config.ts";
 
 /** Whether this build reports to Sentry at all. Exported as a function so the
@@ -15,20 +16,10 @@ export function shouldReport(config: { sentryDsn: string; mode: string }): boole
 
 export const sentryEnabled = shouldReport(CONFIG);
 
-// Logs are free text, so a stray `console.log(user)` must not ship an email
-// address or an access token to Sentry.
-const EMAIL = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi;
-const TOKEN = /\b(?:bearer\s+[\w.~+/=-]{8,}|ldg_[\w-]{8,}|eyJ[\w-]{10,}\.[\w-]{10,}\.[\w-]{5,})/gi;
-
-export function scrubText(text: string): string {
-  return text.replace(EMAIL, "[email]").replace(TOKEN, "[token]");
-}
-
-/** `beforeSendLog` hook: redacts the message of every structured log. */
-export function scrubLog<T extends { message?: unknown }>(log: T): T {
-  if (typeof log.message === "string") log.message = scrubText(log.message);
-  return log;
-}
+// The scrubber lives in @ledgeur/core/sentry (shared with the web app): redaction,
+// 10k-char truncation, linear-time patterns, fail-closed hooks, and breadcrumb /
+// transaction coverage. Re-exported here for tests.
+export { scrubText, scrubLog, scrubEvent, scrubTransaction, scrubBreadcrumb } from "@ledgeur/core/sentry";
 
 /** Options shared by every Sentry.init in this app. Exported for tests. */
 export function sentryOptions(config: { sentryDsn: string; mode: string }) {
@@ -38,7 +29,7 @@ export function sentryOptions(config: { sentryDsn: string; mode: string }) {
     tracesSampleRate: 0.1,
     sendDefaultPii: false,
     enableLogs: true,
-    beforeSendLog: scrubLog,
+    ...sentryScrubHooks,
   } as const;
 }
 

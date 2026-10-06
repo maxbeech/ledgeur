@@ -1,8 +1,10 @@
 // Sentry wiring: shared options, log scrubbing, the central capture helper,
 // and that the feedback control and error boundaries are actually in place.
 import { readFileSync } from "node:fs";
-import { scrubText, scrubLog, baseSentryOptions } from "../lib/sentry-options.ts";
+import { scrubText, scrubLog, scrubEvent, scrubTransaction, scrubBreadcrumb, baseSentryOptions } from "../lib/sentry-options.ts";
 import { captureServerError, captureServerMessage } from "../lib/observability.ts";
+import { scrubText as edgeScrubText, scrubValue as edgeScrubValue, safeContext as edgeSafeContext } from "../../../supabase/functions/_shared/scrub.ts";
+import { scrubText as coreScrubText, scrubValue as coreScrubValue, safeContext as coreSafeContext } from "@ledgeur/core/sentry";
 
 type Ok = (name: string, cond: boolean, detail?: string) => void;
 const read = (rel: string) => readFileSync(new URL(rel, import.meta.url), "utf8");
@@ -13,10 +15,12 @@ export function runSentryTests(ok: Ok) {
   ok("scrubText redacts bearer tokens", !/abcdefghijkl/.test(scrubText("Authorization: Bearer abcdefghijkl123")));
   ok("scrubText redacts Ledgeur access tokens", scrubText("token ldg_abcdef123456") === "token [token]");
   ok("scrubText leaves ordinary text alone", scrubText("meeting saved") === "meeting saved");
-  ok("scrubLog scrubs the log message", scrubLog({ message: "mail a@b.co" }).message === "mail [email]");
-  ok("scrubLog tolerates a non-string message", scrubLog({ message: 3 }).message === 3);
+  ok("scrubLog scrubs the log message", (scrubLog({ message: "mail a@b.co" }) as { message: string }).message === "mail [email]");
+  ok("scrubLog tolerates a non-string message", (scrubLog({ message: 3 }) as { message: number }).message === 3);
   ok("shared options turn logs on and PII off", baseSentryOptions.enableLogs === true && baseSentryOptions.sendDefaultPii === false);
   ok("shared options scrub logs", baseSentryOptions.beforeSendLog === scrubLog);
+  ok("shared options scrub events, transactions and breadcrumbs too",
+    baseSentryOptions.beforeSend === scrubEvent && baseSentryOptions.beforeSendTransaction === scrubTransaction && baseSentryOptions.beforeBreadcrumb === scrubBreadcrumb);
 
   // --- every init uses the shared options and forwards console output
   for (const file of ["instrumentation-client.ts", "sentry.server.config.ts", "sentry.edge.config.ts"]) {
@@ -60,6 +64,29 @@ export function runSentryTests(ok: Ok) {
   ok("the webhook reports activation and plan-update failures to Sentry", (webhook.match(/captureEdgeError\(/g) ?? []).length === 3, String((webhook.match(/captureEdgeError\(/g) ?? []).length));
   ok("the edge reporter posts to the envelope endpoint", /\/envelope\//.test(read("../../../supabase/functions/_shared/sentry.ts")));
 
+  // --- the Deno-side scrubber copy gives the same answers as the shared one
+  const probes = [
+    "mail jo@example.com", "call +44 20 7946 0958", "Authorization: Bearer abcdefghijklmnop1234", "k ldg_abcdef123456",
+    "k " + "sk_" + "live_" + "A1b2C3d4E5f6G7h8", "password=hunter2hunter2", "plain text 12 items", "x".repeat(30_000),
+  ];
+  ok("edge scrubText matches core scrubText on every probe", probes.every((p) => edgeScrubText(p) === coreScrubText(p)));
+  const obj = { a: { token: "t", who: "jo@example.com", n: 1 }, url: "/x?token=1" };
+  ok("edge scrubValue matches core scrubValue", JSON.stringify(edgeScrubValue(obj)) === JSON.stringify(coreScrubValue(obj)));
+  const c = { scope: "s", n: 1, text: "free text here", mail: "a@b.co" };
+  ok("edge safeContext matches core safeContext", JSON.stringify(edgeSafeContext(c)) === JSON.stringify(coreSafeContext(c)));
+  const edgeReporter = read("../../../supabase/functions/_shared/sentry.ts");
+  ok("the edge reporter sends only safeContext and a scrubbed message", /extra: safe/.test(edgeReporter) && /scrubText\(rawMessage\)/.test(edgeReporter));
+  ok("the webhook reports error codes, never database error text", !/error\.message/.test(webhook.split("captureEdgeError").slice(1).join("captureEdgeError")));
+
+  // --- call sites pass ids/codes only: no free text, no provider error text
+  for (const f of ["app/api/checkout/route.ts", "app/api/portal/route.ts"]) {
+    const src = read(`../${f}`);
+    ok(`${f} reports Stripe refusals by code, not by message text`, !/captureServerMessage\([^)]*error\?\.message/.test(src) && /stripeCode/.test(src));
+  }
+  ok("no Sentry.captureMessage interpolates a provider message", !/captureMessage\(`[^`]*(error\??\.message|\.error\b)/.test(read("../app/api/checkout/route.ts") + read("../app/api/portal/route.ts")));
+  const noisy = captureContextProbe();
+  ok("captureServerError drops free-text context", noisy);
+
   // --- the capture helper degrades loudly with no DSN, and never throws
   const saved = { a: process.env.SENTRY_DSN, b: process.env.NEXT_PUBLIC_SENTRY_DSN };
   delete process.env.SENTRY_DSN; delete process.env.NEXT_PUBLIC_SENTRY_DSN;
@@ -75,4 +102,12 @@ export function runSentryTests(ok: Ok) {
     if (saved.b !== undefined) process.env.NEXT_PUBLIC_SENTRY_DSN = saved.b;
   }
   ok("with no DSN the capture helpers log to the console instead of failing silently", lines.length === 2 && String(lines[0][0]).includes("[test]"));
+}
+
+// With no DSN the helper only logs, so assert on what safeContext would let through
+// for the exact shapes the call sites use.
+function captureContextProbe(): boolean {
+  const kept = coreSafeContext({ scope: "api.checkout", status: 502, stripeCode: "card_declined", orgId: "9f1c", userId: "u-1", customer: "cus_123" });
+  const dropped = coreSafeContext({ message: "Your card was declined for jo@example.com", ledger: { rows: [1] } });
+  return Object.values(kept).every((v) => !String(v).startsWith("[omitted")) && Object.values(dropped).every((v) => String(v).startsWith("[omitted"));
 }

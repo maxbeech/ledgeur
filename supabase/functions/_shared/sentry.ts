@@ -2,15 +2,23 @@
 // not worth bundling for a handful of webhook failure sites, so this posts one
 // error event to the project's envelope endpoint. Set the SENTRY_DSN function
 // secret to the ledgeur_web DSN; without it the failure is only logged, loudly.
+//
+// Context is ids, codes and counts only (`safeContext` omits anything else), the
+// message is scrubbed, and a scrub failure drops the event rather than sending
+// it raw. Never put a database/Stripe error message in the Error: pass its code.
+
+import { safeContext, scrubText } from "./scrub.ts";
 
 export async function captureEdgeError(err: unknown, context: Record<string, unknown> = {}): Promise<void> {
   const dsn = Deno.env.get("SENTRY_DSN");
-  const message = err instanceof Error ? err.message : typeof err === "string" ? err : JSON.stringify(err);
+  const rawMessage = err instanceof Error ? err.message : typeof err === "string" ? err : "non-error value thrown";
   if (!dsn) {
-    console.error("Sentry not configured (SENTRY_DSN missing); unreported failure:", message, context);
+    console.error("Sentry not configured (SENTRY_DSN missing); unreported failure:", rawMessage, safeContext(context));
     return;
   }
   try {
+    const message = scrubText(rawMessage);
+    const safe = safeContext(context);
     const u = new URL(dsn);
     const projectId = u.pathname.replace("/", "");
     const eventId = crypto.randomUUID().replaceAll("-", "");
@@ -21,8 +29,8 @@ export async function captureEdgeError(err: unknown, context: Record<string, unk
       level: "error",
       environment: "production",
       server_name: "supabase-edge",
-      tags: { scope: String(context.scope ?? "edge-function") },
-      extra: context,
+      tags: { scope: String(safe.scope ?? "edge-function") },
+      extra: safe,
       exception: { values: [{ type: err instanceof Error ? err.name : "Error", value: message }] },
     };
     const body = [
@@ -37,6 +45,7 @@ export async function captureEdgeError(err: unknown, context: Record<string, unk
     });
     if (!res.ok) console.error("Sentry rejected the event", res.status);
   } catch (e) {
-    console.error("Could not reach Sentry", e);
+    // Fail closed: nothing was sent, and the error text is not echoed (it may quote the payload).
+    console.error("Could not report to Sentry", e instanceof Error ? e.name : "unknown");
   }
 }
