@@ -23,9 +23,9 @@ rule and a test that enforces it.
 > [`docs/MOBILE.md`](docs/MOBILE.md), [`docs/REDESIGN.md`](docs/REDESIGN.md)
 > and [`docs/ROADMAP.md`](docs/ROADMAP.md).
 
-The desktop app reports errors to Sentry only from a production build with `VITE_SENTRY_DSN` set; log warnings become breadcrumbs, only errors become issues.
+The desktop app (`ledgeur_desktop`) reports errors, logs and user feedback to Sentry only from a production build with `VITE_SENTRY_DSN` set; log warnings become breadcrumbs, only errors become issues.
 
-The marketing app sends errors, low-volume performance traces, source maps, and user feedback to Sentry; no telemetry runs if `NEXT_PUBLIC_SENTRY_DSN` is absent.
+The marketing app (`ledgeur_web`) sends errors, logs, low-volume performance traces, source maps and user feedback to Sentry through a tunnel route; set `NEXT_PUBLIC_SENTRY_DSN` and `SENTRY_DSN` (see `apps/marketing/.env.example`). The Stripe webhook edge function reports to the same project via a `SENTRY_DSN` function secret.
 
 ## Monorepo
 

@@ -10,6 +10,7 @@
 
 import Stripe from "npm:stripe@18";
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { captureEdgeError } from "../_shared/sentry.ts";
 import { trackEvent } from "../../../lib/openhelm-analytics-mp.ts";
 
 const stripe = new Stripe(Deno.env.get("STRIPE_SECRET_KEY") ?? "", { apiVersion: "2025-08-27.basil" });
@@ -83,9 +84,11 @@ Deno.serve(async (req) => {
         // simply discarded: Stripe got its 200, the org never got its plan,
         // and nothing anywhere said so.
         if (error) console.error("checkout.session.completed: org activation failed", { orgId, error });
+        if (error) await captureEdgeError(new Error(`checkout.session.completed: org activation failed: ${error.message}`), { scope: "stripe-webhook", orgId });
         else reportBillingEvent("trial_started", orgId, { org_id: orgId });
       } else {
         console.error("checkout.session.completed missing org or customer id", { orgId, customerId, sessionId: session.id });
+        await captureEdgeError(new Error("checkout.session.completed missing org or customer id"), { scope: "stripe-webhook", sessionId: session.id });
       }
       break;
     }
@@ -96,6 +99,7 @@ Deno.serve(async (req) => {
       const plan = event.type === "customer.subscription.deleted" ? "free" : activeSubscriptionPlan(sub.status);
       const { error } = await admin.from("orgs").update({ plan, stripe_subscription_id: sub.id }).eq("stripe_customer_id", customerId);
       if (error) console.error(`${event.type}: org plan update failed`, { customerId, plan, error });
+      if (error) await captureEdgeError(new Error(`${event.type}: org plan update failed: ${error.message}`), { scope: "stripe-webhook", customerId });
       else if (event.type === "customer.subscription.deleted") {
         reportBillingEvent("subscription_canceled", customerId, { customer_id: customerId });
       }

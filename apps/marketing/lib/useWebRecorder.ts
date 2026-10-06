@@ -25,6 +25,7 @@ import {
   listVoiceProfiles, putMeeting, type AnalysedSlice,
 } from "@ledgeur/core/browser";
 import { emit } from "./analytics-events";
+import { reportClientError } from "@/lib/observability-client";
 
 /** How often captured audio is handed to the models. Long enough that Whisper
  *  has real context to work with, short enough that the transcript feels live. */
@@ -253,10 +254,12 @@ export function useWebRecorder(onSaved?: (meeting: LocalMeeting) => void) {
         // The meeting is already being captured, so this is not fatal to the
         // recording — but it is fatal to the transcript, and saying so now is
         // better than letting somebody record an hour of nothing.
+        reportClientError(e, "web-recorder.model-preload");
         patch({ error: (e as Error).message });
       }
     } catch (e) {
       await teardown();
+      reportClientError(e, "web-recorder.start");
       emit("capture_failed", { source: "web" });
       patch({ phase: "error", error: (e as Error).message, step: "" });
     }
@@ -337,6 +340,7 @@ export function useWebRecorder(onSaved?: (meeting: LocalMeeting) => void) {
     } catch (e) {
       // The meeting is still in memory and on screen; say so rather than
       // pretending it saved.
+      reportClientError(e, "web-recorder.save");
       emit("meeting_save_failed", { source: "web" });
       patch({ phase: "error", error: `The meeting could not be saved to this browser's storage (${(e as Error).message}). Copy the transcript before you leave this page.` });
       await teardown();

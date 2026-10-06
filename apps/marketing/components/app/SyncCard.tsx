@@ -13,6 +13,7 @@ import { Badge, Button, Card, ErrorNote, Label } from "@ledgeur/ui/components";
 import { cn } from "@ledgeur/ui";
 import { useSync, type Visibility } from "@/lib/useSync";
 import { useSession } from "@/lib/useSession";
+import { reportClientError } from "@/lib/observability-client";
 
 export function SyncCard({
   meeting, onSynced,
@@ -32,6 +33,7 @@ export function SyncCard({
     try {
       onSynced(await sync.push(meeting, visibility));
     } catch (e) {
+      reportClientError(e, "sync-push");
       setError((e as Error).message);
     }
   }

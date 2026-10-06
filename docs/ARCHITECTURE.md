@@ -63,7 +63,7 @@ server, so entity shapes have a single definition (mirrored in `supabase/`).
 | Backend | **Supabase** | Postgres + Auth (Google/Microsoft/SAML) + RLS + pgvector + Storage in one. |
 | Semantic search | **pgvector** | RAG over the org hive mind, gated by RLS. |
 | Data access (paid) | **MCP server** | Exposes the knowledge base to Claude/ChatGPT/any MCP tool. |
-| Error tracking | **Sentry** (`@sentry/react` + the `sentry` Rust crate) | One project (`ledgeur/ledgeur-desktop`) receiving both frontend and native events. Opt-in via `VITE_SENTRY_DSN`/`SENTRY_DSN` in `.env` — blank disables it entirely. |
+| Error tracking | **Sentry** (`@sentry/react` + the `sentry` Rust crate) | One project (`maxed-labs/ledgeur_desktop`) receiving both frontend and native events. Opt-in via `VITE_SENTRY_DSN`/`SENTRY_DSN` in `.env` — blank disables it entirely. |
 
 ## Observability
 

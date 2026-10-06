@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+- **Sentry standard**: both surfaces now send errors, logs and user feedback to their own
+  Sentry projects (`ledgeur_web`, `ledgeur_desktop`). Console output is forwarded as
+  Sentry Logs (emails and access tokens are redacted first). A "Send feedback" control sits
+  in the web app sidebar, the site footer, the desktop sidebar and Settings (so phones have
+  it too); submissions arrive as User Feedback, pre-filled when you are signed in. Failed
+  recordings, imports, saves, syncs, library loads and MCP requests on the web, and the
+  Stripe webhook's failure paths, now open Sentry Issues instead of only showing a message.
+  Added a page-level error boundary and a randomised Sentry tunnel path. The desktop change
+  needs a new desktop release.
 - **Desktop error reports**: only a production build sends errors to Sentry now, so a
   `pnpm dev` session no longer files hot-reload crashes as customer issues. Warnings
   (a slow model, speaker naming timing out, an offline sync, a backend missing a

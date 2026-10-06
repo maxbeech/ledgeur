@@ -20,6 +20,7 @@ import { RecordPanel } from "./RecordPanel";
 import { MeetingView } from "./MeetingView";
 import { Library } from "./Library";
 import { SyncCard } from "./SyncCard";
+import { FeedbackButton } from "@/components/feedback/FeedbackButton";
 
 export default function AppShell() {
   const library = useLibrary();
@@ -77,8 +78,8 @@ export default function AppShell() {
 
       <div className="mx-auto grid max-w-6xl gap-6 px-5 py-6 lg:grid-cols-[300px_1fr]">
         {/* ------------------------------------------------------ sidebar */}
-        <aside className={`lg:sticky lg:top-[80px] lg:h-[calc(100dvh-9rem)] ${selected ? "hidden lg:block" : ""}`}>
-          <Card className="h-full overflow-hidden">
+        <aside className={`lg:sticky lg:top-[80px] lg:flex lg:h-[calc(100dvh-9rem)] lg:flex-col ${selected ? "hidden lg:block" : ""}`}>
+          <Card className="min-h-0 flex-1 overflow-hidden">
             <Library
               meetings={library.meetings}
               selectedId={selectedId}
@@ -89,7 +90,7 @@ export default function AppShell() {
             />
           </Card>
 
-          <div className="mt-4 rounded-xl bg-paper p-4">
+          <div className="mt-4 shrink-0 rounded-xl bg-paper p-4">
             {available && session ? (
               <>
                 <Label>Signed in</Label>
@@ -112,6 +113,9 @@ export default function AppShell() {
                 )}
               </>
             )}
+            <div className="mt-3 border-t border-hairline pt-1.5">
+              <FeedbackButton variant="row" className="-mx-1.5 w-[calc(100%+0.75rem)]" user={session?.user ? { email: session.user.email, name: session.user.user_metadata?.name } : undefined} />
+            </div>
           </div>
         </aside>
 

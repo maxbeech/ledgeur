@@ -22,6 +22,7 @@ import {
   listVoiceProfiles, putMeeting,
 } from "@ledgeur/core/browser";
 import { emit } from "./analytics-events";
+import { reportClientError } from "@/lib/observability-client";
 
 export interface ImportState {
   busy: boolean;
@@ -161,6 +162,7 @@ export function useImport(onImported?: (meeting: LocalMeeting) => void) {
       done.current?.(meeting);
       return meeting;
     } catch (e) {
+      reportClientError(e, "web-import");
       emit("meeting_save_failed", { source: "web_import" });
       setState({ ...IDLE, error: (e as Error).message, name: file.name });
       return null;

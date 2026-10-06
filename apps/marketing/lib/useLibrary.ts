@@ -15,6 +15,7 @@ import type { VoiceProfile } from "@ledgeur/core";
 import {
   listMeetings, putMeeting, deleteMeeting as deleteFromStore, saveVoiceProfile,
 } from "@ledgeur/core/browser";
+import { reportClientError } from "@/lib/observability-client";
 
 export interface LibraryState {
   meetings: LocalMeeting[];
@@ -34,6 +35,7 @@ export function useLibrary() {
       // could leave the sidebar on "Opening your library…" forever, because
       // IndexedDB's `blocked` event fires instead of success *or* error and the
       // promise never settled.
+      reportClientError(e, "library-load");
       setState({ meetings: [], loading: false, error: (e as Error).message });
     }
   }, []);

@@ -21,6 +21,7 @@ import {
 import { putMeeting } from "@ledgeur/core/browser";
 import { getSupabase } from "./supabase";
 import { useSession } from "./useSession";
+import { reportClientError } from "@/lib/observability-client";
 
 export type Visibility = "private" | "org";
 
@@ -65,6 +66,7 @@ export function useSync() {
       const remote = paid ? await listMeetingSummaries(sb, 100) : [];
       setState({ workspace, remote, loading: false, paid, error: "" });
     } catch (e) {
+      reportClientError(e, "sync-refresh");
       setState((s) => ({ ...s, loading: false, error: (e as Error).message }));
     }
   }, [session]);

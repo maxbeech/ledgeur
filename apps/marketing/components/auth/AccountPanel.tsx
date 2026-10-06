@@ -56,6 +56,7 @@ export default function AccountPanel() {
       setTokens(await listAccessTokens(sb));
       setError("");
     } catch (e) {
+      Sentry.captureException(e);
       setError((e as Error).message);
     } finally {
       setLoadingWorkspace(false);

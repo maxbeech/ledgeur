@@ -11,6 +11,7 @@ import { Menu } from "lucide-react";
 import { cn } from "@ledgeur/ui";
 import { Display, Label, Logo, buttonClass } from "@ledgeur/ui/components";
 import { SITE, NAV } from "@/lib/site";
+import { FeedbackButton } from "@/components/feedback/FeedbackButton";
 
 /* ------------------------------------------------------------------- mark */
 
@@ -90,9 +91,12 @@ export function Footer() {
 
         <div className="mt-12 flex flex-col gap-3 border-t border-hairline pt-6 text-xs text-faint sm:flex-row sm:items-center sm:justify-between">
           <p>© {new Date().getFullYear()} {SITE.name}. Open source under the MIT licence.</p>
-          <a href={SITE.repo} target="_blank" rel="noreferrer" className="font-medium transition-colors hover:text-ink-text">
-            Read the source on GitHub
-          </a>
+          <div className="flex items-center gap-5">
+            <FeedbackButton />
+            <a href={SITE.repo} target="_blank" rel="noreferrer" className="font-medium transition-colors hover:text-ink-text">
+              Read the source on GitHub
+            </a>
+          </div>
         </div>
       </div>
     </footer>

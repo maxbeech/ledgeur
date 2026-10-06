@@ -2,7 +2,8 @@
 // developer's own `pnpm dev` session reports nothing. Plus the clipboard helper
 // that stops a refused write from becoming an unhandled rejection.
 import { createLogger, type Reporter } from "../src/lib/logger.ts";
-import { shouldReport } from "../src/lib/sentry.ts";
+import { shouldReport, scrubText, scrubLog, sentryOptions, openFeedbackForm } from "../src/lib/sentry.ts";
+import { readFileSync } from "node:fs";
 import { copyText } from "../src/lib/clipboard.ts";
 
 type Ok = (name: string, cond: boolean, detail?: string) => void;
@@ -56,4 +57,23 @@ export async function runReportingTests(ok: Ok): Promise<void> {
   console.warn = prevWarn;
   ok("copyText turns a refused write into false instead of throwing", refused === false);
   ok("copyText reports a missing clipboard as false", missing === false);
+
+  // --- logs, scrubbing and feedback
+  const opts = sentryOptions({ sentryDsn: "https://k@o1.ingest.sentry.io/1", mode: "production" });
+  ok("logs are on and PII is off", opts.enableLogs === true && opts.sendDefaultPii === false);
+  ok("log messages are scrubbed", opts.beforeSendLog === scrubLog);
+  ok("scrubText redacts emails", scrubText("hi jo@example.com") === "hi [email]");
+  ok("scrubText redacts access tokens", scrubText("token ldg_abcdef123456") === "token [token]");
+  ok("scrubText redacts bearer tokens", !scrubText("Bearer abcdefghijkl123").includes("abcdefghijkl"));
+  ok("scrubLog scrubs the message", scrubLog({ message: "a@b.co" }).message === "[email]");
+  ok("feedback reports unavailable when this build does not report", (await openFeedbackForm({ email: "a@b.co" })) === false);
+  const read = (rel: string) => readFileSync(new URL(rel, import.meta.url), "utf8");
+  const init = read("../src/lib/sentry.ts");
+  ok("init forwards console output", /consoleLoggingIntegration\(\{ levels: \["log", "info", "warn", "error"\] \}\)/.test(init));
+  ok("feedback does not auto-inject", /autoInject: false/.test(init));
+  ok("the sidebar carries the feedback control", /<FeedbackButton \/>/.test(read("../src/components/Sidebar.tsx")));
+  ok("settings carries the feedback control (covers phones)", /<FeedbackButton variant="card"/.test(read("../src/screens/Integrations.tsx")));
+  ok("the error boundary reports render crashes", /log\.error\("render crash"/.test(read("../src/components/shell/AppErrorBoundary.tsx")));
+  ok("the window reports uncaught errors and rejections",
+    /unhandledrejection/.test(read("../src/main.tsx")) && /uncaught error/.test(read("../src/main.tsx")));
 }

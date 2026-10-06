@@ -17,6 +17,7 @@ import { useFolders } from "../lib/folders.ts";
 import { openCapture } from "../lib/captureDock.ts";
 import { subscribeWarmup, getWarmupStatus } from "../lib/modelWarmup.ts";
 import { RecordDot } from "./RecordDot.tsx";
+import { FeedbackButton } from "./FeedbackButton.tsx";
 
 export const NAV: readonly { to: string; label: string; icon: LucideIcon; end?: boolean }[] = [
   { to: "/", label: "Home", icon: House, end: true },
@@ -140,6 +141,7 @@ export function Sidebar({ onOpenPalette }: { onOpenPalette: () => void }) {
           <Settings2 className="h-[18px] w-[18px]" strokeWidth={2} />
           Settings
         </NavLink>
+        <FeedbackButton />
         <NavLink to="/integrations" className="mt-1 flex items-center gap-2.5 rounded-lg px-2 py-2 transition-colors hover:bg-surface-muted">
           <Avatar name={email ?? "Personal"} size="sm" />
           <span className="min-w-0 flex-1">

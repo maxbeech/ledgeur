@@ -21,6 +21,7 @@ import { RecipesCard } from "../components/integrations/RecipesCard.tsx";
 import { WebhookCard } from "../components/integrations/WebhookCard.tsx";
 import { TaskPushCard } from "../components/integrations/TaskPushCard.tsx";
 import { AutomationCard } from "../components/integrations/AutomationCard.tsx";
+import { FeedbackButton } from "../components/FeedbackButton.tsx";
 
 export function Integrations() {
   const { session } = useSession();
@@ -38,6 +39,10 @@ export function Integrations() {
           <AccountCard session={session} />
           <SyncCard />
         </div>
+      </Section>
+
+      <Section title="Help us improve">
+        <FeedbackButton variant="card" className="sm:w-auto" />
       </Section>
 
       <Section title="Appearance">

@@ -39,11 +39,12 @@ const nextConfig: NextConfig = {
 };
 
 export default withSentryConfig(nextConfig, {
-  org: "maxed-labs",
-  project: "ledgeur_web",
+  org: process.env.SENTRY_ORG || "maxed-labs",
+  project: process.env.SENTRY_PROJECT || "ledgeur_web",
   silent: !process.env.CI,
   telemetry: false,
   widenClientFileUpload: true,
-  tunnelRoute: "/monitoring",
+  // A random path per build: a fixed "/monitoring" is on ad-blocker lists.
+  tunnelRoute: true,
   sourcemaps: { deleteSourcemapsAfterUpload: true },
 });

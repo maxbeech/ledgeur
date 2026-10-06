@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { McpAuthError, bearerFrom, clientForToken, handleBody } from "@ledgeur/mcp";
 import { SUPABASE } from "@/lib/site";
+import { captureServerError } from "@/lib/observability";
 
 // The hosted MCP endpoint: Ledgeur's paid tier, reachable by a remote client.
 //
@@ -55,7 +56,13 @@ export async function POST(req: Request) {
   try {
     db = await clientForToken(token, configured);
   } catch (e) {
-    if (e instanceof McpAuthError) return NextResponse.json({ error: e.message }, { status: e.status });
+    if (e instanceof McpAuthError) {
+      // A 5xx from the auth path is our fault (Supabase down, bad service key);
+      // a 4xx is somebody's wrong or revoked token and is not an Issue.
+      if (e.status >= 500) captureServerError(e, { scope: "api.mcp.auth", status: e.status });
+      return NextResponse.json({ error: e.message }, { status: e.status });
+    }
+    captureServerError(e, { scope: "api.mcp.auth" });
     throw e;
   }
 
@@ -66,7 +73,13 @@ export async function POST(req: Request) {
     return NextResponse.json({ jsonrpc: "2.0", id: null, error: { code: -32700, message: "Parse error." } });
   }
 
-  const answer = await handleBody(body, db);
+  let answer: unknown;
+  try {
+    answer = await handleBody(body, db);
+  } catch (e) {
+    captureServerError(e, { scope: "api.mcp.handle" });
+    return NextResponse.json({ jsonrpc: "2.0", id: null, error: { code: -32603, message: "Internal error." } }, { status: 500 });
+  }
   // A notification gets no body. 202 is what says "received, nothing to say".
   if (answer === null) return new NextResponse(null, { status: 202 });
   return NextResponse.json(answer);
