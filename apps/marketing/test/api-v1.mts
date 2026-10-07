@@ -5,7 +5,7 @@ import { McpAuthError } from "@ledgeur/mcp/auth";
 import type { Authenticated } from "@ledgeur/mcp/auth";
 import { checkWebhookSignature } from "@ledgeur/core";
 import { handleApi, parseCreateMeeting } from "../lib/api-v1/handlers.ts";
-import { runDispatch } from "../lib/webhooks/dispatch.ts";
+import { runDispatch, safeAddress, type SendFn } from "../lib/webhooks/dispatch.ts";
 
 type Ok = (name: string, cond: boolean, detail?: string) => void;
 type Op = { fn: string; args: unknown[] };
@@ -270,18 +270,18 @@ async function runDispatcherTests(ok: Ok) {
     return { from, rpc } as never;
   })();
 
-  const sent: { url: string; headers: Record<string, string>; body: string }[] = [];
+  const sent: { url: string; headers: Record<string, string>; body: string; address: string }[] = [];
   let status = 200;
-  const fetchFake = (async (url: string, init: RequestInit) => {
-    sent.push({ url, headers: init.headers as Record<string, string>, body: init.body as string });
-    return new Response("", { status });
-  }) as unknown as typeof fetch;
+  const sendFake: SendFn = async (r) => { sent.push(r); return { status }; };
+  let resolved = [{ address: "93.184.216.34" }];
+  const lookup = async () => resolved;
+  const fetchFake = { send: sendFake, lookup };
 
-  const run1 = await runDispatch({ admin, fetch: fetchFake, now: () => t0 });
+  const run1 = await runDispatch({ admin, ...fetchFake, now: () => t0 });
   ok("dispatch: a due outbox row for a complete meeting becomes a meeting.completed delivery", run1.events === 1 && run1.deliveries_created === 1);
   ok("dispatch: completion is recorded so it fires once", !!state.meetingState.completed_at);
   // The fake returns deliveries claimed in the same run, so the first run both created and sent.
-  ok("dispatch: the delivery went to the subscription's url", sent.length === 1 && sent[0].url === "https://hooks.example.com/ledgeur", JSON.stringify(run1));
+  ok("dispatch: the delivery went to the subscription's url, pinned to the address we checked", sent.length === 1 && sent[0].url === "https://hooks.example.com/ledgeur" && sent[0].address === "93.184.216.34", JSON.stringify(run1));
   const d = sent[0];
   const payload = JSON.parse(d.body);
   ok("delivery: body is { id, type, created_at, data: { meeting_id, meeting } }", payload.type === "meeting.completed" && payload.data.meeting_id === MID && payload.data.meeting.id === MID && payload.id === d.headers["X-Ledgeur-Delivery"]);
@@ -297,7 +297,7 @@ async function runDispatcherTests(ok: Ok) {
     state.deliveries.push({ id: "e1", subscription_id: "sub1", event_type: "meeting.completed", meeting_id: MID, payload: { id: "e1" }, attempts });
     status = 500;
     state.deliveryUpdates.length = 0; state.subUpdates.length = 0;
-    const r = await runDispatch({ admin, fetch: fetchFake, now: () => t0 });
+    const r = await runDispatch({ admin, ...fetchFake, now: () => t0 });
     return { r, upd: state.deliveryUpdates.at(-1), sub: state.subUpdates.at(-1) };
   };
   const f0 = await failing(0);
@@ -307,15 +307,29 @@ async function runDispatcherTests(ok: Ok) {
   const f5 = await failing(5);
   ok("retry: after the fifth retry it gives up and records failed", f5.r.failed === 1 && f5.upd.status === "failed" && f5.sub.last_status === "failed");
 
-  // SSRF: a private target is never fetched.
-  sent.length = 0;
-  const admin2 = admin;
-  state.deliveries.push({ id: "e2", subscription_id: "sub1", event_type: "meeting.completed", meeting_id: MID, payload: { id: "e2" }, attempts: 0 });
-  const priv = { ...(admin2 as object) } as any;
-  const origFrom = (admin as any).from;
-  priv.from = (t: string) => { const q = origFrom(t); if (t === "webhook_subscriptions") { const then = q.then; q.then = (a: any, b: any) => Promise.resolve({ data: [{ id: "sub1", url: "https://169.254.169.254/latest", secret: "s" }], error: null }).then(a, b); void then; } return q; };
-  priv.rpc = (admin as any).rpc;
-  status = 200;
-  await runDispatch({ admin: priv, fetch: fetchFake, now: () => t0 });
-  ok("dispatch: a private-network target is refused without a request", sent.length === 0 && state.deliveryUpdates.at(-1).last_error?.includes("not allowed"));
+  // SSRF: a name that resolves to a private address is never contacted.
+  const sendWith = async (url: string, addrs: { address: string }[] | Error) => {
+    sent.length = 0;
+    state.deliveries.push({ id: "e2", subscription_id: "sub1", event_type: "meeting.completed", meeting_id: MID, payload: { id: "e2" }, attempts: 0 });
+    const origFrom = (admin as any).from;
+    const priv: any = { rpc: (admin as any).rpc, from: (t: string) => { const q = origFrom(t); if (t === "webhook_subscriptions") q.then = (a: any, b: any) => Promise.resolve({ data: [{ id: "sub1", url, secret: "s" }], error: null }).then(a, b); return q; } };
+    status = 200;
+    await runDispatch({ admin: priv, send: sendFake, lookup: async () => { if (addrs instanceof Error) throw addrs; return addrs; }, now: () => t0 });
+    return { sent: sent.length, err: state.deliveryUpdates.at(-1).last_error as string | null, code: state.deliveryUpdates.at(-1).last_status_code };
+  };
+  for (const [name, addrs] of [
+    ["a name resolving to a private IPv4", [{ address: "10.0.0.5" }]], ["to loopback", [{ address: "127.0.0.1" }]],
+    ["to cloud metadata", [{ address: "169.254.169.254" }]], ["to CGNAT", [{ address: "100.64.1.1" }]],
+    ["to a ULA IPv6", [{ address: "fd12:3456::1" }]], ["to an IPv4-mapped IPv6", [{ address: "::ffff:10.0.0.1" }]],
+    ["to NAT64", [{ address: "64:ff9b::a00:1" }]], ["with one public and one private record", [{ address: "93.184.216.34" }, { address: "192.168.1.1" }]],
+  ] as [string, { address: string }[]][]) {
+    const r = await sendWith("https://rebind.example.com/hook", addrs);
+    ok(`dispatch: ${name} is refused with no request and a generic reason`, r.sent === 0 && r.err === "target not allowed" && r.code === null, JSON.stringify(r));
+  }
+  ok("dispatch: a failed DNS lookup is refused", (await sendWith("https://nx.example.com/", new Error("ENOTFOUND"))).sent === 0);
+  ok("dispatch: a trailing-dot internal name is refused", (await sendWith("https://metadata.internal./x", [{ address: "93.184.216.34" }])).sent === 0);
+  ok("dispatch: a public name still goes out", (await sendWith("https://ok.example.com/hook", [{ address: "93.184.216.34" }, { address: "2606:2800:220:1::1" }])).sent === 1);
+  ok("safeAddress: literal public IP passes, literal private blocked, no lookup needed",
+    JSON.stringify(await safeAddress("https://93.184.216.34/x", false, async () => { throw new Error("no"); })) === '{"address":"93.184.216.34"}'
+    && "blocked" in (await safeAddress("https://[::1]/x", false, async () => [])));
 }

@@ -2,7 +2,7 @@
 // outbox (coalescing and event decisions), retry schedule, SSRF guard, and the
 // signature check shared with the SDK.
 import {
-  DEBOUNCE_MS, coalesce, decideEvent, retryDelaySeconds, subscribersFor, webhookTargetBlocked,
+  DEBOUNCE_MS, coalesce, decideEvent, retryDelaySeconds, subscribersFor, webhookTargetBlocked, isPrivateAddress, normaliseHost,
   toApiSummary, toApiActionItems, toApiTranscript, toApiNotes, toApiMetadata, encodeCursor, decodeCursor, countWords,
   checkWebhookSignature, signWebhook, webhookHeaders, type ApiMeetingRow, type OutboxRow,
 } from "../src/index.ts";
@@ -102,6 +102,21 @@ export async function runApiTests(ok: Ok) {
     ["https://localhost/x", "https://127.0.0.1/x", "https://10.1.2.3/x", "https://192.168.0.5/x", "https://169.254.169.254/latest", "https://172.20.0.1/", "https://[::1]/", "https://db.internal/", "http://example.com/"].every((u) => blocked(u)));
   ok("allows public https hosts", !blocked("https://hooks.example.com/ledgeur") && !blocked("https://172.32.0.1/"));
   ok("allows localhost when local targets are enabled", !blocked("http://localhost:4000/hook", true));
+
+  const priv = (ip: string) => isPrivateAddress(ip);
+  ok("isPrivateAddress: private, loopback, link-local, CGNAT, reserved IPv4",
+    ["0.0.0.0", "10.0.0.1", "127.0.0.1", "169.254.169.254", "172.16.0.1", "172.31.255.255", "192.168.1.1", "100.64.0.1", "100.127.255.255", "198.18.0.1", "224.0.0.1", "255.255.255.255", "192.0.2.1"].every(priv));
+  ok("isPrivateAddress: public IPv4 passes, including the edges of private ranges",
+    ["93.184.216.34", "8.8.8.8", "172.15.255.255", "172.32.0.0", "100.63.255.255", "100.128.0.0", "169.253.0.1", "11.0.0.1"].every((ip) => !priv(ip)));
+  ok("isPrivateAddress: IPv6 loopback, unspecified, ULA, link-local, multicast, documentation",
+    ["::", "::1", "fc00::1", "fd12:3456:789a::1", "fe80::1", "febf::1", "ff02::1", "2001:db8::1"].every(priv));
+  ok("isPrivateAddress: IPv4-mapped, compatible, NAT64 and 6to4 forms of private addresses",
+    ["::ffff:10.0.0.1", "::ffff:7f00:1", "::ffff:8.8.8.8", "::10.0.0.1", "64:ff9b::a00:1", "64:ff9b::8.8.8.8", "2002:0a00:0001::1", "0:0:0:0:0:ffff:a00:1"].every(priv));
+  ok("isPrivateAddress: public IPv6 passes", !priv("2606:2800:220:1:248:1893:25c8:1946") && !priv("2a00:1450:4009:81f::200e") && !priv("2002:0808:0808::1"));
+  ok("isPrivateAddress: junk is treated as blocked", priv("not-an-ip") && priv("1.2.3") && priv("999.1.1.1") && priv("1::2::3"));
+  ok("normaliseHost lowercases, unbrackets and strips trailing dots", normaliseHost("[::1]") === "::1" && normaliseHost("LocalHost.") === "localhost" && normaliseHost("a.b..") === "a.b");
+  ok("webhookTargetBlocked sees through a trailing dot and IPv4-mapped literals",
+    blocked("https://localhost./x") && blocked("https://[::ffff:10.0.0.1]/x") && blocked("https://[fd00::1]/x") && blocked("https://100.64.0.1/x") && blocked("https://[64:ff9b::a00:1]/x"));
 
   // --- signature check (the SDK's verifier must agree with this)
   const secret = "whsec_a", ts = "2026-03-01T12:00:00.000Z", body = '{"a":1}';

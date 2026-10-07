@@ -184,7 +184,7 @@ You receive events for meetings the webhook owner can read: their own, and ones 
 
 A 2xx response counts as delivered. Anything else, a timeout (10 seconds) or a redirect is a failure and is retried after 1 minute, 5 minutes, 30 minutes, 2 hours and 12 hours, then dropped. Deliveries can arrive more than once; use the event id to ignore repeats. Order is not guaranteed.
 
-Ledgeur will not call private network addresses or `localhost` from production.
+Ledgeur resolves your hostname before each delivery and will not send to private, loopback, link-local or other internal addresses (or to a name that resolves to one). It connects to the address it checked and does not follow redirects.
 
 ### Verifying a delivery
 

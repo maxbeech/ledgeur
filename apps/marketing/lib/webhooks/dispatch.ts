@@ -6,14 +6,21 @@
 // Runs with the service role: the webhook tables have no RLS policies.
 
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { lookup as dnsLookup } from "node:dns/promises";
+import http from "node:http";
+import https from "node:https";
+import { isIP } from "node:net";
 import {
-  decideEvent, retryDelaySeconds, subscribersFor, webhookHeaders, webhookTargetBlocked,
+  decideEvent, isPrivateAddress, normaliseHost, retryDelaySeconds, subscribersFor, webhookHeaders, webhookTargetBlocked,
   type ApiEvent, type ApiMeetingRow, type MeetingEventState, type OutboxRow,
 } from "@ledgeur/core";
 
 export interface DispatchDeps {
   admin: SupabaseClient;
-  fetch?: typeof globalThis.fetch;
+  /** Sends the request to an address we already validated. Default: node https pinned to that address. */
+  send?: SendFn;
+  /** Resolves a hostname to all its addresses. Default: dns.lookup(host, { all: true }). */
+  lookup?: (host: string) => Promise<{ address: string }[]>;
   now?: () => number;
   /** Allow http/localhost/private targets. Development only. */
   allowLocalTargets?: boolean;
@@ -152,21 +159,71 @@ async function sendDeliveries(deps: DispatchDeps, result: DispatchResult) {
   }
 }
 
+export type SendFn = (req: {
+  url: string; headers: Record<string, string>; body: string; address: string; timeoutMs: number;
+}) => Promise<{ status: number }>;
+
+/**
+ * POST to `url`, but connect to `address` (already checked) rather than letting
+ * the socket resolve the name again, which is what closes the DNS rebinding gap.
+ * The URL's hostname is still used for SNI and certificate verification. No
+ * redirects are followed: the status is returned as is.
+ */
+export const pinnedSend: SendFn = ({ url, headers, body, address, timeoutMs }) =>
+  new Promise((resolve, reject) => {
+    const u = new URL(url);
+    const mod = u.protocol === "https:" ? https : http;
+    const req = mod.request(
+      {
+        method: "POST", hostname: u.hostname.replace(/^\[|\]$/g, ""), port: u.port || undefined, path: `${u.pathname}${u.search}`,
+        headers: { ...headers, "Content-Length": Buffer.byteLength(body) },
+        timeout: timeoutMs,
+        lookup: (_h, _o, cb) => {
+          // Node may ask for either family or for all addresses.
+          const family = isIP(address) === 6 ? 6 : 4;
+          (cb as (e: null, a: unknown, f?: number) => void)(null, _o && (_o as { all?: boolean }).all ? [{ address, family }] : address, family);
+        },
+      },
+      (res) => { res.resume(); res.on("end", () => resolve({ status: res.statusCode ?? 0 })); res.on("error", reject); },
+    );
+    req.on("timeout", () => req.destroy(new Error("timeout")));
+    req.on("error", reject);
+    req.end(body);
+  });
+
+/**
+ * Resolve the target and pick an address that is safe to connect to. Every
+ * address the name resolves to must be public: a name with one public and one
+ * private record would otherwise be a coin flip for an attacker.
+ */
+export async function safeAddress(
+  url: string,
+  allowLocal: boolean,
+  lookup: NonNullable<DispatchDeps["lookup"]>,
+): Promise<{ address: string } | { blocked: true }> {
+  const host = normaliseHost(new URL(url).hostname);
+  if (allowLocal) return { address: (isIP(host) ? host : (await lookup(host))[0]?.address) ?? host };
+  if (isIP(host)) return isPrivateAddress(host) ? { blocked: true } : { address: host };
+  let addrs: { address: string }[];
+  try { addrs = await lookup(host); } catch { return { blocked: true }; }
+  if (addrs.length === 0 || addrs.some((a) => isPrivateAddress(a.address))) return { blocked: true };
+  return { address: addrs[0].address };
+}
+
 async function attempt(
-  { fetch: doFetch = globalThis.fetch, now = Date.now, allowLocalTargets = false, timeoutMs = 10_000 }: DispatchDeps,
+  { send = pinnedSend, lookup = (h) => dnsLookup(h, { all: true }), now = Date.now, allowLocalTargets = false, timeoutMs = 10_000 }: DispatchDeps,
   sub: { url: string; secret: string },
   d: Row,
 ): Promise<{ ok: boolean; code: number | null; error?: string }> {
-  const blocked = webhookTargetBlocked(sub.url, allowLocalTargets);
-  if (blocked) return { ok: false, code: null, error: `target not allowed: ${blocked}` };
+  // Deliberately generic: say nothing about what the name resolved to.
+  const refused = { ok: false, code: null, error: "target not allowed" };
+  if (webhookTargetBlocked(sub.url, allowLocalTargets)) return refused;
+  const target = await safeAddress(sub.url, allowLocalTargets, lookup);
+  if ("blocked" in target) return refused;
   const body = JSON.stringify(d.payload);
   const headers = await webhookHeaders(body, new Date(now()).toISOString(), sub.secret, d.event_type as string, d.id as string);
   try {
-    const res = await doFetch(sub.url, {
-      method: "POST", headers, body,
-      redirect: "manual", // a redirect is a way to reach somewhere we refused to post to
-      signal: AbortSignal.timeout(timeoutMs),
-    });
+    const res = await send({ url: sub.url, headers, body, address: target.address, timeoutMs });
     return res.status >= 200 && res.status < 300
       ? { ok: true, code: res.status }
       : { ok: false, code: res.status, error: `HTTP ${res.status}` };
