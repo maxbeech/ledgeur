@@ -9,7 +9,7 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
-  WEBHOOK_EVENTS, countWords, decodeCursor, encodeCursor, toApiActionItems, toApiMeeting,
+  WEBHOOK_EVENTS, nonCanonicalNumericHost, countWords, decodeCursor, encodeCursor, toApiActionItems, toApiMeeting,
   toApiMetadata, toApiNotes, toApiParticipant, toApiSummary, toApiTranscript, webhookUrlError,
   type ApiMeetingRow, type ApiSegmentRow, type ApiSpeakerRow, type ApiWebhook, type WebhookEventType,
 } from "@ledgeur/core";
@@ -356,6 +356,7 @@ const createWebhook: Handler = async (req, { auth }) => {
   if (typeof body.url !== "string" || !body.url) throw badRequest("url is required.");
   const urlProblem = webhookUrlError(body.url);
   if (urlProblem) throw badRequest(urlProblem);
+  if (nonCanonicalNumericHost(body.url)) throw badRequest("Write the address in its usual form, for example 203.0.113.7, or use a hostname.");
   if (new URL(body.url).username || new URL(body.url).password) throw badRequest("url must not contain credentials.");
   if (!Array.isArray(body.events) || body.events.length === 0) throw badRequest(`events is required: one or more of ${WEBHOOK_EVENTS.join(", ")}.`);
   const bad = body.events.find((e: unknown) => !(WEBHOOK_EVENTS as readonly unknown[]).includes(e));

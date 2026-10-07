@@ -104,16 +104,38 @@ export async function runApiTests(ok: Ok) {
   ok("allows localhost when local targets are enabled", !blocked("http://localhost:4000/hook", true));
 
   const priv = (ip: string) => isPrivateAddress(ip);
-  ok("isPrivateAddress: private, loopback, link-local, CGNAT, reserved IPv4",
-    ["0.0.0.0", "10.0.0.1", "127.0.0.1", "169.254.169.254", "172.16.0.1", "172.31.255.255", "192.168.1.1", "100.64.0.1", "100.127.255.255", "198.18.0.1", "224.0.0.1", "255.255.255.255", "192.0.2.1"].every(priv));
-  ok("isPrivateAddress: public IPv4 passes, including the edges of private ranges",
-    ["93.184.216.34", "8.8.8.8", "172.15.255.255", "172.32.0.0", "100.63.255.255", "100.128.0.0", "169.253.0.1", "11.0.0.1"].every((ip) => !priv(ip)));
-  ok("isPrivateAddress: IPv6 loopback, unspecified, ULA, link-local, multicast, documentation",
-    ["::", "::1", "fc00::1", "fd12:3456:789a::1", "fe80::1", "febf::1", "ff02::1", "2001:db8::1"].every(priv));
-  ok("isPrivateAddress: IPv4-mapped, compatible, NAT64 and 6to4 forms of private addresses",
-    ["::ffff:10.0.0.1", "::ffff:7f00:1", "::ffff:8.8.8.8", "::10.0.0.1", "64:ff9b::a00:1", "64:ff9b::8.8.8.8", "2002:0a00:0001::1", "0:0:0:0:0:ffff:a00:1"].every(priv));
-  ok("isPrivateAddress: public IPv6 passes", !priv("2606:2800:220:1:248:1893:25c8:1946") && !priv("2a00:1450:4009:81f::200e") && !priv("2002:0808:0808::1"));
-  ok("isPrivateAddress: junk is treated as blocked", priv("not-an-ip") && priv("1.2.3") && priv("999.1.1.1") && priv("1::2::3"));
+  // Every blocked IPv4 range: first address, last address, and one just outside each side.
+  const v4Ranges: [string, string, string?, string?][] = [
+    // [first, last, just below, just above]
+    ["0.0.0.0", "0.255.255.255", "", "1.0.0.0"], ["10.0.0.0", "10.255.255.255", "9.255.255.255", "11.0.0.0"],
+    ["100.64.0.0", "100.127.255.255", "100.63.255.255", "100.128.0.0"], ["127.0.0.0", "127.255.255.255", "126.255.255.255", "128.0.0.0"],
+    ["169.254.0.0", "169.254.255.255", "169.253.255.255", "169.255.0.0"], ["172.16.0.0", "172.31.255.255", "172.15.255.255", "172.32.0.0"],
+    ["192.0.0.0", "192.0.0.255", "191.255.255.255", "192.0.1.0"], ["192.0.2.0", "192.0.2.255", "192.0.1.255", "192.0.3.0"],
+    ["192.88.99.0", "192.88.99.255", "192.88.98.255", "192.88.100.0"], ["192.168.0.0", "192.168.255.255", "192.167.255.255", "192.169.0.0"],
+    ["198.18.0.0", "198.19.255.255", "198.17.255.255", "198.20.0.0"], ["198.51.100.0", "198.51.100.255", "198.51.99.255", "198.51.101.0"],
+    ["203.0.113.0", "203.0.113.255", "203.0.112.255", "203.0.114.0"], ["224.0.0.0", "239.255.255.255", "223.255.255.255", ""],
+    ["240.0.0.0", "255.255.255.255", "239.255.255.255", ""],
+  ];
+  for (const [first, last] of v4Ranges) ok(`IPv4 ${first} to ${last}: first and last address blocked`, priv(first) && priv(last));
+  ok("IPv4 neighbours of the ranges that are public stay public",
+    ["1.0.0.0", "9.255.255.255", "11.0.0.0", "100.63.255.255", "100.128.0.0", "126.255.255.255", "128.0.0.0", "169.253.255.255", "169.255.0.0", "172.15.255.255", "172.32.0.0",
+      "192.0.1.0", "192.0.3.0", "192.88.98.255", "192.88.100.0", "192.167.255.255", "192.169.0.0", "198.17.255.255", "198.20.0.0", "198.51.99.255", "198.51.101.0",
+      "203.0.112.255", "203.0.114.0", "223.255.255.255", "93.184.216.34", "8.8.8.8"].every((ip) => !priv(ip)));
+  ok("IPv4 multicast, reserved and broadcast are blocked", ["224.0.0.1", "239.255.255.255", "240.0.0.1", "255.255.255.255"].every(priv));
+  const v6 = {
+    "unspecified": "::", "loopback": "::1", "discard 100::/64": "100::1", "Teredo": "2001:0:4136:e378:8000:63bf:3fff:fdd2", "2001::/32 low": "2001::1",
+    "documentation": "2001:db8::1", "ULA fc00": "fc00::1", "ULA fd": "fdff:ffff::1", "link-local": "fe80::1", "link-local top": "febf:ffff::1",
+    "multicast": "ff02::1", "multicast top": "ffff::1", "NAT64": "64:ff9b::a00:1", "NAT64 dotted": "64:ff9b::10.0.0.1", "NAT64 public embedded": "64:ff9b::8.8.8.8",
+    "local-use NAT64": "64:ff9b:1::1", "mapped loopback": "::ffff:127.0.0.1", "mapped metadata hex": "::ffff:a9fe:a9fe", "mapped private": "::ffff:10.0.0.1",
+    "6to4 of 10.0.0.1": "2002:0a00:0001::1", "6to4 of 127.0.0.1": "2002:7f00:1::", "6to4 of 169.254.169.254": "2002:a9fe:a9fe::5", "compatible": "::10.0.0.1", "full form mapped": "0:0:0:0:0:ffff:a00:1",
+  };
+  for (const [name, ip] of Object.entries(v6)) ok(`IPv6 ${name} (${ip}) is blocked`, priv(ip));
+  ok("IPv6 public addresses pass", ["2606:2800:220:1:248:1893:25c8:1946", "2a00:1450:4009:81f::200e", "2001:4860:4860::8888", "2001:1::1"].every((ip) => !priv(ip)));
+  ok("IPv4-mapped and 6to4 forms of PUBLIC addresses are judged by the address they carry", !priv("::ffff:8.8.8.8") && !priv("2002:0808:0808::1"));
+  ok("non-canonical IPv4 spellings are not accepted as addresses (blocked)",
+    ["2130706433", "0x7f000001", "0x7f.1", "017.0.0.1", "0177.0.0.1", "127.1", "1.2.3", "01.1.1.1", "127.0.0.1.", "8.8.8.08", "256.1.1.1", "not-an-ip", "1::2::3", ""].every(priv));
+  ok("URLs written with non-canonical IPv4 hosts are blocked (the URL parser canonicalises them, then the classifier decides)",
+    ["https://2130706433/x", "https://0x7f.1/x", "https://017.0.0.1/x", "https://0177.0.0.1/x", "https://127.1/x", "https://0x7f000001/x", "https://[::ffff:7f00:1]/x", "https://[2002:7f00:1::]/x", "https://[2001:0:4136:e378:8000:63bf:3fff:fdd2]/x", "https://[100::1]/x"].every((u) => blocked(u)));
   ok("normaliseHost lowercases, unbrackets and strips trailing dots", normaliseHost("[::1]") === "::1" && normaliseHost("LocalHost.") === "localhost" && normaliseHost("a.b..") === "a.b");
   ok("webhookTargetBlocked sees through a trailing dot and IPv4-mapped literals",
     blocked("https://localhost./x") && blocked("https://[::ffff:10.0.0.1]/x") && blocked("https://[fd00::1]/x") && blocked("https://100.64.0.1/x") && blocked("https://[64:ff9b::a00:1]/x"));

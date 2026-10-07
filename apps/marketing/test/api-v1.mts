@@ -5,7 +5,9 @@ import { McpAuthError } from "@ledgeur/mcp/auth";
 import type { Authenticated } from "@ledgeur/mcp/auth";
 import { checkWebhookSignature } from "@ledgeur/core";
 import { handleApi, parseCreateMeeting } from "../lib/api-v1/handlers.ts";
-import { runDispatch, safeAddress, type SendFn } from "../lib/webhooks/dispatch.ts";
+import net from "node:net";
+import http from "node:http";
+import { runDispatch, safeAddress, pinnedSend, type SendFn } from "../lib/webhooks/dispatch.ts";
 
 type Ok = (name: string, cond: boolean, detail?: string) => void;
 type Op = { fn: string; args: unknown[] };
@@ -332,4 +334,67 @@ async function runDispatcherTests(ok: Ok) {
   ok("safeAddress: literal public IP passes, literal private blocked, no lookup needed",
     JSON.stringify(await safeAddress("https://93.184.216.34/x", false, async () => { throw new Error("no"); })) === '{"address":"93.184.216.34"}'
     && "blocked" in (await safeAddress("https://[::1]/x", false, async () => [])));
+
+  await runBoundsTests(ok, admin, state, t0);
+}
+
+async function listen(handler: (s: net.Socket) => void): Promise<{ port: number; close: () => void; sockets: net.Socket[] }> {
+  const sockets: net.Socket[] = [];
+  const srv = net.createServer((sock) => { sockets.push(sock); handler(sock); }).listen(0, "127.0.0.1");
+  await new Promise((r) => srv.once("listening", r));
+  return { port: (srv.address() as net.AddressInfo).port, sockets, close: () => { sockets.forEach((x) => x.destroy()); srv.close(); } };
+}
+
+async function runBoundsTests(ok: Ok, admin: any, state: any, t0: number) {
+  const req = (port: number, timeoutMs: number) => pinnedSend({ url: `http://target.example.com:${port}/h`, headers: { "Content-Type": "application/json" }, body: "{}", address: "127.0.0.1", timeoutMs });
+  const within = async (p: Promise<unknown>) => { const t = Date.now(); const r = await p.then((v) => ({ v }), (e) => ({ e })); return { ms: Date.now() - t, ...r } as { ms: number; v?: any; e?: Error }; };
+
+  // A target that accepts the connection and never answers.
+  const hang = await listen(() => {});
+  const r1 = await within(req(hang.port, 300));
+  ok("a target that never answers is cut off at the deadline", !!r1.e && r1.ms < 1500, `${r1.ms}ms ${r1.e?.message}`);
+  hang.close();
+
+  // A target that drips the status line a byte at a time: an idle timer would never fire.
+  const drip = await listen((sock) => {
+    const line = "HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n";
+    let i = 0; const t = setInterval(() => { if (sock.destroyed || i >= line.length) return clearInterval(t); sock.write(line[i++]); }, 100);
+    sock.on("close", () => clearInterval(t));
+  });
+  const r2 = await within(req(drip.port, 500));
+  ok("a target that drips bytes cannot outlast the total deadline (not just an idle timer)", !!r2.e && r2.ms < 1500, `${r2.ms}ms ${r2.e?.message}`);
+  drip.close();
+
+  // A target that answers at once and then streams a body forever: status returned, body never read.
+  let bodyBytesSent = 0;
+  const flood = http.createServer((q, res) => {
+    q.resume(); res.writeHead(200, { "Transfer-Encoding": "chunked" });
+    const t = setInterval(() => { if (res.destroyed) return clearInterval(t); bodyBytesSent += 1024; res.write("x".repeat(1024)); }, 5);
+    res.on("close", () => clearInterval(t));
+  }).listen(0, "127.0.0.1");
+  await new Promise((r) => flood.once("listening", r));
+  const r3 = await within(req((flood.address() as net.AddressInfo).port, 2000));
+  await new Promise((r) => setTimeout(r, 150));
+  const sentAtClose = bodyBytesSent; await new Promise((r) => setTimeout(r, 150));
+  ok("an endless response body is never read: the status returns at once and the socket is destroyed", r3.v?.status === 200 && r3.ms < 1000 && bodyBytesSent === sentAtClose && bodyBytesSent < 64 * 1024, `${r3.ms}ms sent=${bodyBytesSent}`);
+  flood.close(); flood.closeAllConnections();
+
+  // A send that ignores its own timeout (or a hung stub) still cannot stall an attempt.
+  let delivered: any[] = [];
+  const mk = (n: number) => Array.from({ length: n }, (_, i) => ({ id: `h${i}`, subscription_id: "sub1", event_type: "meeting.completed", meeting_id: MID, payload: { id: `h${i}` }, attempts: 0 }));
+  state.deliveries.push(...mk(1));
+  const t = Date.now();
+  const res = await runDispatch({ admin, now: () => t0, timeoutMs: 200, lookup: async () => [{ address: "93.184.216.34" }], send: () => new Promise(() => {}) });
+  ok("a send that never settles is abandoned by the attempt deadline and recorded as a retry", res.retrying === 1 && Date.now() - t < 7000, JSON.stringify(res));
+
+  // Concurrency and run budget.
+  let inFlight = 0, peak = 0;
+  state.deliveries.push(...mk(30));
+  const res2 = await runDispatch({ admin, now: () => t0, lookup: async () => [{ address: "93.184.216.34" }], send: async () => { inFlight++; peak = Math.max(peak, inFlight); await new Promise((r) => setTimeout(r, 20)); inFlight--; return { status: 200 }; } });
+  ok("deliveries run concurrently but never more than 8 at once", res2.delivered === 30 && peak > 1 && peak <= 8, `peak ${peak} ${JSON.stringify(res2)}`);
+  state.deliveries.push(...mk(5)); delivered = [];
+  const res3 = await runDispatch({ admin, now: () => t0, runBudgetMs: -1, lookup: async () => [{ address: "93.184.216.34" }], send: async (r) => { delivered.push(r); return { status: 200 }; } });
+  ok("once the run budget is spent, remaining deliveries are handed back, not attempted", res3.deferred === 5 && delivered.length === 0 && res3.attempted === 0, JSON.stringify(res3));
+  const hung = await within(safeAddress("https://slow-dns.example.com/", false, () => new Promise(() => {})));
+  ok("a hung DNS lookup is abandoned and the target refused", "blocked" in (hung.v ?? {}) && hung.ms < 7000, `${hung.ms}ms`);
 }

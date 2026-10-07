@@ -24,6 +24,8 @@ export interface DispatchDeps {
   now?: () => number;
   /** Allow http/localhost/private targets. Development only. */
   allowLocalTargets?: boolean;
+  /** Stop starting new attempts this long into a run. Default 45s. */
+  runBudgetMs?: number;
   /** Per-attempt timeout. */
   timeoutMs?: number;
   report?: (e: unknown, scope: string) => void;
@@ -36,14 +38,20 @@ export interface DispatchResult {
   delivered: number;
   retrying: number;
   failed: number;
+  /** Claimed but handed back because the run ran out of time. */
+  deferred: number;
 }
 
 type Row = Record<string, unknown>;
 const PAID = ["team", "company"];
+const CONCURRENCY = 8;
+const DELIVERY_BATCH = 50;
+const OUTBOX_BATCH = 100;
+const RUN_BUDGET_MS = 45_000;
 const MEETING_COLS = "id,title,status,started_at,ended_at,lang,updated_at,deleted_at,owner_id,org_id,visibility";
 
 export async function runDispatch(deps: DispatchDeps): Promise<DispatchResult> {
-  const result: DispatchResult = { events: 0, deliveries_created: 0, attempted: 0, delivered: 0, retrying: 0, failed: 0 };
+  const result: DispatchResult = { events: 0, deliveries_created: 0, attempted: 0, delivered: 0, retrying: 0, failed: 0, deferred: 0 };
   await createDeliveries(deps, result);
   await sendDeliveries(deps, result);
   // Housekeeping: keep a month of finished deliveries.
@@ -53,7 +61,7 @@ export async function runDispatch(deps: DispatchDeps): Promise<DispatchResult> {
 }
 
 async function createDeliveries({ admin, now = Date.now, report }: DispatchDeps, result: DispatchResult) {
-  const claimed = await admin.rpc("webhook_claim_outbox", { p_limit: 200 });
+  const claimed = await admin.rpc("webhook_claim_outbox", { p_limit: OUTBOX_BATCH });
   if (claimed.error) throw new Error(`claim outbox: ${claimed.error.message}`);
   const rows = (claimed.data ?? []) as (OutboxRow & { owner_id: string | null; org_id: string | null; visibility: string | null; snapshot: ApiMeetingRow | null })[];
 
@@ -118,7 +126,7 @@ async function createDeliveries({ admin, now = Date.now, report }: DispatchDeps,
 
 async function sendDeliveries(deps: DispatchDeps, result: DispatchResult) {
   const { admin, now = Date.now, report } = deps;
-  const claimed = await admin.rpc("webhook_claim_deliveries", { p_limit: 100 });
+  const claimed = await admin.rpc("webhook_claim_deliveries", { p_limit: DELIVERY_BATCH });
   if (claimed.error) throw new Error(`claim deliveries: ${claimed.error.message}`);
   const deliveries = (claimed.data ?? []) as Row[];
   if (deliveries.length === 0) return;
@@ -127,13 +135,16 @@ async function sendDeliveries(deps: DispatchDeps, result: DispatchResult) {
   const { data: subRows } = await admin.from("webhook_subscriptions").select("id,url,secret").in("id", ids);
   const subs = new Map(((subRows ?? []) as { id: string; url: string; secret: string }[]).map((s) => [s.id, s]));
 
-  // Sequential per run: a slow receiver should not fan out into 100 sockets,
-  // and a batch is bounded by the timeout times the claim limit.
-  for (const d of deliveries) {
-    const sub = subs.get(d.subscription_id as string);
-    if (!sub) continue; // deleted meanwhile; the cascade removes the delivery
-    result.attempted++;
-    const outcome = await attempt(deps, sub, d);
+  // Bounded: at most CONCURRENCY attempts in flight, each hard-capped by the
+  // attempt deadline, and no new attempt starts after the run budget. With a
+  // 10s target timeout and 50 claimed rows that is at worst a minute or so, so
+  // a run cannot overlap the next one for long, and a slow or hanging target
+  // delays only its own lane. Deliveries not reached are released immediately.
+  const startedAt = Date.now();
+  const budget = deps.runBudgetMs ?? RUN_BUDGET_MS;
+  const queue = [...deliveries];
+
+  const record = async (d: Row, sub: { id: string }, outcome: { ok: boolean; code: number | null; error?: string }) => {
     const attempts = (d.attempts as number) + 1;
     const at = new Date(now()).toISOString();
     try {
@@ -146,7 +157,7 @@ async function sendDeliveries(deps: DispatchDeps, result: DispatchResult) {
         const status = delay === null ? "failed" : "pending";
         if (delay === null) result.failed++; else result.retrying++;
         await admin.from("webhook_deliveries").update({
-          status, attempts, last_status_code: outcome.code, last_error: outcome.error?.slice(0, 500) ?? null,
+          status, attempts, last_status_code: outcome.code, last_error: outcome.error?.slice(0, 200) ?? null,
           next_attempt_at: new Date(now() + (delay ?? 0) * 1000).toISOString(),
         }).eq("id", d.id);
         await admin.from("webhook_subscriptions").update({
@@ -156,7 +167,23 @@ async function sendDeliveries(deps: DispatchDeps, result: DispatchResult) {
     } catch (e) {
       report?.(e, "webhooks.record");
     }
-  }
+  };
+
+  const worker = async () => {
+    for (let d = queue.shift(); d; d = queue.shift()) {
+      if (Date.now() - startedAt > budget) {
+        // Out of time: hand it back for the next run rather than hold the lease.
+        await admin.from("webhook_deliveries").update({ next_attempt_at: new Date(now()).toISOString() }).eq("id", d.id);
+        result.deferred++;
+        continue;
+      }
+      const sub = subs.get(d.subscription_id as string);
+      if (!sub) continue; // deleted meanwhile; the cascade removes the delivery
+      result.attempted++;
+      await record(d, sub, await attempt(deps, sub, d));
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(CONCURRENCY, queue.length) }, worker));
 }
 
 export type SendFn = (req: {
@@ -166,28 +193,42 @@ export type SendFn = (req: {
 /**
  * POST to `url`, but connect to `address` (already checked) rather than letting
  * the socket resolve the name again, which is what closes the DNS rebinding gap.
- * The URL's hostname is still used for SNI and certificate verification. No
- * redirects are followed: the status is returned as is.
+ * The URL's hostname is still used for SNI and certificate verification.
+ *
+ * Bounded on every axis: one hard deadline covers connect, TLS, sending and the
+ * response headers (the socket's own `timeout` is only an idle timer, which a
+ * target that drips a byte every few seconds defeats); the response body is
+ * never read, the socket is destroyed as soon as the status line arrives; and
+ * redirects are not followed.
  */
 export const pinnedSend: SendFn = ({ url, headers, body, address, timeoutMs }) =>
   new Promise((resolve, reject) => {
     const u = new URL(url);
     const mod = u.protocol === "https:" ? https : http;
+    let settled = false;
+    const finish = (fn: () => void) => { if (!settled) { settled = true; clearTimeout(timer); fn(); } };
     const req = mod.request(
       {
         method: "POST", hostname: u.hostname.replace(/^\[|\]$/g, ""), port: u.port || undefined, path: `${u.pathname}${u.search}`,
         headers: { ...headers, "Content-Length": Buffer.byteLength(body) },
-        timeout: timeoutMs,
         lookup: (_h, _o, cb) => {
           // Node may ask for either family or for all addresses.
           const family = isIP(address) === 6 ? 6 : 4;
           (cb as (e: null, a: unknown, f?: number) => void)(null, _o && (_o as { all?: boolean }).all ? [{ address, family }] : address, family);
         },
       },
-      (res) => { res.resume(); res.on("end", () => resolve({ status: res.statusCode ?? 0 })); res.on("error", reject); },
+      (res) => {
+        const status = res.statusCode ?? 0;
+        res.destroy(); // do not read the body, a hostile target could stream forever
+        finish(() => resolve({ status }));
+      },
     );
-    req.on("timeout", () => req.destroy(new Error("timeout")));
-    req.on("error", reject);
+    const timer = setTimeout(() => {
+      const err = new Error("timeout");
+      req.destroy(err);
+      finish(() => reject(err));
+    }, timeoutMs);
+    req.on("error", (e) => finish(() => reject(e)));
     req.end(body);
   });
 
@@ -205,12 +246,38 @@ export async function safeAddress(
   if (allowLocal) return { address: (isIP(host) ? host : (await lookup(host))[0]?.address) ?? host };
   if (isIP(host)) return isPrivateAddress(host) ? { blocked: true } : { address: host };
   let addrs: { address: string }[];
-  try { addrs = await lookup(host); } catch { return { blocked: true }; }
+  try { addrs = await withDeadline(lookup(host), LOOKUP_TIMEOUT_MS); } catch { return { blocked: true }; }
   if (addrs.length === 0 || addrs.some((a) => isPrivateAddress(a.address))) return { blocked: true };
   return { address: addrs[0].address };
 }
 
+const LOOKUP_TIMEOUT_MS = 5_000;
+
+/** Reject if `p` has not settled in `ms`. A hung DNS server must not hang a run. */
+function withDeadline<T>(p: Promise<T>, ms: number): Promise<T> {
+  let t: ReturnType<typeof setTimeout>;
+  return Promise.race([
+    p,
+    new Promise<never>((_, rej) => { t = setTimeout(() => rej(new Error("timeout")), ms); }),
+  ]).finally(() => clearTimeout(t));
+}
+
 async function attempt(
+  deps: DispatchDeps,
+  sub: { url: string; secret: string },
+  d: Row,
+): Promise<{ ok: boolean; code: number | null; error?: string }> {
+  // One hard ceiling over resolve + connect + send + response, whatever the
+  // injected `send` does, on top of the deadlines inside each step.
+  const total = (deps.timeoutMs ?? 10_000) + LOOKUP_TIMEOUT_MS;
+  try {
+    return await withDeadline(attemptInner(deps, sub, d), total);
+  } catch (e) {
+    return { ok: false, code: null, error: e instanceof Error ? e.message : String(e) };
+  }
+}
+
+async function attemptInner(
   { send = pinnedSend, lookup = (h) => dnsLookup(h, { all: true }), now = Date.now, allowLocalTargets = false, timeoutMs = 10_000 }: DispatchDeps,
   sub: { url: string; secret: string },
   d: Row,

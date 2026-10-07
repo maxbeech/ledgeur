@@ -94,8 +94,14 @@ export function normaliseHost(host: string): string {
   return host.toLowerCase().replace(/^\[|\]$/g, "").replace(/\.+$/, "");
 }
 
+/**
+ * Strict dotted-quad IPv4: four decimal parts, 0 to 255, no leading zeros.
+ * Anything else (2130706433, 0x7f.1, 017.0.0.1, 1.2.3) is NOT an address here,
+ * and `isPrivateAddress` treats what it cannot parse as blocked, so the
+ * alternative spellings that some resolvers read as 127.0.0.1 never pass.
+ */
 function parseV4(ip: string): number[] | null {
-  const m = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(ip);
+  const m = /^(0|[1-9]\d{0,2})\.(0|[1-9]\d{0,2})\.(0|[1-9]\d{0,2})\.(0|[1-9]\d{0,2})$/.exec(ip);
   if (!m) return null;
   const o = m.slice(1).map(Number);
   return o.every((n) => n <= 255) ? o : null;
@@ -122,44 +128,86 @@ function parseV6(raw: string): number[] | null {
   return groups.map((g) => parseInt(g, 16));
 }
 
+/** IPv4 ranges a webhook must never reach, as [address, prefix length]. */
+const BLOCKED_V4: [string, number][] = [
+  ["0.0.0.0", 8],        // "this network"
+  ["10.0.0.0", 8],
+  ["100.64.0.0", 10],    // CGNAT
+  ["127.0.0.0", 8],
+  ["169.254.0.0", 16],   // link local, cloud metadata
+  ["172.16.0.0", 12],
+  ["192.0.0.0", 24],     // IETF protocol assignments
+  ["192.0.2.0", 24],     // documentation
+  ["192.88.99.0", 24],   // 6to4 relay anycast
+  ["192.168.0.0", 16],
+  ["198.18.0.0", 15],    // benchmarking
+  ["198.51.100.0", 24],  // documentation
+  ["203.0.113.0", 24],   // documentation
+  ["224.0.0.0", 4],      // multicast
+  ["240.0.0.0", 4],      // reserved, incl. 255.255.255.255
+];
+const v4num = (o: number[]) => ((o[0] * 256 + o[1]) * 256 + o[2]) * 256 + o[3];
+const BLOCKED_V4_NUM = BLOCKED_V4.map(([a, bits]) => ({ base: v4num(a.split(".").map(Number)), size: 2 ** (32 - bits) }));
 function privateV4(o: number[]): boolean {
-  const [a, b, c] = o;
-  return (
-    a === 0 || a === 10 || a === 127 || a >= 224 ||
-    (a === 100 && b >= 64 && b <= 127) ||          // CGNAT
-    (a === 169 && b === 254) ||                    // link local, cloud metadata
-    (a === 172 && b >= 16 && b <= 31) ||
-    (a === 192 && b === 168) ||
-    (a === 192 && b === 0 && (c === 0 || c === 2)) ||
-    (a === 198 && (b === 18 || b === 19)) ||
-    (a === 198 && b === 51 && c === 100) ||
-    (a === 203 && b === 0 && c === 113)
-  );
+  const n = v4num(o);
+  return BLOCKED_V4_NUM.some((r) => n >= r.base && n < r.base + r.size);
+}
+
+/** IPv6 ranges blocked outright, as [first hextets, prefix length]. */
+const BLOCKED_V6: [number[], number][] = [
+  [[0, 0, 0, 0, 0, 0, 0, 0], 128],      // ::
+  [[0, 0, 0, 0, 0, 0, 0, 1], 128],      // ::1
+  [[0, 0, 0, 0, 0, 0, 0, 0], 96],       // ::/96 IPv4-compatible (deprecated)
+  [[0x64, 0xff9b, 0, 0, 0, 0, 0, 0], 96], // NAT64
+  [[0x64, 0xff9b, 1, 0, 0, 0, 0, 0], 48], // local-use NAT64
+  [[0x100, 0, 0, 0, 0, 0, 0, 0], 64],   // discard-only
+  [[0x2001, 0, 0, 0, 0, 0, 0, 0], 32],  // Teredo
+  [[0x2001, 0x0db8, 0, 0, 0, 0, 0, 0], 32], // documentation
+  [[0xfc00, 0, 0, 0, 0, 0, 0, 0], 7],   // unique local
+  [[0xfe80, 0, 0, 0, 0, 0, 0, 0], 10],  // link local
+  [[0xfec0, 0, 0, 0, 0, 0, 0, 0], 10],  // site local (deprecated)
+  [[0xff00, 0, 0, 0, 0, 0, 0, 0], 8],   // multicast
+];
+function inV6(g: number[], base: number[], bits: number): boolean {
+  for (let i = 0; i < 8 && bits > 0; i++, bits -= 16) {
+    const n = Math.min(bits, 16);
+    const mask = (0xffff << (16 - n)) & 0xffff;
+    if ((g[i] & mask) !== (base[i] & mask)) return false;
+  }
+  return true;
 }
 
 /**
  * Whether an IP address (v4 or v6 text) is somewhere a webhook must never be
- * sent: private, loopback, link local, CGNAT, unique local, multicast,
- * documentation, unspecified, and the IPv6 forms that smuggle an IPv4 address
- * (IPv4-mapped, NAT64, 6to4). Anything unparseable counts as blocked.
+ * sent. IPv6 forms that carry an IPv4 address (IPv4-mapped ::ffff:0:0/96 and
+ * 6to4 2002::/16) are judged by the address they carry. Anything that is not a
+ * canonical address (decimal, octal or hex IPv4, junk) counts as blocked.
  */
 export function isPrivateAddress(ip: string): boolean {
   const v4 = parseV4(ip);
   if (v4) return privateV4(v4);
   const g = parseV6(ip);
   if (!g) return true;
-  if (g.every((x) => x === 0)) return true;                        // ::
-  if (g.slice(0, 7).every((x) => x === 0) && g[7] === 1) return true; // ::1
-  if (g.slice(0, 5).every((x) => x === 0) && g[5] === 0xffff) return true; // ::ffff:a.b.c.d (mapped)
-  if (g.slice(0, 6).every((x) => x === 0)) return true;            // ::a.b.c.d (deprecated compatible)
-  if (g[0] === 0x64 && g[1] === 0xff9b) return true;               // 64:ff9b::/96 and 64:ff9b:1::/48 (NAT64)
-  if ((g[0] & 0xfe00) === 0xfc00) return true;                     // fc00::/7 unique local
-  if ((g[0] & 0xffc0) === 0xfe80 || (g[0] & 0xffc0) === 0xfec0) return true; // link local, site local
-  if ((g[0] & 0xff00) === 0xff00) return true;                     // multicast
-  if (g[0] === 0x2001 && g[1] === 0x0db8) return true;             // documentation
-  if (g[0] === 0x100 && g[1] === 0 && g[2] === 0 && g[3] === 0) return true; // discard
-  if (g[0] === 0x2002) return privateV4([g[1] >> 8, g[1] & 255, g[2] >> 8, g[2] & 255]); // 6to4
-  return false;
+  if (g.slice(0, 5).every((x) => x === 0) && g[5] === 0xffff) return privateV4([g[6] >> 8, g[6] & 255, g[7] >> 8, g[7] & 255]);
+  if (g[0] === 0x2002) return privateV4([g[1] >> 8, g[1] & 255, g[2] >> 8, g[2] & 255]);
+  return BLOCKED_V6.some(([base, bits]) => inV6(g, base, bits));
+}
+
+/**
+ * True when the URL spells a numeric host in a non-canonical way (2130706433,
+ * 0x7f.1, 017.0.0.1). The WHATWG parser quietly rewrites those to dotted form,
+ * and `017.0.0.1` becomes 15.0.0.1, which is a different machine from the one
+ * the writer, or a lenient resolver, would reach. We refuse the ambiguity.
+ */
+export function nonCanonicalNumericHost(url: string): boolean {
+  let u: URL;
+  try { u = new URL(url); } catch { return false; }
+  const m = /^[a-z][a-z0-9+.-]*:\/\/(?:[^@/?#]*@)?(\[[^\]]*\]|[^:/?#]*)/i.exec(url.trim());
+  if (!m) return false;
+  const raw = normaliseHost(m[1]);
+  const parsed = normaliseHost(u.hostname);
+  if (raw === parsed) return false;
+  return /^[0-9a-fx.]+$/i.test(raw) && /^(0x[0-9a-f]*|\d+)$/i.test(raw.slice(raw.lastIndexOf(".") + 1));
 }
 
 /**
@@ -174,8 +222,12 @@ export function webhookTargetBlocked(url: string, allowLocal: boolean): string |
   if (allowLocal) return null;
   const h = normaliseHost(u.hostname);
   if (u.protocol !== "https:") return "https required";
+  if (nonCanonicalNumericHost(url)) return "non-canonical address";
   if (h === "localhost" || h.endsWith(".localhost") || h.endsWith(".local") || h.endsWith(".internal")) return "internal host";
-  if ((parseV4(h) || h.includes(":")) && isPrivateAddress(h)) return "private address";
+  // `new URL` has already rewritten decimal/octal/hex IPv4 to dotted form. A
+  // host whose last label is numeric but is not a canonical address is refused.
+  const lastLabel = h.slice(h.lastIndexOf(".") + 1);
+  if ((/^(0x[0-9a-f]*|\d+)$/i.test(lastLabel) || h.includes(":")) && isPrivateAddress(h)) return "private address";
   return null;
 }
 
