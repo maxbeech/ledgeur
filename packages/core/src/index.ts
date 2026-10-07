@@ -17,3 +17,4 @@ export * from "./text/tokens.ts";
 export * from "./context/index.ts";
 export * from "./capture/index.ts";
 export * from "./tasks/push.ts";
+export * from "./api/index.ts";

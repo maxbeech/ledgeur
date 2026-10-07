@@ -1,0 +1,28 @@
+{
+  "name": "@ledgeur/sdk",
+  "version": "0.1.0",
+  "description": "Typed client for the Ledgeur Meetings API and webhooks. Zero dependencies; works in Node 20+ and edge runtimes.",
+  "license": "MIT",
+  "type": "module",
+  "sideEffects": false,
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": ["dist", "README.md"],
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "test": "tsx test/run.mts",
+    "prepack": "npm run build"
+  },
+  "devDependencies": {
+    "tsx": "^4.22.4",
+    "typescript": "^5.9.2"
+  }
+}

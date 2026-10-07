@@ -40,6 +40,7 @@ Marketing canonical URLs, sitemap entries and robots directives are derived
 from `apps/marketing/lib/site.ts`. The production origin is
 `https://www.ledgeur.com`; the apex domain permanently redirects there.
 | `packages/core` | Shared domain model, diarization logic, the meeting library, browser controllers, auth wording, notes/audio logic, Supabase client |
+| `packages/sdk` | `@ledgeur/sdk`: typed, zero-dependency client for the public Meetings API (`/api/v1`) and webhook verification. See [docs/API.md](docs/API.md) |
 | `packages/asr` | Browser speech-to-text **and speaker-diarization** workers + their load plans (synced into each app's `public/`) |
 | `packages/ui` | Design tokens, the shared `theme.css`, and the React primitives both apps render |
 | `supabase/` | Database schema (migrations) — source of truth for data |

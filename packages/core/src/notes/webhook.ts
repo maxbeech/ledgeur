@@ -113,20 +113,57 @@ export async function signWebhook(secret: string, timestamp: string, body: strin
 
 /** Headers for a delivery. Signature headers are omitted, not empty, when no
  *  secret is configured — an empty signature header reads as a bug at the
- *  receiver, where a missing one reads as "unsigned", which is the truth. */
+ *  receiver, where a missing one reads as "unsigned", which is the truth.
+ *
+ *  `event` defaults to the client-side webhook's only event. The server-side
+ *  Meetings API passes its own event type and a delivery id, and gets exactly
+ *  the same signing scheme: this function is the single source of it. */
 export async function webhookHeaders(
   body: string,
   timestamp: string,
   secret?: string,
+  event: string = "meeting.completed",
+  deliveryId?: string,
 ): Promise<Record<string, string>> {
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     "User-Agent": "Ledgeur/1 (+https://www.ledgeur.com)",
-    "X-Ledgeur-Event": "meeting.completed",
+    "X-Ledgeur-Event": event,
     "X-Ledgeur-Timestamp": timestamp,
   };
+  if (deliveryId) headers["X-Ledgeur-Delivery"] = deliveryId;
   if (secret) headers["X-Ledgeur-Signature"] = await signWebhook(secret, timestamp, body);
   return headers;
+}
+
+/** Constant-time string comparison, so a wrong signature does not leak how
+ *  many leading characters were right. */
+export function timingSafeEqual(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return diff === 0;
+}
+
+export type SignatureCheck = "ok" | "bad_signature" | "stale" | "malformed";
+
+/** Verify a delivery's signature and age. Pure apart from WebCrypto. */
+export async function checkWebhookSignature(
+  secret: string,
+  timestamp: string | null | undefined,
+  body: string,
+  signature: string | null | undefined,
+  options: { toleranceSeconds?: number; now?: number } = {},
+): Promise<SignatureCheck> {
+  if (!timestamp || !signature) return "malformed";
+  const sent = Number.isFinite(Number(timestamp)) && /^\d+$/.test(timestamp)
+    ? Number(timestamp) * (timestamp.length <= 11 ? 1000 : 1)
+    : Date.parse(timestamp);
+  if (!Number.isFinite(sent)) return "malformed";
+  const tolerance = (options.toleranceSeconds ?? 300) * 1000;
+  if (Math.abs((options.now ?? Date.now()) - sent) > tolerance) return "stale";
+  const expected = await signWebhook(secret, timestamp, body);
+  return timingSafeEqual(expected, signature) ? "ok" : "bad_signature";
 }
 
 /**

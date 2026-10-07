@@ -52,6 +52,28 @@ export interface McpEnv {
  * route, and a token problem is a 401 rather than a 500.
  */
 export async function clientForToken(token: string, env: McpEnv): Promise<SupabaseClient> {
+  return (await authenticateToken(token, env)).client;
+}
+
+/** A resolved token: who it speaks as, plus the clients to act with. */
+export interface Authenticated {
+  /** RLS-scoped client that speaks as the token's owner. */
+  client: SupabaseClient;
+  userId: string;
+  /** The workspace the token was minted in. */
+  orgId: string;
+  /** Service-role client. For the few tables that have no RLS policies (the
+   *  webhook tables); callers must scope every query to `userId` themselves. */
+  admin: SupabaseClient;
+}
+
+/**
+ * Like `clientForToken`, but also returns the owner's id and workspace and the
+ * service-role client. The public REST API needs the owner to scope webhook
+ * subscriptions and the workspace to create meetings in. The MCP tools keep
+ * using `clientForToken` and never see the service role.
+ */
+export async function authenticateToken(token: string, env: McpEnv): Promise<Authenticated> {
   if (!looksLikeToken(token)) {
     // Rejected on shape, before a database round-trip. The message names the
     // place a real token comes from, because the commonest cause of this is
@@ -68,7 +90,7 @@ export async function clientForToken(token: string, env: McpEnv): Promise<Supaba
   // session costs no extra round-trip.
   const { data: row, error } = await admin
     .from("mcp_tokens")
-    .select("id, user_id, revoked, profiles!inner(email)")
+    .select("id, user_id, org_id, revoked, profiles!inner(email)")
     .eq("token_hash", await sha256Hex(token))
     .maybeSingle();
 
@@ -99,5 +121,5 @@ export async function clientForToken(token: string, env: McpEnv): Promise<Supaba
   // timestamp is worth having and never worth failing a request for.
   void admin.from("mcp_tokens").update({ last_used_at: new Date().toISOString() }).eq("id", row.id);
 
-  return client;
+  return { client, userId: row.user_id as string, orgId: row.org_id as string, admin };
 }

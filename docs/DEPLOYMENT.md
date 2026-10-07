@@ -19,7 +19,9 @@ routes and the hosted agent endpoint. It is a Next.js app, built by Helm7 from t
 | `NEXT_PUBLIC_SITE_URL` | Stripe return URLs | Falls back to `SITE.url`. Set it on preview deployments, or a customer returns from checkout to production. |
 | `STRIPE_SECRET_KEY` | Checkout, billing portal | Both routes return a 503 saying card payment is not configured, and the pricing page offers a contact link instead. Nothing crashes and nobody is charged. |
 | `STRIPE_PRICE_ID` | Checkout | as above |
-| `SUPABASE_SERVICE_ROLE_KEY` | The hosted agent endpoint | `POST /api/mcp` returns 503. **Server-side only — never expose this.** |
+| `SUPABASE_SERVICE_ROLE_KEY` | The hosted agent endpoint, the Meetings API, the webhook dispatcher | `POST /api/mcp` and `/api/v1/*` return 503. **Server-side only — never expose this.** |
+| `CRON_SECRET` | The webhook dispatcher (`/api/cron/webhooks`) | The route returns 503 and no webhook is ever delivered. Helm7 scheduled jobs send it as a bearer token. |
+| `WEBHOOKS_ALLOW_LOCAL_TARGETS` | Local development only | Set to `1` to let the dispatcher call `http://localhost` webhooks. Never set it in production: it switches off the private-network guard. |
 
 The service role key is used for exactly two things: reading one row of
 `mcp_tokens` to check a presented hash, and asking GoTrue for a session
@@ -43,6 +45,27 @@ while still being served from the edge in between.
 
 `/app` is prerendered too — it is a client-side app over IndexedDB, so there is
 nothing for a server to render per request.
+
+### The Meetings API and webhooks
+
+`/api/v1/*` is the public Meetings API (contract in [API.md](API.md)). It needs
+nothing beyond `SUPABASE_SERVICE_ROLE_KEY`. Webhook delivery needs two more things:
+
+1. **Migration `0010_api_webhooks.sql`**: the subscription, outbox, state and delivery
+   tables, and the triggers on `meetings`, `speakers`, `transcript_segments`,
+   `meeting_notes` and `action_items`. Apply it before deploying the app
+   (`SUPABASE_PAT=… node supabase/apply-migration.mjs 0010_api_webhooks.sql`). It is safe
+   to run twice.
+2. **A scheduled job** that calls `GET /api/cron/webhooks` every minute with
+   `Authorization: Bearer $CRON_SECRET`. On Helm7 that is a `cron` service with a `path`
+   (schedule `* * * * *`, target `web`, path `/api/cron/webhooks`); Helm7 sends the
+   environment's `CRON_SECRET` itself. Set `CRON_SECRET` as a secret first, then redeploy
+   so the web service has it. Without the job, changes pile up in `webhook_outbox` and
+   nothing is sent. The route answers with counts (`events`, `deliveries_created`,
+   `delivered`, `retrying`, `failed`), which is what to look at in the job's logs.
+
+Webhook subscriptions hold their signing secret in clear text (it is the HMAC key), in a
+table with row-level security on and no policies, so only the service role can read it.
 
 ## Supabase
 

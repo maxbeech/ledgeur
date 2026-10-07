@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+- **Meetings API and webhooks**: a public REST API at `/api/v1` (list meetings with
+  `updated_since` and cursors, one meeting with notes, action items and participants,
+  transcript, participants, metadata, and `POST /meetings` to import a transcript),
+  authenticated with the same `ldg_` keys as the hosted MCP endpoint and limited to paid
+  plans. Server-side webhooks (`POST/GET/DELETE /webhooks`) send `meeting.completed`,
+  `meeting.updated` and `meeting.deleted`, signed with the same HMAC scheme as the notes
+  webhook, debounced for two minutes so a device sync is one event, and retried five
+  times. A new `@ledgeur/sdk` package (0.1.0) wraps it all, with `verifyWebhook`. Needs
+  migration `0010_api_webhooks.sql`, a `CRON_SECRET` and a one-minute scheduled call to
+  `/api/cron/webhooks` (see docs/DEPLOYMENT.md). Contract: docs/API.md.
+
 - **Sentry scrubbing hardened** (web, desktop and the Stripe webhook): one shared scrubber
   (`@ledgeur/core/sentry`) now covers errors, logs, breadcrumbs and transactions. It redacts
   emails, phone numbers, bearer/JWT tokens, API keys and password/secret/token fields,

@@ -28,6 +28,7 @@ import { runContentTests } from "./content.mts";
 import { runSiteTests } from "./site.mts";
 import { runNoVercelTests } from "./no-vercel.mts";
 import { runSentryTests } from "./sentry.mts";
+import { runApiV1Tests } from "./api-v1.mts";
 import { runAnalyticsTests, runAnalyticsAsyncTests } from "./analytics.mts";
 
 let pass = 0, fail = 0;
@@ -303,6 +304,7 @@ ok("/download is linked from the footer",
 runContentTests(ok);
 runNoVercelTests(ok);
 runSentryTests(ok);
+await runApiV1Tests(ok);
 
 console.log(`\n${pass} passed, ${fail} failed`);
 if (fail > 0) process.exit(1);

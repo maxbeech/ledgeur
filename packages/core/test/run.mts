@@ -18,6 +18,7 @@ import { runNameTests, runSnippetTests } from "./names.mts";
 import { runCaptureTests } from "./capture.mts";
 import { runSentryScrubTests } from "./sentry-scrub.mts";
 import { runTaskPushTests } from "./tasks.mts";
+import { runApiTests } from "./api.mts";
 import { runSyncTests } from "./sync.mts";
 import { runFailureTests } from "./failures.mts";
 import { runSegmenterTests } from "./segmenter.mts";
@@ -273,6 +274,7 @@ runContextTests(ok);
 runCaptureTests(ok);
 runSentryScrubTests(ok);
 runTaskPushTests(ok);
+await runApiTests(ok);
 await runGranolaTests(ok);
 
 // --- browser controllers (fake Worker) ---

@@ -19,7 +19,8 @@
     "./capture": "./src/capture/index.ts",
     "./library": "./src/library/index.ts",
     "./auth": "./src/auth/index.ts",
-    "./sentry": "./src/sentry/scrub.ts"
+    "./sentry": "./src/sentry/scrub.ts",
+    "./api": "./src/api/index.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
