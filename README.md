@@ -25,6 +25,8 @@ rule and a test that enforces it.
 
 Both apps scrub everything they send with the shared `@ledgeur/core/sentry` module (secrets and contact details redacted, URL query strings stripped, long text truncated, fail-closed). Capture helpers take ids, codes and counts only, never user content.
 
+The Sentry scrubber (`packages/core/src/sentry/scrub.ts`, `supabase/functions/_shared/scrub.ts`) redacts secrets of any length, backs up to a clean boundary when it truncates, and fails closed; its regression tests are in `packages/core/test/scrub-hardening.test.mts`.
+
 The desktop app (`ledgeur_desktop`) reports errors, logs and user feedback to Sentry only from a production build with `VITE_SENTRY_DSN` set; log warnings become breadcrumbs, only errors become issues.
 
 The marketing app (`ledgeur_web`) sends errors, logs, low-volume performance traces, source maps and user feedback to Sentry through a tunnel route; set `NEXT_PUBLIC_SENTRY_DSN` and `SENTRY_DSN` (see `apps/marketing/.env.example`). The Stripe webhook edge function reports to the same project via a `SENTRY_DSN` function secret.

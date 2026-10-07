@@ -24,7 +24,7 @@
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "test": "tsx test/run.mts"
+    "test": "tsx test/run.mts && tsx test/scrub-hardening.test.mts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.58.0"
