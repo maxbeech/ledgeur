@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-10-15
+
+- LEDGEUR_WEB-5: disable meeting-tab recording when the browser has no `getDisplayMedia`, keep microphone/import options available and explain the alternatives. Add a defensive capture guard before opening audio resources.
+
 ## 2026-10-07: Sentry scrubber security pass
 
 - **Long secrets.** JWTs, bearer tokens, vendor keys (`sk_`, `whsec_`, `hlm_sk_`, `sntrys_`) and `key=value` secrets of any length are now redacted whole. The old bounded patterns left the tail of anything longer than their limit.

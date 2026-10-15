@@ -1,5 +1,7 @@
 # Ledgeur
 
+The web recorder checks browser capabilities before enabling meeting or microphone capture. Browsers without tab-audio capture can use microphone recording or import an existing recording; the shared audio engine also refuses unsupported tab capture explicitly.
+
 **The centre of your company's brain.** Ledgeur records meetings, transcribes
 them, and works out **who said what** — all on your own device. Name a voice once
 and it is recognised in every meeting after that. Drag in recordings you already

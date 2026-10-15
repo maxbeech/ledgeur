@@ -2,13 +2,18 @@
 
 // Starting, watching and finishing a recording.
 
-import { useState } from "react";
+import { useState, useSyncExternalStore } from "react";
 import { formatOffset } from "@ledgeur/core";
 import { Badge, Button, Card, ErrorNote, Label, Notice, ProgressBar, Select } from "@ledgeur/ui/components";
 import { cn } from "@ledgeur/ui";
 import type { RecorderState } from "@/lib/useWebRecorder";
 import { Transcript } from "./Transcript";
 import { LANG_OPTIONS, SPOKEN_LANGUAGES } from "@ledgeur/asr";
+import { evaluateSupport, readCapabilities } from "@/lib/support";
+
+const subscribe = () => () => {};
+const clientReady = () => true;
+const serverReady = () => false;
 
 // The options come from the load plan itself (packages/asr/asr-plan.js, served
 // as /asr-plan.js), so a value this picker offers is always a rung the worker
@@ -25,6 +30,8 @@ export function RecordPanel({
   onSample: (lang: string) => void;
 }) {
   const [lang, setLang] = useState("en");
+  const hydrated = useSyncExternalStore(subscribe, clientReady, serverReady);
+  const support = hydrated ? evaluateSupport(readCapabilities()) : null;
   const idle = state.phase === "idle" || state.phase === "error" || state.phase === "done";
 
   return (
@@ -83,16 +90,17 @@ export function RecordPanel({
             </fieldset>
 
             <div className="mt-6 flex flex-wrap gap-3">
-              <Button size="lg" onClick={() => onStart({ mic: true, system: true, lang })} className="rounded-full">
+              <Button size="lg" disabled={!support?.canRecordMeeting} onClick={() => onStart({ mic: true, system: true, lang })} className="rounded-full">
                 Record a meeting
               </Button>
-              <Button size="lg" tone="secondary" onClick={() => onStart({ mic: true, system: false, lang })} className="rounded-full">
+              <Button size="lg" tone="secondary" disabled={!support?.canRecordMic} onClick={() => onStart({ mic: true, system: false, lang })} className="rounded-full">
                 Microphone only
               </Button>
               <Button size="lg" tone="ghost" onClick={onPickFile} className="rounded-full">
                 Import a recording
               </Button>
             </div>
+            {support?.warning && <p role="status" className="mt-3 text-sm leading-relaxed text-muted">{support.warning}</p>}
             <p className="mt-4 text-sm leading-relaxed text-faint">
               The first recording downloads the speech model once (about 40 MB) and caches it. After
               that it works offline.{" "}

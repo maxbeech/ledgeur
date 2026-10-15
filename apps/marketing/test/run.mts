@@ -153,6 +153,9 @@ ok("every planned language is offered in the UI",
 ok("every option has a label and a hint a person can act on",
   ASR_LANG_OPTIONS.every((o) => o.label.length > 0 && o.hint.length > 0));
 const recordPanel = readFileSync(new URL("../components/app/RecordPanel.tsx", import.meta.url), "utf8");
+ok("unsupported browsers cannot start meeting capture", /disabled=\{!support\?\.canRecordMeeting\}/.test(recordPanel));
+ok("microphone capture follows its own capability and remains separate", /disabled=\{!support\?\.canRecordMic\}/.test(recordPanel));
+ok("the recorder explains the available alternatives", recordPanel.includes("support.warning"));
 ok("the picker reads the shared list rather than restating it",
   recordPanel.includes("LANG_OPTIONS") && !/const LANGUAGES/.test(recordPanel));
 // LANG_OPTIONS now carries an entry per spoken language as well as per tier, so

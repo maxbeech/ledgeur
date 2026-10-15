@@ -370,6 +370,22 @@ export async function runBrowserTests(ok: (name: string, cond: boolean, detail?:
   }
 
   {
+    const { AudioCapture, CaptureError } = await import("../src/browser/capture.ts");
+    const original = Object.getOwnPropertyDescriptor(globalThis, "navigator");
+    Object.defineProperty(globalThis, "navigator", { configurable: true, value: { mediaDevices: {} } });
+    try {
+      let failure: unknown;
+      try { await new AudioCapture().start({ mic: true, system: true }); }
+      catch (error) { failure = error; }
+      ok("missing getDisplayMedia is an explicit capture refusal before audio resources open", failure instanceof CaptureError);
+      ok("unsupported capture offers microphone and import alternatives", failure instanceof Error && failure.message.includes("microphone only") && failure.message.includes("import"));
+    } finally {
+      if (original) Object.defineProperty(globalThis, "navigator", original);
+      else Reflect.deleteProperty(globalThis, "navigator");
+    }
+  }
+
+  {
     // What Ledgeur asks the OS for when it opens the mic.
     //
     // This is a regression test for a real bug: recording computer audio during

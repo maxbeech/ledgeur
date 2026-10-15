@@ -166,6 +166,9 @@ export class AudioCapture {
 
   /** Request the chosen sources and begin accumulating PCM. */
   async start(sources: CaptureSources): Promise<void> {
+    if (sources.system && typeof navigator.mediaDevices?.getDisplayMedia !== "function") {
+      throw new CaptureError("Meeting-tab audio needs desktop Chrome, Edge or Brave. Record your microphone only, or import a recording.");
+    }
     const Ctx = window.AudioContext
       ?? (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
     const ctx = new Ctx();
