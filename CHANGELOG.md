@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-10-16
+
+- Journey `activation-first-meeting` (step `capture-started`): the "Or try it on a sample clip first" fetch had no deadline, so a slow or unresponsive CDN left the click with no result and no error. The fetch now aborts after 8 seconds and shows a readable error. New `lib/fetch-with-timeout.ts`, with regression tests in `test/run.mts`.
+
 ## 2026-10-15
 
 - LEDGEUR_WEB-5: disable meeting-tab recording when the browser has no `getDisplayMedia`, keep microphone/import options available and explain the alternatives. Add a defensive capture guard before opening audio resources.

@@ -24,6 +24,7 @@ import {
   DOWNLOAD_REVALIDATE_SECONDS,
 } from "../lib/downloads.ts";
 import { SUPABASE, MIN_PASSWORD_LENGTH } from "../lib/site.ts";
+import { fetchWithTimeout, FetchTimeoutError } from "../lib/fetch-with-timeout.ts";
 import { runContentTests } from "./content.mts";
 import { runSiteTests } from "./site.mts";
 import { runNoVercelTests } from "./no-vercel.mts";
@@ -303,6 +304,52 @@ ok("/download is linked from the header",
   /\["Download", "\/download"\]/.test(readFileSync(new URL("../lib/site.ts", import.meta.url), "utf8")));
 ok("/download is linked from the footer",
   readFileSync(new URL("../lib/site.ts", import.meta.url), "utf8").includes('"/download"'));
+
+// --- sample-clip fetch cannot hang silently (journey: activation-first-meeting) ---
+// A never-answering CDN used to leave the sample click with no result and no error.
+{
+  const hangs: typeof fetch = (_url, init) =>
+    new Promise<Response>((_, reject) => {
+      init?.signal?.addEventListener("abort", () => reject(new Error("aborted")));
+    });
+  const started = Date.now();
+  let timeoutErr: unknown = null;
+  try { await fetchWithTimeout("https://cdn.test/sample.wav", 50, hangs); }
+  catch (e) { timeoutErr = e; }
+  ok("a fetch that never answers rejects at the deadline",
+    timeoutErr instanceof FetchTimeoutError && Date.now() - started < 1_000,
+    `error=${String(timeoutErr)} elapsed=${Date.now() - started}ms`);
+  ok("the timeout message says the download did not respond, in seconds",
+    timeoutErr instanceof Error && /^The download did not respond within \d+ seconds\.$/.test(timeoutErr.message),
+    String(timeoutErr instanceof Error ? timeoutErr.message : timeoutErr));
+
+  const ignoresSignal: typeof fetch = () => new Promise<Response>(() => {});
+  let raced: unknown = null;
+  try { await fetchWithTimeout("https://cdn.test/x", 30, ignoresSignal); }
+  catch (e) { raced = e; }
+  ok("a fetch that ignores its abort signal still cannot outlast the deadline",
+    raced instanceof FetchTimeoutError, String(raced));
+
+  let seenSignal: AbortSignal | undefined;
+  const aborts: typeof fetch = (_url, init) => {
+    seenSignal = init?.signal ?? undefined;
+    return new Promise<Response>(() => {});
+  };
+  try { await fetchWithTimeout("https://cdn.test/y", 20, aborts); } catch { /* expected */ }
+  ok("the deadline aborts the request it started, not just the wait",
+    seenSignal?.aborted === true, `aborted=${seenSignal?.aborted}`);
+
+  const answers: typeof fetch = async () => new Response("ok", { status: 200 });
+  const res = await fetchWithTimeout("https://cdn.test/ok", 1_000, answers);
+  ok("a prompt response passes through unchanged", res.status === 200 && (await res.text()) === "ok");
+
+  const broken: typeof fetch = async () => { throw new TypeError("Failed to fetch"); };
+  let passthrough: unknown = null;
+  try { await fetchWithTimeout("https://cdn.test/z", 1_000, broken); }
+  catch (e) { passthrough = e; }
+  ok("a network failure surfaces its own error, not a timeout",
+    passthrough instanceof TypeError && !(passthrough instanceof FetchTimeoutError), String(passthrough));
+}
 
 runContentTests(ok);
 runNoVercelTests(ok);
