@@ -118,6 +118,18 @@ export const SET_1: Post[] = [
       { type: "ul", items: ["Open Ledgeur and click 'Record meeting'", "When prompted, choose the Zoom tab and tick 'Share tab audio'", "Allow your microphone so your own voice is captured too"] },
       { type: "h2", text: "Step 3 — Get your notes" },
       { type: "p", text: "Ledgeur transcribes the call in your browser as it happens. When you stop, click Generate notes for a summary, decisions and action items, then export Markdown. Nothing was uploaded to Zoom or anyone else." },
+      { type: "h2", text: "Who is in the transcript" },
+      { type: "p", text: "Ledgeur separates the voices in the recording on your device. Name a speaker once and it recognises that person in every later meeting, so a recurring Zoom call arrives already labelled. The voice prints stay on your machine." },
+      { type: "h2", text: "If you already have a recording" },
+      { type: "p", text: "You do not have to capture the call live. Drag a recording you already have into Ledgeur and it is transcribed in the browser in the same way, with the speakers separated." },
+      { type: "h2", text: "Why not just use Zoom's transcript?" },
+      { type: "ul", items: ["Zoom's transcript depends on your plan and sits in Zoom's cloud; Ledgeur's stays on your device", "No bot joins the call and nobody sees a notetaker in the participant list", "Free for one person, with no minute cap, and the code is open source", "Search everything anyone has said across all your meetings"] },
+      { type: "p", text: "Tell the people on the call you are recording it, as you would for any recording." },
+      { type: "links", label: "Related reading", links: [
+        { label: "Transcribe Microsoft Teams meetings", href: "/blog/how-to-transcribe-microsoft-teams-meetings" },
+        { label: "Transcribing Zoom, Meet and Teams", href: "/transcribe" },
+        { label: "AI meeting assistant guide", href: "/guides/ai-meeting-assistant" },
+      ] },
     ],
   },
   {
