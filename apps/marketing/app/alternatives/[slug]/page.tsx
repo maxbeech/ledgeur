@@ -74,6 +74,17 @@ export default async function AlternativePage({ params }: { params: Promise<{ sl
           ))}
         </div>
 
+        <div className="mt-12">
+          <SectionHead kicker="Keep exploring" title="Related pages" />
+          <ul className="mt-6 space-y-2 text-base text-muted">
+            {COMPETITORS.filter((c) => c.slug !== competitor.slug).slice(0, 4).map((c) => (
+              <li key={c.slug}><Link href={`/alternatives/${c.slug}`} className="underline hover:text-ink-text">The open-source {c.name} alternative</Link></li>
+            ))}
+            <li><Link href="/open-source" className="underline hover:text-ink-text">Why Ledgeur is open source</Link></li>
+            <li><Link href="/guides/ai-meeting-assistant" className="underline hover:text-ink-text">What to look for in an AI meeting assistant</Link></li>
+          </ul>
+        </div>
+
         <CtaBlock
           title={`Try the ${competitor.name} alternative`}
           body="No account, no card, and no bot in your meeting. Open it and record your next call — or drag in one you already have."

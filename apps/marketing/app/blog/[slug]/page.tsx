@@ -32,6 +32,15 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   };
 }
 
+// Guides every post points readers to, so the strongest articles are reachable
+// from each other article and not only from the /blog index.
+const FEATURED_POSTS = [
+  "meeting-notes-best-practices",
+  "meeting-notes-for-remote-teams",
+  "how-to-transcribe-a-zoom-meeting",
+  "how-to-write-meeting-minutes",
+];
+
 export default async function PostPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
   const post = postBySlug(slug);
@@ -113,6 +122,18 @@ export default async function PostPage({ params }: { params: Promise<{ slug: str
           {post.faqs && <section aria-labelledby="faq"><h2 id="faq">Frequently asked questions</h2>{post.faqs.map((faq) => <div key={faq.question}><h3>{faq.question}</h3><p>{faq.answer}</p></div>)}</section>}
           {post.sources && post.sources.length > 0 && <section aria-labelledby="sources"><h2 id="sources">Authoritative references</h2><ul>{post.sources.map((source) => <li key={source.href}><a href={source.href}>{source.label}</a></li>)}</ul></section>}
         </article>
+
+        <aside className="ldg-links mt-10" aria-label="Keep reading">
+          <strong>Keep reading</strong>
+          <ul>
+            <li><Link href="/guides/ai-meeting-assistant">AI meeting assistant: what one is, and what to look for</Link></li>
+            {FEATURED_POSTS.filter((slug) => slug !== post.slug).map((slug) => {
+              const featured = postBySlug(slug);
+              return featured ? <li key={slug}><Link href={`/blog/${slug}`}>{featured.title}</Link></li> : null;
+            })}
+            <li><Link href="/open-source">Ledgeur is open source</Link></li>
+          </ul>
+        </aside>
 
         <CtaBlock />
       </Section>

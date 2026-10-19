@@ -90,6 +90,8 @@ export const USE_CASES: UseCase[] = [
       "During Q&A, keep the question with the answer. A neat answer without its question is usually useless to someone who missed the meeting.",
       "Publish a short, dated digest in the company channel, then link to the fuller record so people can check context without asking a presenter to repeat it.",
       "Keep confidential people, financial or customer material out of the broad recap; a whole-company audience is not the right permission model for every meeting note.",
+      "Record the all-hands from the browser tab you are watching it in, then generate notes and export them as Markdown. The audio is transcribed on your own device, so a recording of a company-wide meeting is not uploaded to anyone.",
+      "Name the speakers once. Ledgeur recognises each voice in later meetings, so a recurring all-hands with the same presenters arrives already labelled, and the recap can say who announced what.",
     ],
   },
 ];

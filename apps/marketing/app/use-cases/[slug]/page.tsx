@@ -64,6 +64,18 @@ export default async function UseCasePage({ params }: { params: Promise<{ slug: 
           </div>
         )}
 
+        <div className="mt-14">
+          <SectionHead kicker="Keep exploring" title="Related pages" />
+          <ul className="mt-6 space-y-2 text-base text-muted">
+            {USE_CASES.filter((u) => u.slug !== useCase.slug).map((u) => (
+              <li key={u.slug}><Link href={`/use-cases/${u.slug}`} className="underline hover:text-ink-text">{u.headline}</Link></li>
+            ))}
+            <li><Link href="/templates" className="underline hover:text-ink-text">Meeting note templates</Link></li>
+            <li><Link href="/guides/ai-meeting-assistant" className="underline hover:text-ink-text">What to look for in an AI meeting assistant</Link></li>
+            <li><Link href="/blog/how-to-write-meeting-minutes" className="underline hover:text-ink-text">How to write meeting minutes</Link></li>
+          </ul>
+        </div>
+
         <CtaBlock
           title={`Use Ledgeur for ${useCase.name.toLowerCase()}`}
           body="Free, private, on-device, with the speakers separated. Record it or drag in a recording you already have."
