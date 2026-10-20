@@ -15,6 +15,7 @@ import { GUIDES } from "../lib/guides.ts";
 import { TEMPLATES, templateBySlug, templateMarkdown } from "../lib/templates.ts";
 import { POSTS, postBySlug } from "../lib/posts.ts";
 import { COMPETITORS } from "../lib/competitors.ts";
+import { PLATFORMS, platformBySlug } from "../lib/platforms.ts";
 import { USE_CASES } from "../lib/usecases.ts";
 import { PLANS, TEAM_PRICE_USD, ENTERPRISE_FLOOR_USD } from "../lib/plans.ts";
 import { SITE } from "../lib/site.ts";
@@ -115,6 +116,35 @@ export function runContentTests(ok: (name: string, cond: boolean, detail?: strin
     ok(`"${guide.slug}" owns posts of its own`,
       guide.cluster.some((s) => !others.includes(s)));
   }
+
+  // ---------- the three pages refreshed against their sources (2026-10-20) ----------
+  // Each assertion pins a fact that was checked on its primary source, so a
+  // later edit cannot quietly restore the claim that was wrong.
+  const tldv = COMPETITORS.find((c) => c.slug === "tldv");
+  ok("tl;dv is not described as bot-only", !/bot-based/i.test(tldv?.model ?? ""), tldv?.model);
+  ok("tl;dv names both of its recording routes",
+    /Chrome extension/.test(tldv?.what ?? "") && /desktop app records without one/.test(tldv?.diff.join(" ") ?? ""),
+    JSON.stringify({ what: tldv?.what, diff: tldv?.diff }));
+  ok("tl;dv cites its pricing page and recording page",
+    (tldv?.sources ?? []).some((s) => s.href === "https://tldv.io/app/pricing/")
+      && (tldv?.sources ?? []).some((s) => s.href === "https://tldv.io/recording-google-meet/"),
+    JSON.stringify(tldv?.sources));
+  ok("tl;dv concedes where it is the better fit", (tldv?.diff ?? []).some((d) => /better fit/.test(d)));
+
+  const discord = platformBySlug("discord");
+  ok("Discord names the browsers meeting-tab capture supports",
+    discord?.how.includes("Chrome, Edge or Brave") === true, discord?.how);
+  ok("Discord says the desktop app cannot be tab-shared",
+    discord?.tips.some((t) => /desktop app is not a browser tab/.test(t)) === true, JSON.stringify(discord?.tips));
+
+  const googleVoice = platformBySlug("google-voice-and-phone-calls");
+  ok("Google Voice covers Google's AI call notes with the announcement date",
+    googleVoice?.tips.some((t) => /16 June 2026/.test(t) && /eligible paid plan/.test(t)) === true,
+    JSON.stringify(googleVoice?.tips));
+  ok("Google Voice separates voicemail transcripts from call transcription",
+    googleVoice?.tips.some((t) => /voicemail transcripts are a separate feature/.test(t)) === true,
+    JSON.stringify(googleVoice?.tips));
+  ok("every platform page still has at least three steps", PLATFORMS.every((p) => p.tips.length >= 3), PLATFORMS.filter((p) => p.tips.length < 3).map((p) => p.slug).join(", "));
 
   // ---------- templates come from the app, not from marketing ----------
   ok("every template page has a real template behind it",

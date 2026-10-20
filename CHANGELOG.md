@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-10-20
+
+- **Content refresh, three pages** (`/alternatives/tldv`, `/transcribe/discord`, `/transcribe/google-voice-and-phone-calls`), from the weekly Search Console lifecycle pass. Each was ranking on page two or lower with few impressions.
+  - **tl;dv**: the comparison said tl;dv records with a bot only. Its own site describes two routes, a Chrome extension that sends a bot and a desktop app that records without one, so the comparison now names both. It cites tl;dv's pricing and recording pages, drops the "self-hostable" claim, which the repository's docs do not establish (the licence is MIT), and concedes where tl;dv is the better fit.
+  - **Discord**: says the Discord desktop app cannot be tab-shared, names the browsers meeting-tab capture supports (desktop Chrome, Edge or Brave), and adds a consent step for voice channels with people in other countries.
+  - **Google Voice**: covers Google's AI call notes, announced 16 June 2026 (eligible paid plans, English only), and separates Google's voicemail transcripts from call transcription.
+- `apps/marketing/test/content.mts` pins each corrected fact to the page, so a later edit cannot quietly restore the old claim.
+
 ## 2026-10-15
 
 - LEDGEUR_WEB-5: disable meeting-tab recording when the browser has no `getDisplayMedia`, keep microphone/import options available and explain the alternatives. Add a defensive capture guard before opening audio resources.
