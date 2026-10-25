@@ -8,6 +8,7 @@
 
 import { TranscriberController } from "../src/browser/transcriber.ts";
 import { DiarizerController } from "../src/browser/diarizer.ts";
+import { isExpectedClientError } from "../src/sentry/expected.ts";
 import type { AsrChunk } from "../src/diarize/types.ts";
 
 type Listener = (e: { data: any }) => void;
@@ -96,6 +97,19 @@ export async function runBrowserTests(ok: (name: string, cond: boolean, detail?:
     await flush();
     controller.dispose();
     ok("disposing settles an in-flight load", /cancelled/i.test(String(await promise)), String(await promise));
+  }
+
+  {
+    // A load cancelled by teardown is expected (LEDGEUR_WEB-9): reporters must be able to tell.
+    FakeWorker.spawned = [];
+    const controller = new TranscriberController({}, {
+      spawn: () => new FakeWorker(() => {}) as unknown as Worker,
+    });
+    const promise = controller.preload("en").catch((e: unknown) => e);
+    await flush();
+    controller.dispose();
+    ok("a load cancelled by dispose is flagged as an expected client error", isExpectedClientError(await promise));
+    ok("an ordinary error is not", !isExpectedClientError(new Error("boom")) && !isExpectedClientError(null) && !isExpectedClientError("expected"));
   }
 
   {

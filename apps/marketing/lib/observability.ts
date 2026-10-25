@@ -1,5 +1,6 @@
 import * as Sentry from "@sentry/nextjs";
 import { safeContext } from "@ledgeur/core/sentry";
+import { isFrameworkProbe } from "@/lib/sentry-options";
 
 /**
  * The one way server code reports a problem. Everything funnels through here
@@ -48,3 +49,14 @@ export function captureServerMessage(message: string, context: Record<string, un
   }
   console.error(`[${scope}] (Sentry not configured)`, message, context);
 }
+
+/**
+ * Next.js's `onRequestError` hook, minus scanner probes. The probe's refusal is
+ * raised as an error by the framework itself ("Expected RSC
+ * response, got text/plain"), so it is dropped here before it is captured, as
+ * well as in `beforeSend`.
+ */
+export const captureRequestErrorUnlessProbe: typeof Sentry.captureRequestError = (error, request, context) => {
+  if (isFrameworkProbe(request.headers as Record<string, unknown>)) return;
+  Sentry.captureRequestError(error, request, context);
+};

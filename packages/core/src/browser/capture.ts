@@ -26,10 +26,31 @@ import { concatFloat32 } from "../audio/pcm.ts";
  * default is now to translate, and only messages we wrote ourselves opt out.
  */
 export class CaptureError extends Error {
-  constructor(message: string) {
+  /**
+   * True when the failure is the person's or their device's state (they dismissed the sharing
+   * window, blocked the microphone, have none, or another app holds it). The message is shown to
+   * them and the failure is NOT a defect to report: see `isExpectedClientError`.
+   */
+  readonly expected: boolean;
+  constructor(message: string, expected = false) {
     super(message);
     this.name = "CaptureError";
+    this.expected = expected;
   }
+}
+
+type CaptureFailureKind = "denied" | "missing" | "busy" | "insecure" | "interrupted" | "unknown";
+
+/** Which kind of rejection a getUserMedia / getDisplayMedia failure is. */
+function classifyCaptureFailure(err: unknown): CaptureFailureKind {
+  const name = (err as { name?: string } | null)?.name ?? "";
+  const raw = String((err as { message?: string } | null)?.message ?? err ?? "").trim();
+  if (name === "NotAllowedError" || /permission denied|not allowed/i.test(raw)) return "denied";
+  if (name === "NotFoundError" || name === "OverconstrainedError") return "missing";
+  if (name === "NotReadableError" || /could not start/i.test(raw)) return "busy";
+  if (name === "SecurityError" || /secure context|https/i.test(raw)) return "insecure";
+  if (name === "AbortError") return "interrupted";
+  return "unknown";
 }
 
 /**
@@ -42,34 +63,38 @@ export class CaptureError extends Error {
  * (which is what happened before) makes the button look broken.
  */
 export function friendlyCaptureError(err: unknown, source: "mic" | "system"): string {
-  const name = (err as { name?: string } | null)?.name ?? "";
   const raw = String((err as { message?: string } | null)?.message ?? err ?? "").trim();
   const thing = source === "mic" ? "your microphone" : "the meeting audio";
 
-  if (name === "NotAllowedError" || /permission denied|not allowed/i.test(raw)) {
-    return source === "mic"
-      ? "Ledgeur needs permission to use your microphone. Allow it when your browser asks — or, if you blocked it earlier, click the padlock in the address bar and re-enable the microphone for this site."
-      : "You dismissed the sharing window, so nothing was captured. Start again and pick the tab or window your meeting is in — and tick “Also share tab audio”, or the other people will not be recorded.";
+  switch (classifyCaptureFailure(err)) {
+    case "denied":
+      return source === "mic"
+        ? "Ledgeur needs permission to use your microphone. Allow it when your browser asks — or, if you blocked it earlier, click the padlock in the address bar and re-enable the microphone for this site."
+        : "You dismissed the sharing window, so nothing was captured. Start again and pick the tab or window your meeting is in — and tick “Also share tab audio”, or the other people will not be recorded.";
+    case "missing":
+      return source === "mic"
+        ? "No microphone was found. Plug one in, or choose a different input in your system's sound settings, and try again."
+        : "Nothing was available to share. Make sure the meeting is open in another tab or window.";
+    case "busy":
+      return `Your browser could not start ${thing} — usually because another app is already using it. Close anything else that is recording (including other meeting apps) and try again.`;
+    case "insecure":
+      return "Recording needs a secure connection. Open Ledgeur over https, or on localhost.";
+    case "interrupted":
+      return `Capturing ${thing} was interrupted before it started. Try again.`;
+    default:
+      // Never swallow the original: an unrecognised failure still has to be
+      // diagnosable from a bug report.
+      return raw
+        ? `Ledgeur could not start recording ${thing}.\n(${raw})`
+        : `Ledgeur could not start recording ${thing}.`;
   }
-  if (name === "NotFoundError" || name === "OverconstrainedError") {
-    return source === "mic"
-      ? "No microphone was found. Plug one in, or choose a different input in your system's sound settings, and try again."
-      : "Nothing was available to share. Make sure the meeting is open in another tab or window.";
-  }
-  if (name === "NotReadableError" || /could not start/i.test(raw)) {
-    return `Your browser could not start ${thing} — usually because another app is already using it. Close anything else that is recording (including other meeting apps) and try again.`;
-  }
-  if (name === "SecurityError" || /secure context|https/i.test(raw)) {
-    return "Recording needs a secure connection. Open Ledgeur over https, or on localhost.";
-  }
-  if (name === "AbortError") {
-    return `Capturing ${thing} was interrupted before it started. Try again.`;
-  }
-  // Never swallow the original: an unrecognised failure still has to be
-  // diagnosable from a bug report.
-  return raw
-    ? `Ledgeur could not start recording ${thing}.\n(${raw})`
-    : `Ledgeur could not start recording ${thing}.`;
+}
+
+/** The error `AudioCapture.start` raises for a rejected capture request. */
+export function captureErrorFor(err: unknown, source: "mic" | "system"): CaptureError {
+  const kind = classifyCaptureFailure(err);
+  const expected = kind === "denied" || kind === "missing" || kind === "busy" || kind === "interrupted";
+  return new CaptureError(friendlyCaptureError(err, source), expected);
 }
 
 /**
@@ -212,7 +237,7 @@ export class AudioCapture {
       await this.stop();
       // Translate by default. Only a message this file wrote is passed through,
       // because only those are already written for a person.
-      throw e instanceof CaptureError ? e : new CaptureError(friendlyCaptureError(e, opening));
+      throw e instanceof CaptureError ? e : captureErrorFor(e, opening);
     }
 
     if (nodes.length === 0 && !sources.clockOnly) {

@@ -31,6 +31,8 @@ The Sentry scrubber (`packages/core/src/sentry/scrub.ts`, `supabase/functions/_s
 
 The desktop app (`ledgeur_desktop`) reports errors, logs and user feedback to Sentry only from a production build with `VITE_SENTRY_DSN` set; log warnings become breadcrumbs, only errors become issues.
 
+Failures that are a person's or device's state (a dismissed share prompt, no speech in a file, a cancelled model load) are marked `ExpectedClientError` and never reported, and scanner probes (a made-up `Next-Action` or an `x-middleware-subrequest` header) are dropped in `apps/marketing/lib/sentry-options.ts`.
+
 The marketing app (`ledgeur_web`) sends errors, logs, low-volume performance traces, source maps and user feedback to Sentry through a tunnel route; set `NEXT_PUBLIC_SENTRY_DSN` and `SENTRY_DSN` (see `apps/marketing/.env.example`). The Stripe webhook edge function reports to the same project via a `SENTRY_DSN` function secret.
 
 ## Monorepo

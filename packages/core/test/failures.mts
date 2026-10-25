@@ -9,7 +9,8 @@
 //  • The library sitting on "Opening your library…" forever. `indexedDB.open`
 //    fires `blocked` and then neither `success` nor `error`, so a promise
 //    wired to those two events never settles.
-import { friendlyCaptureError } from "../src/browser/capture.ts";
+import { friendlyCaptureError, captureErrorFor } from "../src/browser/capture.ts";
+import { isExpectedClientError } from "../src/sentry/expected.ts";
 import { openDatabase } from "../src/browser/idb.ts";
 
 export async function runFailureTests(ok: (name: string, cond: boolean, detail?: string) => void) {
@@ -43,6 +44,13 @@ export async function runFailureTests(ok: (name: string, cond: boolean, detail?:
   const aborted = new Error("The operation was aborted");
   aborted.name = "AbortError";
   ok("an abort is explained rather than swallowed", /interrupted/i.test(friendlyCaptureError(aborted, "mic")));
+
+  // A dismissed prompt, a blocked or missing or busy device is the person's state, not a defect to report
+  // (LEDGEUR_WEB-8); an unrecognised failure and an insecure origin still are.
+  const flagged = (name: string) => { const e = new Error("x"); e.name = name; return isExpectedClientError(captureErrorFor(e, "system")); };
+  ok("a denied, missing, busy or aborted capture is expected", ["NotAllowedError", "NotFoundError", "NotReadableError", "AbortError"].every(flagged));
+  ok("an insecure origin or an unknown failure is reported", !flagged("SecurityError") && !isExpectedClientError(captureErrorFor(new Error("novel"), "mic")));
+  ok("the capture error keeps the person's wording", captureErrorFor(denied, "system").message === friendlyCaptureError(denied, "system"));
 
   // Anything unrecognised must still be diagnosable.
   const weird = friendlyCaptureError(new Error("some novel browser bug"), "mic");

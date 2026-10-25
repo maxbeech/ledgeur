@@ -7,6 +7,7 @@
 // issue of its own.
 
 import { safeContext } from "@ledgeur/core/sentry";
+import { isExpectedClientError } from "@ledgeur/core/expected";
 import { Sentry, sentryEnabled } from "./sentry.ts";
 
 type Level = "debug" | "info" | "warn" | "error";
@@ -82,6 +83,11 @@ export function createLogger(scope: string, reporter: Reporter | null = sentryEn
     error: (message, error) => {
       print("error", scope, message, error);
       if (!reporter) return;
+      // A person's or device's state (no speech in the file, a cancelled model load) is told to them, not filed.
+      if (isExpectedClientError(error)) {
+        reporter.breadcrumb({ category: scope, message, level: "warning", data: breadcrumbData(error) });
+        return;
+      }
       const err = error instanceof Error ? error : new Error(error !== undefined ? `${message}: ${String(error)}` : message);
       reporter.exception(err, { scope, message });
     },

@@ -4,6 +4,7 @@
 import { createLogger, type Reporter } from "../src/lib/logger.ts";
 import { shouldReport, scrubText, scrubLog, scrubEvent, scrubTransaction, scrubBreadcrumb, sentryOptions, openFeedbackForm } from "../src/lib/sentry.ts";
 import { readFileSync } from "node:fs";
+import { ExpectedClientError } from "@ledgeur/core/expected";
 import { copyText } from "../src/lib/clipboard.ts";
 
 type Ok = (name: string, cond: boolean, detail?: string) => void;
@@ -38,6 +39,11 @@ export async function runReportingTests(ok: Ok): Promise<void> {
     log.error("no error object");
     ok("an error is reported", errors.length === 2 && errors[0].message === "kaboom");
     ok("a bare message still becomes an Error", errors[1].message === "no error object");
+
+    const before = errors.length;
+    log.error("import failed", new ExpectedClientError("No speech was found in that recording."));
+    ok("a person's state (no speech in the file) is not reported", errors.length === before);
+    ok("it still leaves a breadcrumb", crumbs[crumbs.length - 1].level === "warning" && crumbs[crumbs.length - 1].message === "import failed");
 
     const silent = createLogger("x", null);
     silent.warn("w"); silent.error("e", new Error("e")); silent.info("i");

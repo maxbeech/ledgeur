@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-10-25
+
+- **Sentry: states and scanners are not errors.** Four issues were noise (LEDGEUR_WEB-6 to -9):
+  - A scanner POSTing to `/app` with a made-up `Next-Action` header (`cachefn`) and `x-middleware-subrequest` made Next.js raise "Expected RSC response, got text/plain". `apps/marketing/lib/sentry-options.ts` now drops an event whose request carries `x-middleware-subrequest` or a `Next-Action` that is not a real action id (a 40+ character hex digest), and `onRequestError` skips the same requests. A new `apps/marketing/proxy.ts` answers 400 to any request carrying `x-middleware-subrequest`.
+  - A dismissed share prompt, a blocked, missing or busy microphone, a recording with no speech, and a model load cancelled by closing the page are the person's state: they are told, and nothing is filed. They are marked with `ExpectedClientError` or `CaptureError.expected` (`@ledgeur/core/expected`); `reportClientError` and the desktop logger skip them. An unrecognised capture failure and an insecure origin are still reported.
+- Tests: `apps/marketing/test/sentry.mts` (probe check, `beforeSend`, the proxy) and `packages/core/test` (`failures.mts`, `browser.mts`).
+
 ## 2026-10-20
 
 - **Content refresh, three pages** (`/alternatives/tldv`, `/transcribe/discord`, `/transcribe/google-voice-and-phone-calls`), from the weekly Search Console lifecycle pass. Each was ranking on page two or lower with few impressions.

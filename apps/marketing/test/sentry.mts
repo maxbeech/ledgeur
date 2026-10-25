@@ -1,8 +1,10 @@
 // Sentry wiring: shared options, log scrubbing, the central capture helper,
 // and that the feedback control and error boundaries are actually in place.
 import { readFileSync } from "node:fs";
-import { scrubText, scrubLog, scrubEvent, scrubTransaction, scrubBreadcrumb, baseSentryOptions } from "../lib/sentry-options.ts";
-import { captureServerError, captureServerMessage } from "../lib/observability.ts";
+import { NextRequest } from "next/server";
+import { proxy } from "../proxy.ts";
+import { scrubText, scrubLog, scrubTransaction, scrubBreadcrumb, baseSentryOptions, beforeSendEvent, isFrameworkProbe } from "../lib/sentry-options.ts";
+import { captureServerError, captureServerMessage, captureRequestErrorUnlessProbe } from "../lib/observability.ts";
 import { scrubText as edgeScrubText, scrubValue as edgeScrubValue, safeContext as edgeSafeContext } from "../../../supabase/functions/_shared/scrub.ts";
 import { scrubText as coreScrubText, scrubValue as coreScrubValue, safeContext as coreSafeContext } from "@ledgeur/core/sentry";
 
@@ -20,7 +22,18 @@ export function runSentryTests(ok: Ok) {
   ok("shared options turn logs on and PII off", baseSentryOptions.enableLogs === true && baseSentryOptions.sendDefaultPii === false);
   ok("shared options scrub logs", baseSentryOptions.beforeSendLog === scrubLog);
   ok("shared options scrub events, transactions and breadcrumbs too",
-    baseSentryOptions.beforeSend === scrubEvent && baseSentryOptions.beforeSendTransaction === scrubTransaction && baseSentryOptions.beforeBreadcrumb === scrubBreadcrumb);
+    baseSentryOptions.beforeSend === beforeSendEvent && baseSentryOptions.beforeSendTransaction === scrubTransaction && baseSentryOptions.beforeBreadcrumb === scrubBreadcrumb);
+  ok("an ordinary event still goes through the scrubber", (beforeSendEvent({ message: "mail jo@example.com" }) as { message: string }).message === "mail [email]");
+
+  // --- scanner probes (LEDGEUR_WEB-6): a made-up Next-Action or an x-middleware-subrequest header
+  ok("a made-up Next-Action header is a probe", isFrameworkProbe({ "Next-Action": "cachefn" }));
+  ok("x-middleware-subrequest is a probe, whatever the header case", isFrameworkProbe({ "X-Middleware-Subrequest": "middleware:middleware" }) && isFrameworkProbe({ "x-middleware-subrequest": "x" }));
+  ok("a real server action id is not a probe", !isFrameworkProbe({ "next-action": "7f" + "a1".repeat(20) }));
+  ok("an ordinary request is not a probe", !isFrameworkProbe({ accept: "text/html", "user-agent": "Mozilla/5.0" }) && !isFrameworkProbe(undefined) && !isFrameworkProbe({}));
+  ok("beforeSend drops a probe event (request headers)", beforeSendEvent({ request: { headers: { Accept: "text/x-component", "Next-Action": "cachefn" } } }) === null);
+  ok("beforeSend drops a probe event (normalised request)", beforeSendEvent({ sdkProcessingMetadata: { normalizedRequest: { headers: { "x-middleware-subrequest": "1" } } } }) === null);
+  ok("beforeSend keeps a normal request error", beforeSendEvent({ request: { headers: { accept: "text/html" } }, message: "boom" }) !== null);
+  void captureRequestErrorUnlessProbe;
 
   // --- every init uses the shared options and forwards console output
   for (const file of ["instrumentation-client.ts", "sentry.server.config.ts", "sentry.edge.config.ts"]) {
@@ -34,7 +47,12 @@ export function runSentryTests(ok: Ok) {
   const cfg = read("../next.config.ts");
   ok("the tunnel path is randomised, not /monitoring", /tunnelRoute: true/.test(cfg));
   ok("next.config names the ledgeur_web project", /"ledgeur_web"/.test(cfg) && /"maxed-labs"/.test(cfg));
-  ok("instrumentation.ts exports onRequestError", /onRequestError = Sentry\.captureRequestError/.test(read("../instrumentation.ts")));
+  ok("instrumentation.ts exports onRequestError, minus scanner probes", /onRequestError = captureRequestErrorUnlessProbe/.test(read("../instrumentation.ts")));
+  const proxySrc = read("../proxy.ts");
+  const refused = proxy(new NextRequest("https://example.com/app", { method: "POST", headers: { "x-middleware-subrequest": "middleware" } }));
+  const passed = proxy(new NextRequest("https://example.com/app"));
+  ok("the proxy answers 400 to x-middleware-subrequest and lets a normal request on", refused.status === 400 && passed.status === 200 && passed.headers.get("x-middleware-next") === "1");
+  ok("the proxy refuses x-middleware-subrequest", /headers\.has\("x-middleware-subrequest"\)/.test(proxySrc) && /status: 400/.test(proxySrc));
 
   // --- boundaries report
   ok("global-error captures the exception", /Sentry\.captureException\(error\)/.test(read("../app/global-error.tsx")));

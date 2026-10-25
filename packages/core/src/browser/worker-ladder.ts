@@ -9,6 +9,8 @@
 // That logic used to be copy-pasted into each app's transcriber controller —
 // and the two copies had already drifted. It lives here once.
 
+import { ExpectedClientError } from "../sentry/expected.ts";
+
 export interface WorkerDeviceInfo {
   device: string;
   label: string;
@@ -182,7 +184,7 @@ export class WorkerLadder {
   protected teardown(): void {
     // Settle the in-flight load first: its worker is about to be terminated, so
     // its listeners would never fire and anything awaiting it would hang.
-    this.abortLoad?.(new Error(`${this.options.subject} was cancelled.`));
+    this.abortLoad?.(new ExpectedClientError(`${this.options.subject} was cancelled.`));
     this.abortLoad = null;
     this.worker?.terminate();
     this.worker = null;

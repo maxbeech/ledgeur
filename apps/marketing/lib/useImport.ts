@@ -22,6 +22,7 @@ import {
   listVoiceProfiles, putMeeting,
 } from "@ledgeur/core/browser";
 import { emit } from "./analytics-events";
+import { ExpectedClientError } from "@ledgeur/core/expected";
 import { reportClientError } from "@/lib/observability-client";
 
 export interface ImportState {
@@ -98,7 +99,7 @@ export function useImport(onImported?: (meeting: LocalMeeting) => void) {
       const timed = chunks.length
         ? chunks
         : (text.trim() ? [{ text: text.trim(), start: 0, end: durationSec }] : []);
-      if (timed.length === 0) throw new Error("No speech was found in that recording.");
+      if (timed.length === 0) throw new ExpectedClientError("No speech was found in that recording.");
 
       let segments: AttributedSegment[] = timed.map((c) => ({
         startMs: Math.round(c.start * 1000),

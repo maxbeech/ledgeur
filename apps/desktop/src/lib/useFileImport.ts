@@ -18,6 +18,7 @@ import {
 import {
   AudioCapture, TranscriberController, DiarizerController, listVoiceProfiles,
 } from "@ledgeur/core/browser";
+import { ExpectedClientError } from "@ledgeur/core/expected";
 import { saveMeeting, type LocalMeeting, type LocalSegment, type LocalSpeaker } from "./meetingsStore.ts";
 import { autoLabelSpeakers } from "./speakerNames.ts";
 import { generateMeetingNotes } from "./notes.ts";
@@ -92,7 +93,7 @@ export function useFileImport() {
       const timed: AsrChunk[] = chunks.length
         ? chunks
         : (text.trim() ? [{ text: text.trim(), start: 0, end: durationSec }] : []);
-      if (timed.length === 0) throw new Error("No speech was found in that recording.");
+      if (timed.length === 0) throw new ExpectedClientError("No speech was found in that recording.");
 
       patch({ step: "Working out who was speaking…" });
       diarizer = new DiarizerController();
