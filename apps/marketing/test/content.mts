@@ -15,6 +15,7 @@ import { GUIDES } from "../lib/guides.ts";
 import { TEMPLATES, templateBySlug, templateMarkdown } from "../lib/templates.ts";
 import { POSTS, postBySlug } from "../lib/posts.ts";
 import { COMPETITORS } from "../lib/competitors.ts";
+import { CONSOLIDATED_REDIRECTS, consolidatedRedirectRules } from "../lib/redirects.ts";
 import { PLATFORMS, platformBySlug } from "../lib/platforms.ts";
 import { USE_CASES } from "../lib/usecases.ts";
 import { PLANS, TEAM_PRICE_USD, ENTERPRISE_FLOOR_USD } from "../lib/plans.ts";
@@ -219,9 +220,13 @@ export function runContentTests(ok: (name: string, cond: boolean, detail?: strin
     if (block.type === "table") return count + block.rows.flat().join(" ").split(/\s+/).length;
     return count;
   }, 0);
+  // The three articles revised by the 2026-11-04 content pass carry that date;
+  // the rest of the list still carries the 2026-09-25 revision.
+  const REVISED_2026_11_04 = new Set(["open-source-granola-alternative", "how-to-transcribe-microsoft-teams-meetings", "ai-meeting-notes-without-a-bot"]);
   for (const slug of indexingCandidates) {
     const post = postBySlug(slug);
-    ok(`${slug} is materially updated`, post?.updated === "2026-09-25", post?.updated);
+    const expectedUpdated = REVISED_2026_11_04.has(slug) ? "2026-11-04" : "2026-09-25";
+    ok(`${slug} is materially updated`, post?.updated === expectedUpdated, post?.updated);
     ok(`${slug} has substantive guidance`, Boolean(post && countWords(post) >= 450), `${countWords(post ?? POSTS[0])} words`);
     ok(`${slug} has primary sources`, Boolean(post && (post.sources?.length ?? 0) >= 2));
   }
@@ -260,4 +265,67 @@ export function runContentTests(ok: (name: string, cond: boolean, detail?: strin
   // stop trusting the console and miss a real error underneath it.
   ok("a favicon.ico exists so the browser's own probe does not 404",
     existsSync(new URL("../app/favicon.ico", import.meta.url)));
+
+  // ---------- the content lifecycle pass (2026-11-04) ----------
+  // A merged URL answers with a 301 to the page that kept its material, and has
+  // no page of its own. Each row is pinned here, so a later edit cannot quietly
+  // restore a page that was merged away.
+  const fromPaths = CONSOLIDATED_REDIRECTS.map((row) => row.from);
+  ok("each merged URL appears once in the redirect list",
+    new Set(fromPaths).size === fromPaths.length, fromPaths.join(", "));
+  for (const row of CONSOLIDATED_REDIRECTS) {
+    const rule = consolidatedRedirectRules().find((r) => r.source === row.from);
+    ok(`${row.from} is a permanent 301 to ${row.to}`,
+      rule?.destination === row.to && rule?.statusCode === 301, JSON.stringify(rule));
+    const competitorSlug = row.from.startsWith("/alternatives/") ? row.from.slice("/alternatives/".length) : null;
+    const postSlug = row.from.startsWith("/blog/") ? row.from.slice("/blog/".length) : null;
+    ok(`${row.from} has no page of its own any more`,
+      !(competitorSlug && COMPETITORS.some((c) => c.slug === competitorSlug)) && !(postSlug && postBySlug(postSlug)),
+      row.from);
+    const destinationSlug = row.to.split("/").pop() ?? "";
+    const destinationExists = row.to.startsWith("/blog/")
+      ? Boolean(postBySlug(destinationSlug))
+      : COMPETITORS.some((c) => c.slug === destinationSlug);
+    ok(`${row.to} exists to receive it`, destinationExists, row.to);
+  }
+
+  // Fireflies: the Notetaker bot is the default, but its Chrome extension can
+  // record a Google Meet without one, so "a bot joins the call" was incomplete.
+  const fireflies = COMPETITORS.find((c) => c.slug === "fireflies-ai");
+  ok("Fireflies names its bot-free Chrome extension route",
+    /Chrome extension/.test(fireflies?.what ?? "") && /without a bot/.test(fireflies?.what ?? ""), fireflies?.what);
+  ok("Fireflies cites its pricing page and its extension page",
+    (fireflies?.sources ?? []).some((s) => s.href === "https://fireflies.ai/pricing")
+      && (fireflies?.sources ?? []).some((s) => s.href === "https://fireflies.ai/product/chrome-extension"));
+  ok("the Fireflies comparison concedes a point",
+    (fireflies?.diff ?? []).some((d) => /better fit/.test(d)));
+
+  // Merged material landed in the article that kept it, and the Otter article's
+  // competitor list carries the bot routes checked above.
+  const granolaPost = postBySlug("open-source-granola-alternative");
+  ok("the granola article carries the no-trial-clock point from the merged page",
+    JSON.stringify(granolaPost?.body).includes("There is no trial clock"), granolaPost?.updated);
+  const otterPost = postBySlug("otter-ai-alternatives");
+  ok("the Otter article says no notetaker bot joins the call",
+    JSON.stringify(otterPost?.body).includes("No notetaker bot joins the call"));
+  ok("the Otter article gives Fireflies and tl;dv their current bot routes",
+    JSON.stringify(otterPost?.body).includes("Chrome extension can record Google Meet without one")
+      && JSON.stringify(otterPost?.body).includes("Chrome extension sends a bot"));
+  const teamsPost = postBySlug("how-to-transcribe-microsoft-teams-meetings");
+  ok("the Teams article keeps the recording-location material from the merged page",
+    JSON.stringify(teamsPost?.body).includes("If you already have a Teams recording"));
+  ok("the Teams article no longer states licence tiers it does not source",
+    !JSON.stringify(teamsPost?.body).includes("Business Basic"));
+
+  // The refreshed browser article states the product's own browser rule (from
+  // packages/core/src/browser/capture.ts) and links to the pages a reader needs next.
+  const noBot = postBySlug("ai-meeting-notes-without-a-bot");
+  ok("the no-bot article names the browsers that can share a meeting tab's audio",
+    JSON.stringify(noBot?.body).includes("Meeting-tab audio needs desktop Chrome, Edge or Brave"));
+  ok("the no-bot article uses the picker label the app shows",
+    JSON.stringify(noBot?.body).includes("Also share tab audio"));
+  ok("the no-bot article links to the browser support page and related tab-audio guidance",
+    (noBot?.body ?? []).some((block) => block.type === "links"
+      && block.links.some((l) => l.href === "/transcribe")
+      && block.links.some((l) => l.href === "/blog/browser-tab-audio-for-meeting-notes")));
 }

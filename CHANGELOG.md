@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-11-04
+
+- **Content lifecycle pass: three pages merged, two refreshed.** Chosen from 90 days of Search Console data (2026-08-06 to 2026-11-03).
+  - **Merged** `/alternatives/granola` into `/blog/open-source-granola-alternative`, `/alternatives/otter-ai` into `/blog/otter-ai-alternatives`, and `/blog/automatic-notes-in-microsoft-teams` into `/blog/how-to-transcribe-microsoft-teams-meetings`. The losing URLs answer with a permanent 301 (`apps/marketing/lib/redirects.ts`, wired in `apps/marketing/next.config.ts`) and leave the sitemap. The Teams article does not carry over the Copilot licence-tier table: those claims were unsourced and go stale.
+  - **Fireflies comparison**: it said Fireflies always sends a bot. Its Notetaker bot is the default, but its Chrome extension can record Google Meet without one, and its desktop app captures system audio without one. The comparison now says so, cites Fireflies' pricing and extension pages, and concedes where Fireflies is the better fit.
+  - **No-bot article** (`/blog/ai-meeting-notes-without-a-bot`): states that meeting-tab audio needs desktop Chrome, Edge or Brave (the rule in `packages/core/src/browser/capture.ts`), uses the picker label the app shows ("Also share tab audio"), and links to the browser support page and tab-audio guidance.
+- Tests: `apps/marketing/test/content.mts` pins each redirect, each merged fact and each corrected claim. Marketing suite: 735 passing.
+
 ## 2026-10-25
 
 - **Sentry: states and scanners are not errors.** Four issues were noise (LEDGEUR_WEB-6 to -9):

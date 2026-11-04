@@ -19,43 +19,24 @@ export interface Competitor {
 }
 
 export const COMPETITORS: Competitor[] = [
-  {
-    slug: "granola",
-    name: "Granola",
-    demand: "granola alternative 260/mo (rising) · open source granola 50→110/mo",
-    what: "A macOS AI notepad that listens to your meeting audio and enhances your typed notes with an AI summary after the call.",
-    model: "Paid subscription per seat after a free trial; macOS-first desktop app; transcripts and notes are processed in its cloud.",
-    diff: [
-      "Ledgeur is open source (MIT) — Granola is closed source.",
-      "Transcription runs locally in your browser; Granola sends audio to its servers for processing.",
-      "Works on any OS with a Chromium browser, not just macOS.",
-      "Free forever for one person — no trial clock, and no per-seat fee until you want the record synced or shared.",
-    ],
-  },
-  {
-    slug: "otter-ai",
-    name: "Otter.ai",
-    demand: "otter ai alternatives 390/mo · alternatives to otter ai 110/mo · otter alternative 90/mo",
-    what: "A cloud transcription service that records meetings, generates live transcripts and AI summaries, and stores them in your Otter account.",
-    model: "Freemium with strict monthly transcription minutes; paid tiers per user; recordings live in Otter's cloud.",
-    diff: [
-      "No monthly minute caps — transcribe as much as you want, it runs on your device.",
-      "Your recordings never leave the browser; Otter stores everything in its cloud.",
-      "No notetaker bot joins the call — Ledgeur captures the meeting tab audio directly.",
-      "Self-hostable and open source for organisations with data-residency rules.",
-    ],
-  },
+  // The granola and otter-ai pages were merged into their blog articles on
+  // 2026-11-04; their URLs 301 there (see lib/redirects.ts).
   {
     slug: "fireflies-ai",
     name: "Fireflies.ai",
     demand: "fireflies ai note taker 4,400/mo",
-    what: "A meeting assistant bot that joins calls via a calendar integration, records and transcribes them, and pushes notes to your CRM.",
-    model: "Per-seat SaaS; a bot joins the call; transcripts stored and analysed in Fireflies' cloud.",
+    what: "A meeting notetaker whose Notetaker bot joins calls to record and transcribe them. Its Chrome extension can record a Google Meet without a bot, and its desktop app captures system audio without one.",
+    model: "Freemium: Free, Pro, Business and Enterprise plans, with paid plans charged per seat. The Notetaker bot is the default route, and transcription runs in Fireflies' cloud.",
     diff: [
-      "No bot in the participant list — capture happens locally from the meeting tab.",
-      "Privacy by default: audio is processed on-device, not in a third-party cloud.",
-      "Free for individuals; pay only for shared team workspaces.",
+      "No notetaker bot to invite or admit: Ledgeur never joins the call, and it captures the meeting tab in your browser.",
+      "Transcription runs on your device; Fireflies transcribes in its cloud.",
+      "Free for one person permanently, with unlimited transcription. Fireflies' Free plan is limited by monthly transcription credits, and its paid plans are per seat.",
       "Open source — auditable and self-hostable for security-conscious teams.",
+      "Fireflies is the better fit if your team wants a bot on every scheduled call and shared workspaces. Ledgeur is for a record you keep on your own machine.",
+    ],
+    sources: [
+      { label: "Fireflies pricing", href: "https://fireflies.ai/pricing" },
+      { label: "Fireflies Chrome extension (Google Meet without a bot)", href: "https://fireflies.ai/product/chrome-extension" },
     ],
   },
   {
