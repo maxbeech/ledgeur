@@ -7,6 +7,7 @@ import { track } from "../../../lib/openhelm-analytics";
 type Source = "web" | "web_import";
 
 export interface AnalyticsEventMap {
+  free_user: { source: "web" };
   sign_up: { method: "email" };
   sign_up_failed: { reason: string };
   login: { method: "email" };

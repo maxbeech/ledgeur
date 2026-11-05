@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-11-05
+
+- **First free use is recorded on the web app.** The `free_user` event (journey `acquisition`, step `free_user`) was defined in the journey spec but no code sent it, so the first free use could not be counted.
+  - `apps/marketing/app/app/FirstFreeUse.tsx` sends `free_user` once per browser on the first load of `/app`, and `apps/marketing/app/app/page.tsx` mounts it. The once-per-browser mark is `claimFirstFreeUse` in `apps/marketing/lib/first-free-use.ts` (localStorage key `ledgeur.firstFreeUseReported`). If storage is refused, nothing is sent rather than on every load.
+  - `free_user` is in the typed event map (`apps/marketing/lib/analytics-events.ts`). The desktop app and the sign-up route do not send it yet.
+- Tests: `apps/marketing/test/analytics.mts` checks the event's call site, the mount and the once-per-browser claim. Marketing suite: 743 passing.
+
 ## 2026-11-04
 
 - **Content lifecycle pass: three pages merged, two refreshed.** Chosen from 90 days of Search Console data (2026-08-06 to 2026-11-03).

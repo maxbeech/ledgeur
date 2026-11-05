@@ -6,6 +6,7 @@
 import { readFileSync } from "node:fs";
 import { isValidEventName, userRefFor } from "../../../lib/openhelm-analytics-mp.ts";
 import { planFor, isAnalyticsIdentity, reasonCode } from "../lib/analytics-identity.ts";
+import { claimFirstFreeUse } from "../lib/first-free-use.ts";
 
 type Ok = (name: string, cond: boolean, detail?: string) => void;
 
@@ -15,6 +16,7 @@ const read = (rel: string) => readFileSync(new URL(rel, import.meta.url), "utf8"
 // valid GA4 name and must appear at a real call site, so a rename that misses
 // one is a failing test rather than a metric that is silently zero.
 const WEB_EVENTS: Array<[string, string]> = [
+  ["free_user", "../app/app/FirstFreeUse.tsx"],
   ["sign_up", "../components/auth/SignInForm.tsx"],
   ["sign_up_failed", "../components/auth/SignInForm.tsx"],
   ["login", "../components/auth/SignInForm.tsx"],
@@ -66,6 +68,20 @@ export function runAnalyticsTests(ok: Ok): void {
     ok(`"${name}" is a valid GA4 event name`, isValidEventName(name), name);
     ok(`"${name}" is sent from ${file.split("/").pop()}`, new RegExp(`emit\\("${name}"`).test(read(file)), name);
   }
+
+  ok("the web app mounts FirstFreeUse on its first load", /<FirstFreeUse \/>/.test(read("../app/app/page.tsx")));
+  ok("FirstFreeUse reports only through claimFirstFreeUse, so it is once per browser",
+    /claimFirstFreeUse\(window\.localStorage\)/.test(read("../app/app/FirstFreeUse.tsx")));
+
+  // Once per browser: the first claim wins, every later one is refused, and
+  // a store that refuses writes reports nothing rather than on every load.
+  const memory = new Map<string, string>();
+  const store = { getItem: (k: string) => memory.get(k) ?? null, setItem: (k: string, v: string) => { memory.set(k, v); } };
+  ok("claimFirstFreeUse is true on the first use", claimFirstFreeUse(store) === true);
+  ok("claimFirstFreeUse is false on every later use", claimFirstFreeUse(store) === false && claimFirstFreeUse(store) === false,
+    JSON.stringify([...memory]));
+  ok("claimFirstFreeUse keeps a different browser separate",
+    claimFirstFreeUse({ getItem: () => null, setItem: () => {} }) === true);
 
   const identityRoute = read("../app/api/analytics/identity/route.ts");
   ok("the identity route hashes the id server-side and returns no email",
