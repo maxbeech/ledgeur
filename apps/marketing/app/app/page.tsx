@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { SITE } from "@/lib/site";
 import AppShell from "@/components/app/AppShell";
+import FirstFreeUse from "./FirstFreeUse";
 import { Badge, Display } from "@ledgeur/ui/components";
 
 export const metadata: Metadata = {
@@ -13,6 +14,7 @@ export const metadata: Metadata = {
 export default function AppPage() {
   return (
     <main>
+      <FirstFreeUse />
       <div className="border-b border-hairline bg-paper">
         <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-5 py-5">
           <div>
