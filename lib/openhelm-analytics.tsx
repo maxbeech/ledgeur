@@ -188,6 +188,7 @@ export function OpenHelmAnalytics() {
         {`window.dataLayer = window.dataLayer || [];
 function gtag(){dataLayer.push(arguments);}
 window.gtag = window.gtag || gtag;
+gtag('set', { send_page_view: false });
 gtag('js', new Date());
 gtag('config', '${MEASUREMENT_ID}', { send_page_view: false });`}
       </Script>
