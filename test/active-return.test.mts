@@ -49,7 +49,7 @@ describe('active return contract', () => {
       addEventListener: (n, f) => { handlers.set(n, f as EventListener); }, removeEventListener: n => { handlers.delete(n); } },
       storage: { getItem: () => { throw Error('storage denied'); }, setItem: () => {} },
       now: () => start, consented: () => consent, send: n => { events.push(n); return true; }, onError: e => errors.push(e) });
-    assert.deepEqual(events, []); assert.deepEqual(errors, []);
+    assert.deepEqual(events, []); assert.equal(errors.length, 0);
     consent = true; handlers.get('visibilitychange')!(new Event('visibilitychange'));
     assert.equal(errors[0].message, 'storage denied'); assert.deepEqual(events, []);
     stop(); assert.equal(handlers.size, 0);

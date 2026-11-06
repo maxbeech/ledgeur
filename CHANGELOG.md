@@ -2139,3 +2139,5 @@ on-device AI and a Supabase backend.
 
 ### Not yet implemented (see ROADMAP)
 - Auth + calendar + meeting auto-prompt · native whisper.cpp/sherpa-onnx/llama.cpp · RAG across the hive mind · Notion export · paid MCP server · iOS/Windows/Android builds.
+
+Generated Node analytics tests assert the empty error count without narrowing the mutable collection to `never[]`; storage-error checks remain unchanged.
