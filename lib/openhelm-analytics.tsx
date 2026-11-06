@@ -13,7 +13,7 @@
  * load-bearing: a GA4 property's id changes whenever the property is recreated
  * or moved between accounts, and a portfolio that hardcodes it needs 32 commits
  * and 32 deploys to re-point. With the id in the environment, re-pointing a
- * product at a different property is a Vercel env change and a redeploy.
+ * product at a different property is a deployment environment change and a redeploy.
  *
  * UNSET MEANS OFF, LOUDLY-IN-DEV AND SILENTLY-IN-PROD. With no measurement id
  * this renders nothing, loads no script, and `track()` is a no-op. It never
@@ -47,6 +47,7 @@
  * load gtag.js in a native shell.
  */
 "use client";
+import { ActiveReturnTracker } from "./active-return-tracker";
 
 import { Suspense, useEffect, useRef } from "react";
 import Script from "next/script";
@@ -159,7 +160,7 @@ function PageViews() {
  * Drop `<OpenHelmAnalytics />` in the root layout's `<body>`. Renders nothing.
  *
  * The name is deliberately not `Analytics`. Nine of these products already
- * import `Analytics` from `@vercel/analytics`, and a second import of that
+ * import a generic `Analytics` binding from their hosting SDK, and a second import of that
  * binding is a duplicate-identifier build failure, not a warning, so the
  * generic name is the one name this component may not have.
  */
@@ -169,7 +170,7 @@ export function OpenHelmAnalytics() {
     if (process.env.NODE_ENV === "development") {
       console.warn(
         "[openhelm-analytics] NEXT_PUBLIC_GA_MEASUREMENT_ID is not set, so " +
-          "nothing is being measured. Set it in .env.local and in the Vercel " +
+          "nothing is being measured. Set it in .env.local and in the deployment " +
           "project's environment to switch measurement on.",
       );
     }
@@ -192,6 +193,7 @@ gtag('config', '${MEASUREMENT_ID}', { send_page_view: false });`}
       </Script>
       <Suspense fallback={null}>
         <PageViews />
+        <ActiveReturnTracker measurementId={MEASUREMENT_ID} />
       </Suspense>
     </>
   );

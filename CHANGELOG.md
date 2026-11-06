@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-11-06: active return measurement
+
+- Record first measured visits and intentional returns using the shared three-hour, seven-day browser contract.
+- Preserve the product analytics boundary and add regression tests for passive tabs, continuous sessions, consent and storage errors.
+
 ## 2026-11-05
 
 - **First free use is recorded on the web app.** The `free_user` event (journey `acquisition`, step `free_user`) was defined in the journey spec but no code sent it, so the first free use could not be counted.
