@@ -146,8 +146,9 @@ function PageViews() {
 
   useEffect(() => {
     if (!analyticsEnabled || !pathname) return;
-    const query = searchParams?.toString();
-    const url = query ? `${pathname}?${query}` : pathname;
+    // Hooks trigger observation; the browser URL is the emission-time source of truth.
+    const current = new URL(window.location.href);
+    const url = current.pathname + current.search;
     if (lastSent.current === url) return;
     lastSent.current = url;
     trackPageView(url);
