@@ -232,6 +232,16 @@ export default function Home() {
         </div>
 
         <div className="mt-16">
+          <SectionHead
+            title="Read the guides."
+            lede="Practical writing on AI meeting notes, free transcription and keeping the record on your own machine."
+          />
+          <Link href="/blog" className="mt-5 inline-block text-base font-medium text-brand-strong hover:underline">
+            Browse every guide and article
+          </Link>
+        </div>
+
+        <div className="mt-16">
           <SectionHead title="Coming from something else?" />
           <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {COMPETITORS.slice(0, 6).map((c) => (

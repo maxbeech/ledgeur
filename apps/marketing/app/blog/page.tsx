@@ -8,9 +8,9 @@ import { PageHeader, Section } from "@/components/site/Chrome";
 import { CtaBlock } from "@/components/site/CtaBlock";
 
 export const metadata: Metadata = {
-  title: "Guides — AI meeting notes, transcription & privacy",
+  title: "Ledgeur blog: private meeting notes, transcription and speaker labels",
   description:
-    "Guides on AI meeting notes, free meeting transcription, on-device privacy and choosing the right notetaker. From the Ledgeur team.",
+    "Every Ledgeur article in one place: how to transcribe Zoom and Meet calls, write meeting minutes, compare AI notetakers and keep recordings on your own device.",
   alternates: { canonical: `${SITE.url}/blog` },
 };
 
@@ -29,6 +29,15 @@ export default function BlogIndex() {
         title="Meetings, transcription, and keeping both private."
         lede="Practical writing about getting a usable record out of a conversation — and about why so much of the software for it sends your audio somewhere else."
       />
+      <Section width="narrow" pad="tight">
+        <p className="text-md leading-relaxed text-muted">
+          Ledgeur records a meeting in your browser and works out who said what without uploading the audio anywhere.
+          The articles below follow from that: how to get a usable transcript from Zoom, Meet or Teams, how to turn it
+          into minutes and action items, how the on-device approach compares with cloud notetakers, and what to check
+          before you trust any tool with a confidential call. Start with one of the three guides if you are not sure
+          where to look, or scan the list by date.
+        </p>
+      </Section>
       {/* The pillars come first. Twenty-eight posts at one level is a pile;
           the three guides are the pages that say which pile to look in. */}
       <Section width="narrow" pad="tight">
