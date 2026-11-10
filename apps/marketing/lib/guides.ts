@@ -231,13 +231,11 @@ export const GUIDES: readonly Guide[] = [
       },
     ],
     cluster: [
-      "fireflies-vs-otter-vs-ledgeur",
       "meeting-recording-transcription-software-compared",
       "extract-action-items-from-meetings",
       "meeting-notes-best-practices",
       "product-team-decision-log-from-meetings",
       "meeting-notes-for-ai-agents",
-      "mcp-meeting-records-explained",
       "meeting-transcripts-as-company-context",
       "ai-agent-meeting-search-permissions",
     ],

@@ -191,23 +191,4 @@ export const SET_1: Post[] = [
       { type: "p", text: "Generate notes with one click, edit the Markdown, and export or save it to your browser. Google never sees the transcript Ledgeur builds." },
     ],
   },
-  {
-    slug: "fireflies-vs-otter-vs-ledgeur",
-    title: "Fireflies vs Otter vs Ledgeur: Which Meeting Notetaker?",
-    description: "A clear comparison of Fireflies, Otter.ai and Ledgeur across privacy, pricing, the bot question and open source.",
-    keyword: "ai meeting notes",
-    date: "2026-06-10",
-    readMins: 6,
-    body: [
-      { type: "p", text: "Fireflies and Otter are two of the most popular AI notetakers. Ledgeur takes a different architectural approach. Here's how they line up on the things that matter." },
-      { type: "h2", text: "Bot vs no bot" },
-      { type: "p", text: "Fireflies and Otter both rely on a bot joining your call (or a cloud recorder). Ledgeur captures the meeting tab's audio directly in your browser — no bot in the participant list." },
-      { type: "h2", text: "Where your audio goes" },
-      { type: "p", text: "Fireflies and Otter process and store recordings in their cloud. Ledgeur processes audio on your device and stores notes locally unless you export them." },
-      { type: "h2", text: "Pricing" },
-      { type: "ul", items: ["Fireflies — per-seat SaaS with a limited free tier", "Otter — freemium with monthly minute caps", "Ledgeur — free for one person with no minute caps; you pay only to sync, share or connect an agent"] },
-      { type: "h2", text: "Open source" },
-      { type: "p", text: "Fireflies and Otter are closed source. Ledgeur is MIT-licensed and self-hostable — the right pick if you need to audit the code or run it inside your own network." },
-    ],
-  },
 ];

@@ -75,15 +75,24 @@ export const SET_3: Post[] = [
     description: "Otter, Fireflies, Fathom, Read.ai and local tools like Ledgeur all transcribe meetings differently. Here's a comparison across privacy, accuracy, price and features.",
     keyword: "meeting recording transcription software",
     date: "2026-06-20",
+    updated: "2026-11-10",
     readMins: 7,
     body: [
       { type: "p", text: "The meeting transcription market has exploded since 2022. There are now dozens of tools that join your calls, record, transcribe and summarise. Here's how the main categories compare." },
       { type: "h2", text: "Bot-based cloud notetakers" },
-      { type: "p", text: "Otter.ai, Fireflies.ai, Fathom, Read.ai and Avoma all work by having a bot join your calendar-linked meeting. The bot records, transcribes in the cloud and sends you a summary. These are the most polished experience: the bot handles consent banners, speaker ID, action item extraction and integrations with Slack, Notion and CRMs. Downside: audio is on their servers. Pricing ranges from free (with limits) to $20–$40/user/month." },
+      { type: "p", text: "Otter.ai, Fireflies.ai, Fathom, Read.ai and Avoma mostly work by having a bot join your calendar-linked meeting. The bot records, transcribes in the cloud and sends you a summary. These are the most polished experience: the bot handles consent banners, speaker ID, action item extraction and integrations with Slack, Notion and CRMs. Downside: audio is on their servers. Fireflies is not bot-only: its Chrome extension can record a Google Meet without a bot, as the Fireflies links below describe. Pricing ranges from free (with limits) to $20–$40/user/month." },
       { type: "h2", text: "Platform-native transcription" },
       { type: "p", text: "Zoom, Teams, Meet and Webex have built-in transcription. It is tightly integrated with the platform and often included in paid plans. Quality is generally good; summaries require a premium AI add-on (Zoom AI Companion, Microsoft Copilot). It does not work across platforms — if you use multiple video tools, you need platform-specific features for each." },
       { type: "h2", text: "Local on-device transcription (Ledgeur)" },
-      { type: "p", text: "Ledgeur runs Whisper in your browser. Audio never leaves your device. No bot joins your call — you transcribe live by sharing audio to the tool, or upload a recording file after. It works with any meeting platform. There is no speaker diarization in the basic version. Best for: sensitive meetings, compliance-heavy environments and users who do not want third-party data access." },
+      { type: "p", text: "Ledgeur runs Whisper in your browser. Audio never leaves your device. No bot joins your call — you transcribe live by sharing audio to the tool, or upload a recording file after. It works with any meeting platform. Speaker separation also runs in your browser, so the transcript shows who said what without an upload. Best for: sensitive meetings, compliance-heavy environments and users who do not want third-party data access." },
+      { type: "h2", text: "Fireflies, Otter and Ledgeur side by side" },
+      { type: "p", text: "Fireflies and Otter are the two notetakers people compare most often with Ledgeur. The same four things usually decide the choice." },
+      { type: "ul", items: [
+        "Bot: Fireflies' Notetaker bot is the default and joins the call, but its Chrome extension can record Google Meet without one. Otter relies on a bot joining the call or a cloud recorder. Ledgeur captures the meeting tab's audio in your browser, so no bot appears in the participant list.",
+        "Where your audio goes: Fireflies and Otter process and store recordings in their cloud. Ledgeur processes audio on your device and keeps notes locally unless you export them.",
+        "Pricing: Fireflies is per seat with a limited free tier. Otter is freemium with monthly minute caps. Ledgeur is free for one person with no minute caps, and you pay only to sync, share or connect an agent.",
+        "Open source: Fireflies and Otter are closed source. Ledgeur is MIT-licensed and self-hostable, which suits anyone who needs to audit the code or run it inside their own network.",
+      ] },
       { type: "h2", text: "Which should you choose?" },
       { type: "ul", items: [
         "Maximum convenience + don't care about data: Fathom (free tier is generous) or Otter.ai.",
@@ -91,6 +100,10 @@ export const SET_3: Post[] = [
         "Privacy-first, sensitive content, or no consent from attendees: Ledgeur.",
         "Recording an uploaded file (post-call): Ledgeur or AssemblyAI API.",
       ] },
+    ],
+    sources: [
+      { label: "Fireflies pricing", href: "https://fireflies.ai/pricing" },
+      { label: "Fireflies Chrome extension (Google Meet without a bot)", href: "https://fireflies.ai/product/chrome-extension" },
     ],
   },
   {
@@ -403,7 +416,6 @@ export const SET_3: Post[] = [
         { label: "read the guide to meetings for AI agents", href: "/guides/meetings-for-ai-agents" },
         { label: "prepare meeting notes for AI agents", href: "/blog/meeting-notes-for-ai-agents" },
         { label: "set AI agent meeting search permissions", href: "/blog/ai-agent-meeting-search-permissions" },
-        { label: "understand MCP meeting records", href: "/blog/mcp-meeting-records-explained" },
       ] },
     ],
     faqs: [
