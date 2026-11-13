@@ -48,6 +48,9 @@
   - **Discord**: says the Discord desktop app cannot be tab-shared, names the browsers meeting-tab capture supports (desktop Chrome, Edge or Brave), and adds a consent step for voice channels with people in other countries.
   - **Google Voice**: covers Google's AI call notes, announced 16 June 2026 (eligible paid plans, English only), and separates Google's voicemail transcripts from call transcription.
 - `apps/marketing/test/content.mts` pins each corrected fact to the page, so a later edit cannot quietly restore the old claim.
+## 2026-10-16
+
+- Journey `activation-first-meeting` (step `capture-started`): the "Or try it on a sample clip first" fetch had no deadline, so a slow or unresponsive CDN left the click with no result and no error. The fetch now aborts after 8 seconds and shows a readable error. New `lib/fetch-with-timeout.ts`, with regression tests in `test/run.mts`.
 
 ## 2026-10-15
 

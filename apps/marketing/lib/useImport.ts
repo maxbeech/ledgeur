@@ -24,6 +24,11 @@ import {
 import { emit } from "./analytics-events";
 import { ExpectedClientError } from "@ledgeur/core/expected";
 import { reportClientError } from "@/lib/observability-client";
+import { fetchWithTimeout } from "@/lib/fetch-with-timeout";
+
+/** The sample is on a third-party CDN. Past this, the user gets an error they can
+ *  act on rather than a click that appears to do nothing (see fetch-with-timeout). */
+export const SAMPLE_FETCH_TIMEOUT_MS = 8_000;
 
 export interface ImportState {
   busy: boolean;
@@ -185,7 +190,7 @@ export function useImport(onImported?: (meeting: LocalMeeting) => void) {
   const importSample = useCallback(async (url: string, lang = "en"): Promise<LocalMeeting | null> => {
     setState({ ...IDLE, busy: true, name: "Sample clip", step: "Fetching the sample…" });
     try {
-      const response = await fetch(url);
+      const response = await fetchWithTimeout(url, SAMPLE_FETCH_TIMEOUT_MS);
       if (!response.ok) throw new Error(`The sample could not be fetched (${response.status}).`);
       const bytes = await response.blob();
       const file = new File([bytes], "ledgeur-sample.wav", { type: bytes.type || "audio/wav" });
