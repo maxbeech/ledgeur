@@ -28,6 +28,7 @@
     "test": "tsx test/run.mts && tsx test/scrub-hardening.test.mts"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^1.8.0",
     "@supabase/supabase-js": "^2.58.0"
   },
   "devDependencies": {

@@ -12,7 +12,7 @@ joins your call, no audio leaves your machine, no per-seat fee.
 - 🤖 **No bot** — captures the meeting tab's audio directly; nothing in the participant list.
 - 🆓 **Free for individuals** — unlimited recordings, no minute caps.
 - 🧩 **Open source (MIT)** — auditable and self-hostable.
-- 📝 **Smart notes** — free on-device summarizer, or bring your own AI key (OpenAI / OpenRouter / Groq).
+- 📝 **Smart notes** — free on-device summarizer, or bring your own Anthropic (Claude) API key.
 
 ## How it works
 

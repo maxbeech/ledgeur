@@ -3,7 +3,7 @@ import { splitSentences, extractiveSummary, summarizeTranscript, notesToMarkdown
 import { parseNotesMarkdown } from "../src/notes/markdown.ts";
 import { parseSuggestions } from "../src/notes/suggest.ts";
 import { NOTE_TEMPLATES, DEFAULT_TEMPLATE_ID, templateById, templateInstruction } from "../src/notes/templates.ts";
-import { buildNotesRequest, providerById, AI_PROVIDERS } from "../src/notes/ai-notes.ts";
+import { buildNotesRequest, buildAnthropicNotesParams, textFromAnthropicMessage, providerById, AI_PROVIDERS } from "../src/notes/ai-notes.ts";
 import { toMeetingNote, actionItemsFromNotes } from "../src/notes/map.ts";
 import { resample, mergeToMono, rms, concatFloat32, mixFloat32, pcm16ToWav, WHISPER_SAMPLE_RATE } from "../src/audio/pcm.ts";
 import { markdownToNotionBlocks, chunkBlocks, buildNotionPage } from "../src/integrations/notion.ts";
@@ -166,12 +166,19 @@ ok("mixFloat32 pads the shorter buffer with zero rather than truncating", (() =>
 ok("mixFloat32 of an empty buffer returns the other one untouched", mixFloat32(new Float32Array(0), new Float32Array([1, 2, 3])).length === 3);
 
 // --- ai-notes ---
-const req = buildNotesRequest("gpt-4o-mini", "hello world");
-ok("request has model", req.model === "gpt-4o-mini");
+const req = buildNotesRequest("local", "hello world");
+ok("request has model", req.model === "local");
 ok("request has system + user", req.messages.length === 2 && req.messages[0].role === "system");
 ok("request truncates long transcript", buildNotesRequest("m", "x".repeat(60000)).messages[1].content.includes("(truncated)"));
 ok("providerById falls back", providerById("nope").id === AI_PROVIDERS[0].id);
 ok("local provider is first (zero-setup default)", AI_PROVIDERS[0].id === "local");
+ok("only local + anthropic providers remain", AI_PROVIDERS.map((p) => p.id).join() === "local,anthropic");
+const areq = buildAnthropicNotesParams("claude-sonnet-5-5", "hello world");
+ok("anthropic params: model, system, single user turn", areq.model === "claude-sonnet-5-5" && areq.system.length > 0 && areq.messages.length === 1 && areq.messages[0].role === "user");
+ok("anthropic params truncate long transcript", buildAnthropicNotesParams("m", "x".repeat(60000)).messages[0].content.includes("(truncated)"));
+ok("anthropic text extraction joins text blocks", textFromAnthropicMessage({ content: [{ type: "text", text: "## Summary" }] }) === "## Summary");
+ok("anthropic empty output throws", (() => { try { textFromAnthropicMessage({ content: [] }); return false; } catch { return true; } })());
+ok("anthropic refusal throws", (() => { try { textFromAnthropicMessage({ stop_reason: "refusal", content: [] }); return false; } catch { return true; } })());
 
 // --- notion export ---
 const nb = markdownToNotionBlocks("# Title\n\n## Summary\n\n- point one\n- [ ] do a thing\n- [x] done thing\n\nA paragraph.");

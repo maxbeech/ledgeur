@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-11-13: AI notes move to the Anthropic API
+
+- `packages/core/src/notes/ai-notes.ts`: the bring-your-own-key AI notes provider list is now `local` (on-device llama.cpp, which speaks the OpenAI chat shape) and `anthropic` (official `@anthropic-ai/sdk`, default model `claude-sonnet-5-5`). The OpenAI, OpenRouter and Groq providers are removed.
+- A failed Anthropic call, a refusal or an empty reply throws an explicit error; there is no fallback.
+- Tests: `packages/core/test/run.mts` covers the Anthropic params builder, text extraction, refusal and empty-output errors.
+- Retired env vars: none were set for this product. `ANTHROPIC_API_KEY` is in the local `.env.local` only; no deployed code reads a server-side AI key.
+
 ## 2026-11-06: active return measurement
 
 - Record first measured visits and intentional returns using the shared three-hour, seven-day browser contract.

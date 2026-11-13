@@ -48,3 +48,4 @@ supabase/.temp/
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+.e2e-screens/
