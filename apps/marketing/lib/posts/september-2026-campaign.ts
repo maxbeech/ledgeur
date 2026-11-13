@@ -11,7 +11,7 @@ const SOURCES = {
   whisper: { label: "OpenAI: Introducing Whisper", href: "https://openai.com/index/whisper/" },
   ico: { label: "ICO: recording online meetings", href: "https://ico.org.uk/for-organisations/advice-for-small-organisations/information-security/data-sharing-advice/" },
   nist: { label: "NIST: AI Risk Management Framework", href: "https://www.nist.gov/publications/artificial-intelligence-risk-management-framework-ai-rmf-10" },
-  mcp: { label: "Model Context Protocol specification", href: "https://modelcontextprotocol.io/specification/2025-06-18/architecture/overview" },
+  mcp: { label: "Model Context Protocol specification (2026-07-28 revision)", href: "https://modelcontextprotocol.io/specification/2026-07-28/architecture" },
 } as const satisfies Record<string, Source>;
 
 type CampaignSpec = {
@@ -21,6 +21,8 @@ type CampaignSpec = {
   keyword: string;
   category: PostCategory;
   date: string;
+  /** Material revision date. Set only after a substantive edit, never for cosmetic changes. */
+  updated?: string;
   supporting: string[];
   longTail: string[];
   angle: string;
@@ -94,18 +96,11 @@ const SPECS: CampaignSpec[] = [
     decisions: ["Use a single home for decision records, not one copy per team channel.", "Separate reversible experiments from commitments with wider consequences.", "Record dissent or material uncertainty when it changes the interpretation of the outcome."], pitfalls: ["Treating every summary bullet as a decision.", "Losing the evidence trail when a ticket is closed.", "Leaving stale decisions visible without a review date."], sourceKeys: ["nist", "whisper"], internal: [INTERNAL.templates, INTERNAL.memory, INTERNAL.agents, INTERNAL.whisper], schema: ["HowTo", "FAQPage"],
   },
   {
-    slug: "meeting-notes-for-ai-agents", title: "Prepare Meeting Notes for AI Agents", description: "Prepare meeting notes for AI agents with ownership, scope and evidence links, so assistants retrieve useful context safely.", keyword: "meeting notes for AI agents", category: "Academy", date: "2026-09-18",
+    slug: "meeting-notes-for-ai-agents", title: "Prepare Meeting Notes for AI Agents", description: "Prepare meeting notes for AI agents with ownership, scope and evidence links, so assistants retrieve useful context safely.", keyword: "meeting notes for AI agents", category: "Academy", date: "2026-09-18", updated: "2026-11-10",
     supporting: ["agent-ready meeting notes", "AI agent context", "meeting data for agents", "agent permissions", "MCP meeting notes", "meeting knowledge base"], longTail: ["how to prepare meeting notes for an AI agent", "what meeting context should agents access"],
-    angle: "An agent can only be as trustworthy as the record it is allowed to retrieve. The useful unit is a scoped note with ownership and links to evidence, not an undifferentiated archive with no permission boundary.",
-    workflow: ["Classify the meeting record by audience and sensitivity before making it available to any retrieval layer.", "Keep the summary, decisions, action items and source link together so a response can be checked.", "Pass the smallest useful scope to an agent and test that the agent cannot retrieve records outside the caller’s entitlement.", "Log corrections to agent-generated answers and improve the source record instead of hiding recurring ambiguity in prompts."],
-    decisions: ["Define who grants access and how revocation works before connecting a new agent.", "Keep primary records distinct from generated summaries and answers.", "Test retrieval with real permission boundaries, not an administrator-only happy path."], pitfalls: ["Treating model context as a data warehouse with no ownership.", "Giving an agent broad access because filters are inconvenient.", "Making an agent answer sound certain when the linked record is tentative."], sourceKeys: ["mcp", "nist"], internal: [INTERNAL.agents, INTERNAL.memory, INTERNAL.security, INTERNAL.templates], schema: ["HowTo", "FAQPage"],
-  },
-  {
-    slug: "mcp-meeting-records-explained", title: "MCP Meeting Records: A Practical Guide", description: "Understand MCP meeting records, permissions and tool boundaries before connecting a meeting archive to an AI assistant.", keyword: "MCP meeting records", category: "News", date: "2026-09-19",
-    supporting: ["model context protocol meetings", "MCP meeting notes", "meeting record tools", "AI assistant meeting context", "MCP permissions", "agent data access"], longTail: ["how MCP works with meeting records", "connect meeting notes to an MCP client"],
-    angle: "MCP is a way for an AI client to discover and call tools. It does not remove the need to decide what a tool can return, which identity is calling it, or whether the caller should see a particular meeting.",
-    workflow: ["Start with one useful question, such as finding a decision from meetings a caller is already entitled to read.", "Define the tool input and output so it returns a cited, bounded answer rather than an entire archive.", "Authenticate the caller and apply the same workspace and record permissions as the primary product.", "Exercise error paths: no access, no result, partial result and an unavailable source should be explicit."],
-    decisions: ["Use narrow tools that are easy to audit and revoke.", "Return source identifiers or links so a human can verify an agent answer.", "Keep the tool contract versioned as records and permissions evolve."], pitfalls: ["Calling an open protocol a blanket permission model.", "Returning raw transcripts when a relevant decision excerpt would do.", "Testing only with privileged accounts."], sourceKeys: ["mcp", "nist"], internal: [INTERNAL.agents, INTERNAL.memory, INTERNAL.security, INTERNAL.templates], schema: ["FAQPage"],
+    angle: "An agent can only be as trustworthy as the record it is allowed to retrieve. The useful unit is a scoped note with ownership and links to evidence, not an undifferentiated archive with no permission boundary. Over MCP, an agent can only discover and call the tools a server exposes. The protocol does not decide what those tools may return, which identity is calling, or whether that caller should see a given meeting.",
+    workflow: ["Classify the meeting record by audience and sensitivity before making it available to any retrieval layer.", "Keep the summary, decisions, action items and source link together so a response can be checked.", "Authenticate each caller and apply the same workspace and record permissions as the primary product, then pass the smallest useful scope and test that the agent cannot retrieve records outside the caller’s entitlement, including with privileged accounts.", "Log corrections to agent-generated answers and improve the source record instead of hiding recurring ambiguity in prompts."],
+    decisions: ["Define who grants access and how revocation works before connecting a new agent.", "Keep primary records distinct from generated summaries and answers.", "Test retrieval with real permission boundaries, not an administrator-only happy path.", "Expose narrow tools that are easy to audit and revoke, and return source identifiers or links so a person can verify an answer.", "Keep the tool contract versioned as records and permissions evolve."], pitfalls: ["Treating model context as a data warehouse with no ownership.", "Calling an open protocol like MCP a blanket permission model, or giving an agent broad access because filters are inconvenient.", "Making an agent answer sound certain when the linked record is tentative."], sourceKeys: ["mcp", "nist"], internal: [INTERNAL.agents, INTERNAL.memory, INTERNAL.security, INTERNAL.templates], schema: ["HowTo", "FAQPage"],
   },
   {
     slug: "meeting-transcripts-as-company-context", title: "Use Meeting Transcripts as Company Context", description: "Make meeting transcripts useful company context with a source trail, retention rules and access controls—not a sprawling archive.", keyword: "meeting transcripts company context", category: "Academy", date: "2026-09-20",
@@ -164,7 +159,6 @@ const FEATURED_IMAGES: Record<string, FeaturedImage> = {
   "sales-call-notes-privacy-workflow": { src: "https://images.pexels.com/photos/8369220/pexels-photo-8369220.jpeg?auto=compress&cs=tinysrgb&fit=crop&h=627&w=1200", alt: "Sales call notes privacy workflow with a camera on a desk", photographer: "cottonbro studio", sourceUrl: "https://www.pexels.com/photo/black-video-camera-on-brown-wooden-table-8369220/" },
   "product-team-decision-log-from-meetings": { src: "https://images.pexels.com/photos/8369195/pexels-photo-8369195.jpeg?auto=compress&cs=tinysrgb&fit=crop&h=627&w=1200", alt: "Product decision log from meetings reviewed at a desk", photographer: "cottonbro studio", sourceUrl: "https://www.pexels.com/photo/a-man-in-gray-suit-sitting-on-the-chair-while-working-8369195/" },
   "meeting-notes-for-ai-agents": { src: "https://images.pexels.com/photos/23496922/pexels-photo-23496922.jpeg?auto=compress&cs=tinysrgb&fit=crop&h=627&w=1200", alt: "Meeting notes for AI agents prepared on a laptop", photographer: "Vitaly Gariev", sourceUrl: "https://www.pexels.com/photo/a-man-in-a-suit-sitting-at-a-table-with-a-laptop-23496922/" },
-  "mcp-meeting-records-explained": { src: "https://images.pexels.com/photos/2041638/pexels-photo-2041638.jpeg?auto=compress&cs=tinysrgb&fit=crop&h=627&w=1200", alt: "MCP meeting records discussed around laptops and notes", photographer: "CoWomen", sourceUrl: "https://www.pexels.com/photo/white-ceramic-mug-beside-laptop-2041638/" },
   "meeting-transcripts-as-company-context": { src: "https://images.pexels.com/photos/3747486/pexels-photo-3747486.jpeg?auto=compress&cs=tinysrgb&fit=crop&h=627&w=1200", alt: "Meeting transcripts as company context across shared workstations", photographer: "Polina Zimmerman", sourceUrl: "https://www.pexels.com/photo/photo-of-computers-near-window-3747486/" },
   "ai-agent-meeting-search-permissions": { src: "https://images.pexels.com/photos/7439124/pexels-photo-7439124.jpeg?auto=compress&cs=tinysrgb&fit=crop&h=627&w=1200", alt: "AI agent meeting search permissions reviewed on a laptop", photographer: "cottonbro studio", sourceUrl: "https://www.pexels.com/photo/woman-using-a-laptop-7439124/" },
   "speaker-label-review-for-meetings": { src: "https://images.pexels.com/photos/3760368/pexels-photo-3760368.jpeg?auto=compress&cs=tinysrgb&fit=crop&h=627&w=1200", alt: "Speaker label review for meetings on a laptop keyboard", photographer: "Andrea Piacquadio", sourceUrl: "https://www.pexels.com/photo/a-man-using-laptop-computer-on-white-table-3760368/" },
@@ -231,6 +225,7 @@ export const SEPTEMBER_2026_CAMPAIGN: Post[] = SPECS.map((spec) => ({
   description: spec.description,
   keyword: spec.keyword,
   date: spec.date,
+  updated: spec.updated,
   readMins: 8,
   category: spec.category,
   supportingKeywords: spec.supporting,

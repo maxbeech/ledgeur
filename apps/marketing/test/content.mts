@@ -33,7 +33,8 @@ export function runContentTests(ok: (name: string, cond: boolean, detail?: strin
   // appear in the index, get a static route, or make it into the sitemap.
   const campaign = POSTS.filter((post) => post.campaign === "september-2026-seo-geo");
   const words = (post: typeof campaign[number]) => JSON.stringify({ body: post.body, faqs: post.faqs }).match(/\b[\p{L}\p{N}’'-]+\b/gu)?.length ?? 0;
-  ok("the September campaign contains exactly 15 posts", campaign.length === 15, String(campaign.length));
+  // 15 at the September launch; 14 after the MCP guide was merged into the agents article.
+  ok("the September campaign contains exactly 14 posts", campaign.length === 14, String(campaign.length));
   ok("campaign titles stay below 60 characters", campaign.every((post) => post.title.length < 60), campaign.filter((post) => post.title.length >= 60).map((post) => post.title).join(" | "));
   ok("campaign descriptions stay below 155 characters", campaign.every((post) => post.description.length < 155), campaign.filter((post) => post.description.length >= 155).map((post) => post.slug).join(", "));
   ok("campaign dates are within the publication week", campaign.every((post) => post.date >= "2026-09-18" && post.date <= "2026-09-25"), campaign.map((post) => `${post.slug}:${post.date}`).join(", "));
@@ -311,6 +312,45 @@ export function runContentTests(ok: (name: string, cond: boolean, detail?: strin
   ok("the Otter article gives Fireflies and tl;dv their current bot routes",
     JSON.stringify(otterPost?.body).includes("Chrome extension can record Google Meet without one")
       && JSON.stringify(otterPost?.body).includes("Chrome extension sends a bot"));
+  // The software comparison took the Fireflies, Otter and Ledgeur material from
+  // the merged page, and fixed two claims the repository contradicts: Ledgeur
+  // does separate speakers in the browser, and Fireflies is not bot-only.
+  const comparison = postBySlug("meeting-recording-transcription-software-compared");
+  const comparisonText = JSON.stringify(comparison?.body);
+  ok("the software comparison is materially updated on 2026-11-10",
+    comparison?.updated === "2026-11-10", comparison?.updated);
+  ok("the software comparison carries the merged Fireflies, Otter and Ledgeur section",
+    comparisonText.includes("Fireflies, Otter and Ledgeur side by side"));
+  ok("the software comparison no longer denies Ledgeur speaker separation",
+    !comparisonText.includes("no speaker diarization") && comparisonText.includes("Speaker separation also runs in your browser"));
+  ok("the software comparison no longer calls Fireflies bot-only",
+    comparisonText.includes("Fireflies is not bot-only"));
+  ok("the software comparison cites the Fireflies pricing and extension pages",
+    (comparison?.sources ?? []).some((s) => s.href === "https://fireflies.ai/pricing")
+      && (comparison?.sources ?? []).some((s) => s.href === "https://fireflies.ai/product/chrome-extension"));
+  ok("the merged Fireflies comparison no longer has a post of its own",
+    !postBySlug("fireflies-vs-otter-vs-ledgeur"));
+
+  // The MCP guide was merged into the agents article: its tool-boundary material
+  // now sits there, the agents article is dated for that revision, and the
+  // shared MCP citation points at the live 2026-07-28 spec (the 2025-06-18
+  // architecture path returns 404).
+  const agentsPost = postBySlug("meeting-notes-for-ai-agents");
+  const agentsText = JSON.stringify(agentsPost?.body);
+  ok("the agents article is materially updated on 2026-11-10",
+    agentsPost?.updated === "2026-11-10", agentsPost?.updated);
+  ok("the agents article carries the merged MCP tool-boundary point",
+    agentsText.includes("Over MCP, an agent can only discover and call the tools a server exposes"));
+  ok("the agents article carries the merged narrow-tool decision and the privileged-account test",
+    agentsText.includes("Expose narrow tools that are easy to audit and revoke")
+      && agentsText.includes("including with privileged accounts"));
+  ok("the agents article cites the 2026-07-28 MCP specification",
+    (agentsPost?.sources ?? []).some((s) => s.href === "https://modelcontextprotocol.io/specification/2026-07-28/architecture"));
+  ok("no post still cites the 404 MCP path",
+    !POSTS.some((post) => (post.sources ?? []).some((s) => s.href.includes("2025-06-18/architecture"))));
+  ok("the merged MCP guide no longer has a post of its own",
+    !postBySlug("mcp-meeting-records-explained"));
+
   const teamsPost = postBySlug("how-to-transcribe-microsoft-teams-meetings");
   ok("the Teams article keeps the recording-location material from the merged page",
     JSON.stringify(teamsPost?.body).includes("If you already have a Teams recording"));

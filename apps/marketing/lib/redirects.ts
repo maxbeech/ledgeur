@@ -36,6 +36,16 @@ export const CONSOLIDATED_REDIRECTS: readonly ContentRedirect[] = [
     to: "/blog/how-to-transcribe-microsoft-teams-meetings",
     reason: "Same Teams transcription query. The how-to has primary sources and no licence-tier claims that go stale, and both pages ranked near position 9 for it.",
   },
+  {
+    from: "/blog/fireflies-vs-otter-vs-ledgeur",
+    to: "/blog/meeting-recording-transcription-software-compared",
+    reason: "Same software-comparison cluster. The comparison page had 24 impressions at position 14.8 and the Fireflies page 2 at position 6.5, so the Fireflies, Otter and Ledgeur material (bot, audio location, pricing, open source) now sits in the comparison page with its Fireflies claims corrected and sourced.",
+  },
+  {
+    from: "/blog/mcp-meeting-records-explained",
+    to: "/blog/meeting-notes-for-ai-agents",
+    reason: "Same AI-agent meeting-records cluster. The agents article had 10 impressions at position 12.6, the MCP guide 2 at position 6. Its tool-boundary material (narrow tools, caller identity, error paths, privileged-account testing) now sits in the agents article.",
+  },
 ];
 
 /** The shape next.config.ts hands to Next.js: a permanent 301 per merged path. */

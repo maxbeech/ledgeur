@@ -6,6 +6,13 @@
 - A failed Anthropic call, a refusal or an empty reply throws an explicit error; there is no fallback.
 - Tests: `packages/core/test/run.mts` covers the Anthropic params builder, text extraction, refusal and empty-output errors.
 - Retired env vars: none were set for this product. `ANTHROPIC_API_KEY` is in the local `.env.local` only; no deployed code reads a server-side AI key.
+## 2026-11-10: content lifecycle pass
+
+- **Content lifecycle pass: two pages merged, two refreshed.** Chosen from the Content Inventory verdicts on 90 days of Search Console data.
+  - **Merged** `/blog/fireflies-vs-otter-vs-ledgeur` into `/blog/meeting-recording-transcription-software-compared`, and `/blog/mcp-meeting-records-explained` into `/blog/meeting-notes-for-ai-agents`. Both losing URLs answer with a permanent 301 (`apps/marketing/lib/redirects.ts`), leave the sitemap and are removed from the guide clusters in `apps/marketing/lib/guides.ts`.
+  - **Software comparison refreshed.** It said Ledgeur has no speaker separation in its basic version. The app separates speakers in the browser (`packages/core/src/browser/voices.ts`), so that is corrected. It also said Fireflies always sends a bot; its Chrome extension can record Google Meet without one. That is corrected and cited to Fireflies' pricing and extension pages. The merged Fireflies, Otter and Ledgeur comparison now sits in the article.
+  - **Agents article refreshed.** It now carries the MCP tool-boundary material from the merged guide (narrow tools, caller identity, error paths, privileged-account testing). Its shared MCP citation moved from the 2025-06-18 architecture path, which returns 404, to the 2026-07-28 revision. That source feeds three campaign articles.
+  - Tests: `apps/marketing/test/content.mts` pins each merge, each corrected claim and the citation. The September campaign is now 14 posts. Marketing suite: 757 passing, 2 failing. Both failures are in `app/blog/page.tsx` (blog index title length and brand repetition) and predate this change (commit `e723794`). Typecheck and build pass. Lint reports errors only in files this change does not touch.
 
 ## 2026-11-06: active return measurement
 
