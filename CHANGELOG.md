@@ -1,5 +1,15 @@
 # Changelog
 
+## 2026-11-16: Contextely integration moves to Contextely v2
+
+Contextely v2 removes its v1 API with no compatibility shim. Coded against Contextely's tool catalogue (`src/lib/api/catalogue.ts`, snake_case). **Not yet checked against a live v2: that waits for the Contextely v2 cutover.** The edge functions are changed in the repo but not redeployed: deploy `contextely-connect` and `contextely-context` through the Supabase MCP at the cutover. No schema change.
+
+- **Connect.** `contextely-connect` verifies a pasted `ctx_sk_` key with `GET /api/v1/me` (was `GET /usage`) and keeps the workspace name in `integrations.config` (`workspace_name`) and the id in `external_account_id`. Contextely's own refusal message is passed back to the card.
+- **Context.** `contextely-context` calls `search` (`GET /api/v1/search?query=&limit=6`, query capped at 500 characters), then `record_get` for the top three hits, and returns one Ask block per hit: the title (and collection) as the citation, the matching snippet, the record's properties and page text (capped at 2,500 characters). `kind: derived` hits say they are AI-derived and lower confidence. A failed `record_get` keeps that hit's snippet; a failed search still means no Contextely context rather than a broken Ask. The old summary/freshness handling is gone with v1.
+- **One shared module.** Both functions use `supabase/functions/_shared/contextely.ts` (pure; `fetch` and the base URL are passed in, so it runs under Deno and under the tests). `CONTEXTELY_BASE_URL` keeps its meaning (it includes `/api/v1`).
+- **Copy.** The Integrations card and the `/company-memory` page now say Contextely gives Ask your company's knowledge, limited to what you can see, and the card names the connected workspace.
+- Tests: `apps/desktop/test/contextely.mts` runs the shared module against a stubbed local Contextely HTTP server (verify, search, record_get, derived, degraded and refused reads, query cap, base URL) and pins both functions and the card copy. Desktop suite: 505 passing.
+
 ## 2026-11-13: AI notes move to the Anthropic API
 
 - `packages/core/src/notes/ai-notes.ts`: the bring-your-own-key AI notes provider list is now `local` (on-device llama.cpp, which speaks the OpenAI chat shape) and `anthropic` (official `@anthropic-ai/sdk`, default model `claude-sonnet-5-5`). The OpenAI, OpenRouter and Groq providers are removed.

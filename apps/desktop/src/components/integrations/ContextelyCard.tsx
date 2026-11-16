@@ -1,9 +1,9 @@
-// Contextely — Beech's shared company-memory layer — connected in BOTH
+// Contextely — Beech's shared company knowledge base — connected in BOTH
 // directions, because "integrated with Contextely" only half-happened before.
 //
-//   Contextely → Ledgeur   the company's memory (Notion, Drive, Postgres,
-//                          anything else connected there) is searched alongside
-//                          your meetings when you ask a question. This half
+//   Contextely → Ledgeur   the company's knowledge is searched alongside your
+//                          meetings when you ask a question, limited to what
+//                          the key's owner can see in Contextely. This half
 //                          already worked: paste a personal API key.
 //
 //   Ledgeur → Contextely   your meetings BECOME company memory, so anyone
@@ -27,22 +27,26 @@ import { openExternal } from "../../lib/runtime.ts";
 import { SITE_URL } from "../../lib/links.ts";
 import {
   CONTEXTELY_SIGNUP_URL, CONTEXTELY_SOURCES_URL,
-  connectContextely, disconnectContextely, isContextelyConnected,
+  connectContextely, contextelyConnection, disconnectContextely,
 } from "../../lib/contextely.ts";
 
 export function ContextelyCard({ signedIn }: { signedIn: boolean }) {
   const [connected, setConnected] = useState(false);
+  const [workspace, setWorkspace] = useState<string | null>(null);
   const [key, setKey] = useState("");
   const [state, setState] = useState<{ busy: boolean; err: string }>({ busy: false, err: "" });
   const [copied, setCopied] = useState(false);
 
-  useEffect(() => { if (signedIn) void isContextelyConnected().then(setConnected); }, [signedIn]);
+  useEffect(() => {
+    if (signedIn) void contextelyConnection().then((c) => { setConnected(c.connected); setWorkspace(c.workspace); });
+  }, [signedIn]);
 
   async function connect() {
     setState({ busy: true, err: "" });
     try {
       await connectContextely(key);
-      setConnected(true); setKey("");
+      const c = await contextelyConnection();
+      setConnected(true); setWorkspace(c.workspace); setKey("");
       setState({ busy: false, err: "" });
     } catch (e) {
       setState({ busy: false, err: e instanceof Error ? e.message : String(e) });
@@ -53,7 +57,7 @@ export function ContextelyCard({ signedIn }: { signedIn: boolean }) {
     setState({ busy: true, err: "" });
     try {
       await disconnectContextely();
-      setConnected(false);
+      setConnected(false); setWorkspace(null);
       setState({ busy: false, err: "" });
     } catch (e) {
       setState({ busy: false, err: e instanceof Error ? e.message : String(e) });
@@ -74,20 +78,21 @@ export function ContextelyCard({ signedIn }: { signedIn: boolean }) {
             {connected && <Badge tone="accent"><Check className="h-3 w-3" /> connected</Badge>}
           </div>
           <p className="mt-0.5 text-xs leading-relaxed text-muted">
-            Your company's shared memory. Connected both ways: Contextely's knowledge answers
-            questions here, and your meetings become part of that memory for everyone entitled
-            to them.
+            Contextely gives Ask your company's knowledge, limited to what you can see. Connected both
+            ways: Contextely's knowledge answers questions here, and your meetings become part of it
+            for everyone entitled to them.
           </p>
 
           {/* ---- Contextely → Ledgeur ---- */}
           <div className="mt-4 border-t border-hairline pt-3">
-            <div className="ldg-label mb-1.5">Company memory, in your questions</div>
+            <div className="ldg-label mb-1.5">Company knowledge, in your questions</div>
             {!signedIn ? (
               <div className="text-xs text-muted">Sign in above to connect Contextely.</div>
             ) : connected ? (
               <div className="flex items-center gap-3">
                 <p className="flex-1 text-xs leading-relaxed text-faint">
-                  Ask and the meeting copilot now search Contextely alongside your own meetings.
+                  {workspace ? `Connected to ${workspace}. ` : ""}Ask and the meeting copilot now search your
+                  company's knowledge in Contextely alongside your own meetings, limited to what you can see there.
                 </p>
                 <Button size="sm" tone="secondary" onClick={disconnect} disabled={state.busy}>
                   {state.busy ? <Spinner /> : "Disconnect"}
@@ -96,8 +101,9 @@ export function ContextelyCard({ signedIn }: { signedIn: boolean }) {
             ) : (
               <div className="space-y-2">
                 <p className="text-xs leading-relaxed text-faint">
-                  Paste a personal API key from your Contextely dashboard. It is validated and kept
-                  server-side — it never touches this device's storage.
+                  Paste a personal API key from your Contextely dashboard. Ask can only use what that key's
+                  owner can see in Contextely, and nothing else. The key is verified and kept server-side
+                  — it never touches this device's storage.
                 </p>
                 <div className="flex gap-2">
                   <input
@@ -128,7 +134,7 @@ export function ContextelyCard({ signedIn }: { signedIn: boolean }) {
               In Contextely, add a source and choose <span className="text-ink-text">Ledgeur</span>. It asks for
               two things: this endpoint, and a data-access token — generate one under
               <span className="text-ink-text"> Agent access</span> below. Contextely then keeps your meetings
-              condensed and refreshed on its own; nothing is pushed from here.
+              kept up to date on its own; nothing is pushed from here.
             </p>
             <div className="mt-2 flex items-center gap-2">
               <code className="min-w-0 flex-1 truncate rounded-lg border border-hairline bg-surface-sunken px-2.5 py-1.5 font-mono text-2xs text-ink-text">

@@ -1,22 +1,16 @@
-// Pull Contextely context for an Ask question. Contextely is the shared
-// company-memory layer — Notion, Drive, Postgres and anything else the org
-// has connected there, condensed and searched under the connecting member's
-// own entitlement, so this never returns anything that member couldn't see
-// inside Contextely itself. Same non-fatal shape as notion-context: no
-// connection, no key, or a Contextely error just means no Contextely context,
-// never a broken Ask.
+// Pull Contextely context for an Ask question. Contextely is the company's
+// knowledge base; a key acts as one person and searches only what that person can
+// see inside Contextely, so this never returns anything they couldn't read there.
+// `search` finds the records, then `record_get` reads the top few in full; each block
+// is headed by the record's title so an answer can cite it. Same non-fatal shape as
+// notion-context: no connection, no key, or a Contextely error just means no
+// Contextely context, never a broken Ask.
 
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { json, preflight } from "../_shared/cors.ts";
+import { contextelyBaseUrl, searchContext } from "../_shared/contextely.ts";
 
-const BASE_URL = (Deno.env.get("CONTEXTELY_BASE_URL") ?? "https://www.contextely.com/api/v1").replace(/\/+$/, "");
-
-interface SearchHit {
-  title?: string;
-  summary?: string;
-  source_name?: string;
-  freshness?: { state?: string };
-}
+const BASE_URL = contextelyBaseUrl(Deno.env.get("CONTEXTELY_BASE_URL"));
 
 Deno.serve(async (req) => {
   const pre = preflight(req);
@@ -45,29 +39,12 @@ Deno.serve(async (req) => {
     .from("integration_secrets").select("access_token").eq("integration_id", integ.id).maybeSingle();
   if (!secret?.access_token) return json({ ok: true, blocks: [] }); // key missing — non-fatal
 
-  let searchRes: Response;
+  let blocks;
   try {
-    searchRes = await fetch(`${BASE_URL}/search`, {
-      method: "POST",
-      headers: { Authorization: `Bearer ${secret.access_token}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ query, limit: 6 }),
-    });
+    blocks = await searchContext(BASE_URL, secret.access_token, query);
   } catch {
-    return json({ ok: true, blocks: [] }); // Contextely unreachable — non-fatal for Ask
+    return json({ ok: true, blocks: [] }); // Contextely unreachable or erroring — non-fatal for Ask
   }
-  if (!searchRes.ok) return json({ ok: true, blocks: [] }); // Contextely error — non-fatal for Ask
-
-  const found = (await searchRes.json()) as { results?: SearchHit[] };
-  const blocks = (found.results ?? [])
-    .filter((hit) => hit.summary)
-    .map((hit) => {
-      const stale = hit.freshness?.state && hit.freshness.state !== "fresh";
-      const label = hit.source_name ? `${hit.title ?? "Untitled"} — ${hit.source_name}` : hit.title ?? "Untitled";
-      return {
-        source: `Contextely: ${label}`,
-        text: stale ? `${hit.summary} (may be out of date — Contextely could not refresh it)` : hit.summary!,
-      };
-    });
 
   return json({ ok: true, blocks });
 });

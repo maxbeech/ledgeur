@@ -227,12 +227,21 @@ unusable. See [`docs/OVERHAUL.md`](docs/OVERHAUL.md) and the
 The 2026-09 **grounding pass** rebuilt what a question is allowed to see. Asking
 something mid-meeting now reaches the live transcript *with speakers and
 timestamps*, who has spoken, your own typed notes, and — in the same prompt —
-Contextely company memory, Notion, the org's indexed meetings and your past
-recordings, on a five-second deadline that names whatever did not arrive in
-time. Every answer shows the sources it was grounded in. The same pass added
+Contextely company knowledge (limited to what the key's owner can see there),
+Notion, the org's indexed meetings and your past recordings, on a five-second
+deadline that names whatever did not arrive in time. Every answer shows the sources it was grounded in. The same pass added
 per-line provenance from notes back to the transcript, follow-up email drafts,
 user-written note recipes, 32 spoken languages, spaces, a derived people
 directory, signed outbound webhooks, calendar auto-start and SAML SSO.
+
+**Contextely (v2).** Optional: paste a `ctx_sk_` key in Settings. The key is
+verified with `GET /api/v1/me` and stored server-side (`contextely-connect`).
+Ask then gets the company's knowledge limited to what the key's owner can see:
+`contextely-context` calls Contextely's `search`, then `record_get` for the top
+three hits, and cites each record by title (AI-derived records are marked lower
+confidence). Both edge functions share `supabase/functions/_shared/contextely.ts`;
+`CONTEXTELY_BASE_URL` (default `https://www.contextely.com/api/v1`) points them
+at a self-hosted instance.
 
 The 2026-09-06 **redesign, phone and sync pass** replaced the design system
 outright — one sans family, a neutral canvas with six pastel families, light

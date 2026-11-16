@@ -64,15 +64,16 @@ export default function CompanyMemory() {
         <SectionHead
           kicker="Contextely"
           title="And when meetings should feed the whole company's memory."
-          lede="Contextely is a context layer: it condenses what a company knows across Notion, Drive, Postgres and any MCP source into one searchable memory, scored by what the person asking is entitled to see. Ledgeur connects to it in both directions."
+          lede="Contextely is a company knowledge base that people and their AI tools share: records and pages, plus what is synced in from Notion, Drive, Postgres and any MCP source, always limited to what the person asking can see. Ledgeur connects to it in both directions."
         />
         <div className="mt-8 grid gap-4 sm:grid-cols-2">
           <Card className="p-5">
             <Label className="mb-2.5">Contextely into Ledgeur</Label>
             <p className="text-base leading-relaxed text-muted">
-              Paste a personal Contextely key into Settings and asking Ledgeur a question reaches
-              the company&rsquo;s memory alongside your own meetings. The key is validated and kept
-              server-side, never on the device, the same as every other integration&rsquo;s secret.
+              Paste a personal Contextely key into Settings and Contextely gives Ask your
+              company&rsquo;s knowledge, limited to what you can see, alongside your own meetings.
+              The key is verified and kept server-side, never on the device, the same as every
+              other integration&rsquo;s secret.
             </p>
           </Card>
           <Card className="p-5">

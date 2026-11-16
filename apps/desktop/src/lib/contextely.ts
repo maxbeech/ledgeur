@@ -1,14 +1,15 @@
 // Contextely integration (client side). Contextely is Beech's other product —
-// the shared context layer that condenses everything a company knows (Notion,
-// Drive, Postgres, MCP sources...) into one searchable memory, scored by the
-// asker's own entitlement. Connecting it here means Ask and the copilot draw
-// on that company-wide memory alongside Ledgeur's own local meetings, the same
-// way notion.ts adds Notion pages.
+// the company's shared knowledge base: collections, records and pages that people
+// and their AI tools share, plus what's synced in from Notion, Drive, Postgres and
+// MCP sources. Connecting it here gives Ask and the copilot the company's
+// knowledge, limited to what the person who owns the key can see in Contextely,
+// alongside Ledgeur's own local meetings (the same way notion.ts adds Notion pages).
 //
 // No OAuth: the user pastes a personal Contextely API key (ctx_sk_...) from
 // their Contextely dashboard. The key never reaches this device's storage —
-// it's validated and kept server-side (contextely-connect), same as every
-// other integration's secret.
+// it's verified (GET /api/v1/me) and kept server-side (contextely-connect), same
+// as every other integration's secret. Context comes from the v2 `search` tool and
+// `record_get` for the top hits (contextely-context).
 
 import { getSupabase } from "./supabase.ts";
 import type { ContextBlock } from "./chat.ts";
@@ -25,13 +26,20 @@ export const CONTEXTELY_SIGNUP_URL = "https://www.contextely.com";
 export const CONTEXTELY_SOURCES_URL = "https://www.contextely.com/sources";
 
 export async function isContextelyConnected(): Promise<boolean> {
-  const sb = getSupabase();
-  if (!sb) return false;
-  const { data } = await sb.from("integrations").select("id").eq("provider", "contextely").maybeSingle();
-  return Boolean(data);
+  return (await contextelyConnection()).connected;
 }
 
-/** Validate and store a Contextely API key. Throws with Contextely's own
+/** Whether Contextely is connected, and the workspace name verified at connect time. */
+export async function contextelyConnection(): Promise<{ connected: boolean; workspace: string | null }> {
+  const sb = getSupabase();
+  if (!sb) return { connected: false, workspace: null };
+  const { data } = await sb.from("integrations").select("id, config").eq("provider", "contextely").maybeSingle();
+  if (!data) return { connected: false, workspace: null };
+  const name = (data.config as { workspace_name?: unknown } | null)?.workspace_name;
+  return { connected: true, workspace: typeof name === "string" && name ? name : null };
+}
+
+/** Verify and store a Contextely API key. Throws with Contextely's own
  *  rejection reason (bad key, wrong host, ...) so the user can fix it. */
 export async function connectContextely(apiKey: string): Promise<void> {
   const sb = getSupabase();
@@ -48,8 +56,8 @@ export async function disconnectContextely(): Promise<void> {
   if (error) throw new Error(error.message);
 }
 
-/** Contextely memory objects matching the question, as Ask context. Never
- *  throws — no connection or a Contextely error just means no Contextely
+/** Contextely records matching the question (search, then the top hits in full),
+ *  as Ask context. Never throws — no connection or a Contextely error just means no Contextely
  *  context, not a broken Ask. */
 export async function contextelyContext(question: string): Promise<ContextBlock[]> {
   const sb = getSupabase();

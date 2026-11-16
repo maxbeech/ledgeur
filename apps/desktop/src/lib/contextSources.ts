@@ -70,7 +70,8 @@ async function signedIn(): Promise<boolean> {
 }
 
 /**
- * Contextely — the company memory shared with Beech's other product.
+ * Contextely — the company knowledge base shared with Beech's other product,
+ * limited to what the connecting person can see there.
  *
  * Called out separately from the rest because it is the one source whose
  * absence a person is likely to notice and ask about ("why doesn't it know

@@ -1,22 +1,24 @@
-// Store a user's Contextely API key after validating it against Contextely's
-// own API. Contextely is the company's shared memory layer — Notion, Drive,
-// Postgres and anything else the org has connected there, condensed into one
-// searchable place; connecting it here lets Ask/the copilot draw on it,
-// alongside Ledgeur's own local meeting knowledge.
+// Store a user's Contextely API key after verifying it against Contextely's own
+// API (`GET /v1/me`). Contextely is the company's knowledge base: connecting it
+// here gives Ask and the copilot the company's knowledge, limited to what the key's
+// person can see in Contextely, alongside Ledgeur's own local meeting knowledge.
 //
 // Unlike Notion this isn't OAuth: Contextely issues a personal bearer key
 // (ctx_sk_...) from its own dashboard, so this just verifies the key actually
-// works and stores it — same integrations/integration_secrets tables, same
-// service-role-only access, as every other provider.
+// works and stores it, in the same integrations/integration_secrets tables with
+// the same service-role-only access as every other provider. The workspace name
+// `/me` returns is kept in `integrations.config` so the card can say what is
+// connected without another round trip.
 //
-// Env (supabase secrets set): CONTEXTELY_BASE_URL (optional — defaults to the
-// hosted API; point it at a self-hosted instance instead if that's what the
-// org runs).
+// Env (supabase secrets set): CONTEXTELY_BASE_URL (optional; defaults to the
+// hosted API, `https://www.contextely.com/api/v1`. Point it at a self-hosted
+// instance instead if that's what the org runs).
 
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { corsHeaders, json, preflight } from "../_shared/cors.ts";
+import { contextelyBaseUrl, ContextelyHttpError, verifyKey } from "../_shared/contextely.ts";
 
-const BASE_URL = (Deno.env.get("CONTEXTELY_BASE_URL") ?? "https://www.contextely.com/api/v1").replace(/\/+$/, "");
+const BASE_URL = contextelyBaseUrl(Deno.env.get("CONTEXTELY_BASE_URL"));
 
 Deno.serve(async (req) => {
   const pre = preflight(req);
@@ -38,17 +40,16 @@ Deno.serve(async (req) => {
   if (userErr || !userData.user) return json({ error: "Not authenticated" }, 401);
   const userId = userData.user.id;
 
-  // Verify the key actually works before storing it — a typo'd or revoked key
-  // would otherwise silently "connect" to nothing.
-  let checkRes: Response;
+  // Verify the key actually works before storing it (GET /v1/me) — a typo'd or
+  // revoked key would otherwise silently "connect" to nothing.
+  let workspace: { workspaceId: string | null; workspaceName: string | null };
   try {
-    checkRes = await fetch(`${BASE_URL}/usage`, { headers: { Authorization: `Bearer ${key}` } });
-  } catch {
-    return json({ error: "Could not reach Contextely. Check CONTEXTELY_BASE_URL and try again." }, 502);
-  }
-  if (!checkRes.ok) {
-    const detail = await checkRes.json().catch(() => null) as { error?: { message?: string } } | null;
-    return json({ error: detail?.error?.message ?? `Contextely rejected this key (${checkRes.status}).` }, 400);
+    workspace = await verifyKey(BASE_URL, key);
+  } catch (e) {
+    if (e instanceof ContextelyHttpError && e.status === null) {
+      return json({ error: "Could not reach Contextely. Check CONTEXTELY_BASE_URL and try again." }, 502);
+    }
+    return json({ error: e instanceof Error ? e.message : "Contextely rejected this key." }, 400);
   }
 
   const admin = createClient(url, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
@@ -58,7 +59,7 @@ Deno.serve(async (req) => {
   const { data: integ, error: iErr } = await admin
     .from("integrations")
     .upsert(
-      { org_id: member.org_id, user_id: userId, provider: "contextely", external_account_id: null, config: {} },
+      { org_id: member.org_id, user_id: userId, provider: "contextely", external_account_id: workspace.workspaceId, config: { workspace_name: workspace.workspaceName } },
       { onConflict: "user_id,provider" },
     )
     .select("id")
