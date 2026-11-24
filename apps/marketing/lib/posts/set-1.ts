@@ -81,6 +81,7 @@ export const SET_1: Post[] = [
     date: "2026-06-12",
     updated: "2026-11-04",
     readMins: 8,
+    featuredImage: { src: "https://images.pexels.com/photos/8382280/pexels-photo-8382280.jpeg?auto=compress&cs=tinysrgb&fit=crop&h=627&w=1200", alt: "Browser tab audio capture workflow with a recorder on a desk", photographer: "cottonbro studio", sourceUrl: "https://www.pexels.com/photo/a-man-using-a-recorder-8382280/" },
     body: [
       { type: "p", text: "You've seen it: halfway through a call, 'Otter.ai Notetaker has joined the meeting' pops up and everyone pauses. Notetaker bots are intrusive, they need broad calendar permissions, and they stream your audio to a vendor's servers." },
       { type: "h2", text: "Why bots exist" },

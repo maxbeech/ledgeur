@@ -77,6 +77,7 @@ export const SET_3: Post[] = [
     date: "2026-06-20",
     updated: "2026-11-10",
     readMins: 7,
+    featuredImage: { src: "https://images.pexels.com/photos/8463160/pexels-photo-8463160.jpeg?auto=compress&cs=tinysrgb&fit=crop&h=627&w=1200", alt: "Colleagues in a video conference call", photographer: "Kampus Production", sourceUrl: "https://www.pexels.com/photo/colleagues-in-a-video-conference-8463160/" },
     body: [
       { type: "p", text: "The meeting transcription market has exploded since 2022. There are now dozens of tools that join your calls, record, transcribe and summarise. Here's how the main categories compare." },
       { type: "h2", text: "Bot-based cloud notetakers" },
