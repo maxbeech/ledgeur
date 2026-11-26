@@ -74,8 +74,10 @@ export function useImport(onImported?: (meeting: LocalMeeting) => void) {
     let diarizer: DiarizerController | null = null;
 
     try {
+      // A file this browser cannot decode is the person's file, not a fault: raised as
+      // ExpectedClientError so reportClientError does not file it as a Sentry issue.
       const decoded = await AudioCapture.decodeFile(file).catch(() => {
-        throw new Error("That file could not be decoded. It may not be an audio or video file, or it may use a codec this browser cannot read — an .m4a, .mp3 or .wav export usually works.");
+        throw new ExpectedClientError("That file could not be decoded. It may not be an audio or video file, or it may use a codec this browser cannot read — an .m4a, .mp3 or .wav export usually works.");
       });
       if (decoded.audio.length === 0) throw new Error("That file has no audio in it.");
 

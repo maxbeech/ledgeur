@@ -77,6 +77,11 @@ export function runSentryTests(ok: Ok) {
   ];
   for (const [file, what, re] of sites) ok(`${what} reaches Sentry (${file})`, re.test(read(`../${file}`)));
 
+  // --- a file the browser cannot decode is the person's file, not a fault (Sentry LEDGEUR_WEB-A / issue 162681221).
+  // The thrower must say so with ExpectedClientError, or reportClientError files it as an Issue.
+  ok("an undecodable file is raised as an expected client error (lib/useImport.ts)",
+    /throw new ExpectedClientError\(\s*"That file could not be decoded\./.test(read("../lib/useImport.ts")));
+
   // --- the Stripe webhook (a Deno edge function) reports its failure paths
   const webhook = read("../../../supabase/functions/stripe-webhook/index.ts");
   ok("the webhook reports activation and plan-update failures to Sentry", (webhook.match(/captureEdgeError\(/g) ?? []).length === 3, String((webhook.match(/captureEdgeError\(/g) ?? []).length));

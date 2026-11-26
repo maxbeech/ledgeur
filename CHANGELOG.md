@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-11-26: undecodable import is not a Sentry issue
+
+- **A file the browser cannot decode is reported as the person's file, not a fault.** Sentry issue 162681221 (LEDGEUR_WEB-A, "That file could not be decoded") was filed as a critical error for a handled, expected case: the browser has no codec for the file.
+  - `apps/marketing/lib/useImport.ts` now throws `ExpectedClientError` for that case, so `reportClientError` skips it. The person still sees the same message.
+  - Regression check added in `apps/marketing/test/sentry.mts`. The desktop copy in `apps/desktop/src/lib/useFileImport.ts` is unchanged and not covered by this fix.
+
 ## 2026-11-10: content lifecycle pass
 
 - **Content lifecycle pass: two pages merged, two refreshed.** Chosen from the Content Inventory verdicts on 90 days of Search Console data.
